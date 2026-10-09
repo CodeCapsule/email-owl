@@ -1,0 +1,8 @@
+{
+  "name": "emberwood-online",
+  "version": "1.0.0",
+  "description": "A small 2D browser MMORPG",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}

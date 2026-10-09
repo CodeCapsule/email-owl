@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emberwood Online</title>
+<style>
+  html,body{margin:0;height:100%;background:#10140f;color:#eee;font:14px/1.3 system-ui,sans-serif;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;image-rendering:pixelated}
+  #login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#10140fe8;z-index:5}
+  #login div{background:#24301f;border:2px solid #6b8a4a;border-radius:10px;padding:28px 34px;text-align:center;max-width:340px}
+  #login h1{margin:0 0 6px;color:#f0c050;font-size:28px}
+  #login p{margin:4px 0 14px;color:#b9c9a8}
+  input{font:inherit;padding:8px 10px;border-radius:6px;border:1px solid #6b8a4a;background:#141b11;color:#fff}
+  button{font:inherit;padding:8px 16px;border-radius:6px;border:0;background:#6b8a4a;color:#fff;cursor:pointer}
+  #err{color:#f77;min-height:18px;margin-top:8px}
+  #chat{position:fixed;left:8px;bottom:8px;width:min(420px,60vw);display:none}
+  #log{height:130px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;background:#0007;padding:6px;border-radius:6px;text-shadow:1px 1px #000}
+  #log .sys{color:#ffd06a}
+  #msg{width:100%;box-sizing:border-box;margin-top:4px}
+  #help{position:fixed;right:8px;bottom:8px;background:#0007;padding:6px 10px;border-radius:6px;font-size:12px;color:#cdd;display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="login"><div>
+  <h1>Emberwood Online</h1>
+  <p>A tiny 2D multiplayer adventure.</p>
+  <input id="name" maxlength="14" placeholder="Hero name" autofocus>
+  <button id="go">Play</button>
+  <div id="err"></div>
+</div></div>
+<div id="chat"><div id="log"></div><input id="msg" maxlength="120" placeholder="Press Enter to chat"></div>
+<div id="help">WASD/Arrows move · Click ground to walk · Click monster to attack · Space attack nearest · Q potion · Enter chat</div>
+<script src="game.js"></script>
+</body>
+</html>
