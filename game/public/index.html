@@ -23,6 +23,23 @@
   #log .sys{color:var(--gold)}
   #msg{width:100%;box-sizing:border-box;margin-top:6px}
   #help{position:fixed;right:12px;bottom:12px;background:#3a2616b8;border:2px solid var(--ink);padding:6px 12px;border-radius:12px;font-size:12px;color:var(--cream);display:none;max-width:42vw}
+  #bagbtn{position:fixed;left:12px;top:116px;display:none}
+  #inv{position:fixed;right:12px;top:60px;width:292px;background:var(--wood2);border:4px solid var(--ink);box-shadow:0 0 0 4px var(--wood),0 10px 26px #0008;border-radius:16px;padding:12px 14px;z-index:4;user-select:none}
+  #inv[hidden]{display:none}
+  #inv h3{margin:0 0 8px;color:var(--gold);display:flex;justify-content:space-between;align-items:center;text-shadow:0 2px 0 var(--ink)}
+  #inv h3 button{padding:2px 9px;background:#e57a6a;color:#fff}
+  #eq,#grid{display:grid;gap:6px}
+  #eq{grid-template-columns:repeat(4,1fr);margin-bottom:6px}
+  #grid{grid-template-columns:repeat(5,1fr);margin-top:8px}
+  .slot{position:relative;aspect-ratio:1;border:2px solid #4a3322;border-radius:9px;background:#4d3523;display:flex;align-items:center;justify-content:center;font-size:23px}
+  .slot.full{cursor:pointer;background:#6a4c34}
+  .slot.full:hover,.slot.sel{background:#8a6544;outline:2px solid var(--gold)}
+  .slot span{position:absolute;right:3px;bottom:0;font-size:11px;font-weight:bold;color:#fff;text-shadow:1px 1px #000,-1px -1px #000,1px -1px #000,-1px 1px #000}
+  #stats{font-size:12px;color:var(--gold);text-align:center}
+  #detail{margin-top:10px;min-height:62px;background:#4d3523;border-radius:9px;padding:8px 10px;font-size:12.5px}
+  #detail .btns{margin-top:6px;display:flex;gap:6px}
+  #detail button,#sellall{padding:4px 10px;font-size:12px;box-shadow:0 2px 0 var(--ink)}
+  #sellall{width:100%;margin-top:8px;background:#f2c14e;color:#4a2f10}
 </style>
 </head>
 <body>
@@ -35,7 +52,13 @@
   <div id="err"></div>
 </div></div>
 <div id="chat"><div id="log"></div><input id="msg" maxlength="120" placeholder="Press Enter to chat"></div>
-<div id="help">WASD/Arrows move · Click ground to walk · Click monster to attack · Space attack nearest · Q potion · Enter chat</div>
+<button id="bagbtn">🎒 Bag (I)</button>
+<div id="inv" hidden>
+  <h3>🎒 Backpack <button id="closeinv">✕</button></h3>
+  <div id="eq"></div><div id="stats"></div><div id="grid"></div><div id="detail"></div>
+  <button id="sellall">Sell all loot junk (in town)</button>
+</div>
+<div id="help">WASD/Arrows move · Click ground to walk · Click monster to attack · Space attack nearest · Q potion · I bag · Enter chat</div>
 <script src="game.js"></script>
 </body>
 </html>

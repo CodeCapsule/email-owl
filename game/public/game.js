@@ -1,12 +1,12 @@
 'use strict';
-const TS = 32;
+const TS = 32, MOVE_MS = 125, GLIDE = 10; // client move interval (ms) and glide speed (tiles/s)
 const T = { GRASS: 0, WATER: 1, TREE: 2, PATH: 3, SAND: 4, WALL: 5, FLOWER: 6 };
 const SOLID = new Set([1, 2, 5]);
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
-let ws, W, H, map, MON, myId, you = { xp: 0, next: 1, gold: 0, potions: 0 };
+let ws, W, H, map, MON, ITEMS = {}, INV_MAX = 20, myId, you = { xp: 0, next: 1, gold: 0, potions: 0, atk: 0, def: 0, inv: [], eq: {} };
 let players = new Map(), mons = new Map(), floats = [], bubbles = new Map(), swings = [];
-let path = [], targetId = null, keys = {}, lastSend = 0, lastAtk = 0, camera = { x: 0, y: 0 }, chatting = false;
+let path = [], targetId = null, keys = {}, lastSend = 0, lastAtk = 0, camera = { x: 0, y: 0 }, chatting = false, lastFrame = 0, selSlot = -1;
 
 function resize() { cv.width = innerWidth; cv.height = innerHeight; ctx.imageSmoothingEnabled = false; }
 addEventListener('resize', resize); resize();
@@ -22,10 +22,10 @@ function connect() {
     const m = JSON.parse(e.data);
     if (m.t === 'error') { $('err').textContent = m.msg; ws.close(); }
     else if (m.t === 'init') {
-      myId = m.id; W = m.w; H = m.h; MON = m.mon;
+      myId = m.id; W = m.w; H = m.h; MON = m.mon; ITEMS = m.items; INV_MAX = m.invMax;
       map = Uint8Array.from(atob(m.map), c => c.charCodeAt(0));
-      $('login').style.display = 'none'; $('chat').style.display = 'block'; $('help').style.display = 'block';
-      requestAnimationFrame(frame);
+      $('login').style.display = 'none'; $('chat').style.display = 'block'; $('help').style.display = 'block'; $('bagbtn').style.display = 'block';
+      lastFrame = performance.now(); requestAnimationFrame(frame);
     } else if (m.t === 'state') onState(m);
   };
 }
@@ -34,12 +34,17 @@ $('name').onkeydown = e => { if (e.key === 'Enter') connect(); };
 const sendMsg = o => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
 
 function onState(m) {
-  const seen = new Set();
+  const now = performance.now(), seen = new Set();
   for (const [id, name, x, y, dir, hp, mhp, lvl, color] of m.p) {
     seen.add(id);
     let p = players.get(id);
-    if (!p) { p = { rx: x, ry: y }; players.set(id, p); }
-    Object.assign(p, { id, name, x, y, dir, hp, mhp, lvl, color });
+    if (!p) { p = { rx: x, ry: y, x, y }; players.set(id, p); if (id === myId) { camera.x = x + 0.5; camera.y = y + 0.5; } }
+    if (id === myId) {
+      // client-side prediction: keep our predicted tile unless the server disagrees noticeably or we've been idle
+      const off = Math.max(Math.abs(p.x - x), Math.abs(p.y - y));
+      if (off > 2 || (off > 0 && now - lastSend > 400)) { p.x = x; p.y = y; }
+      Object.assign(p, { id, name, hp, mhp, lvl, color });
+    } else Object.assign(p, { id, name, x, y, dir, hp, mhp, lvl, color });
   }
   for (const id of players.keys()) if (!seen.has(id)) players.delete(id);
   const seenM = new Set();
@@ -50,12 +55,14 @@ function onState(m) {
     Object.assign(o, { id, type, x, y, hp, max });
   }
   for (const id of mons.keys()) if (!seenM.has(id)) { mons.delete(id); if (targetId === id) targetId = null; }
-  you = m.you;
+  const hadInv = !!m.you.inv;
+  Object.assign(you, m.you);
+  if (hadInv) renderInv();
   for (const e of m.ev) {
-    if (e.e === 'float') floats.push({ x: e.x, y: e.y, text: e.text, c: e.c, t: performance.now() });
+    if (e.e === 'float') floats.push({ x: e.x, y: e.y, text: e.text, c: e.c, t: now });
     else if (e.e === 'chat') addLog(e.from, e.text, e.kind);
-    else if (e.e === 'say') bubbles.set(e.id, { text: e.text, t: performance.now() });
-    else if (e.e === 'swing') swings.push({ id: e.id, x: e.x, y: e.y, t: performance.now() });
+    else if (e.e === 'say') bubbles.set(e.id, { text: e.text, t: now });
+    else if (e.e === 'swing') swings.push({ id: e.id, x: e.x, y: e.y, t: now });
   }
 }
 function addLog(from, text, kind) {
@@ -64,6 +71,56 @@ function addLog(from, text, kind) {
   $('log').appendChild(d);
   while ($('log').children.length > 30) $('log').firstChild.remove();
 }
+
+// ---------- inventory UI ----------
+const RCOLS = ['#e8e0cc', '#7be07b', '#5aa9ff', '#d28bff'], RNAMES = ['Common', 'Uncommon', 'Rare', 'Epic'];
+const SLOT_ICON = { weapon: '⚔️', helm: '⛑️', armor: '🦺', charm: '📿' };
+function statText(it) { return [it.atk && `+${it.atk} Attack`, it.def && `+${it.def} Defense`, it.hp && `+${it.hp} Max HP`, it.heal && `Heals ${it.heal} HP`].filter(Boolean).join(' · '); }
+function itemEl(k, n, onclick, title) {
+  const it = ITEMS[k], d = document.createElement('div');
+  d.className = 'slot full'; d.style.borderColor = RCOLS[it.r]; d.title = title || it.n; d.textContent = it.i;
+  if (n > 1) { const b = document.createElement('span'); b.textContent = n; d.appendChild(b); }
+  d.onclick = onclick; return d;
+}
+function renderInv() {
+  if ($('inv').hidden) return;
+  const eq = $('eq'); eq.textContent = '';
+  for (const sl of ['weapon', 'helm', 'armor', 'charm']) {
+    const k = you.eq[sl];
+    if (k) eq.appendChild(itemEl(k, 1, () => { sendMsg({ t: 'unequip', slot: sl }); selSlot = -1; }, `${ITEMS[k].n} (click to unequip)`));
+    else { const d = document.createElement('div'); d.className = 'slot'; d.textContent = SLOT_ICON[sl]; d.style.opacity = 0.35; d.title = sl; eq.appendChild(d); }
+  }
+  $('stats').textContent = `Attack ${you.atk}   Defense ${you.def}   Gold ${you.gold}`;
+  const g = $('grid'); g.textContent = '';
+  for (let i = 0; i < INV_MAX; i++) {
+    const s = you.inv[i];
+    if (!s) { const d = document.createElement('div'); d.className = 'slot'; g.appendChild(d); continue; }
+    const el = itemEl(s.k, s.n, () => { selSlot = selSlot === i ? -1 : i; renderInv(); });
+    if (i === selSlot) el.classList.add('sel');
+    g.appendChild(el);
+  }
+  const det = $('detail'); det.textContent = '';
+  const s = you.inv[selSlot];
+  if (!s) { det.textContent = 'Click an item. Monsters drop gear, potions and loot.'; return; }
+  const it = ITEMS[s.k];
+  const h = document.createElement('b'); h.textContent = `${it.i} ${it.n}`; h.style.color = RCOLS[it.r]; det.appendChild(h);
+  const sub = document.createElement('div'); sub.textContent = `${RNAMES[it.r]} ${it.t === 'use' ? 'consumable' : it.t} · worth ${it.v}g${s.n > 1 ? ` · x${s.n}` : ''}`; det.appendChild(sub);
+  const st = document.createElement('div'); st.textContent = statText(it); st.style.color = '#ffd36e'; det.appendChild(st);
+  const row = document.createElement('div'); row.className = 'btns';
+  const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = e => { fn(); e.target.blur(); }; row.appendChild(b); };
+  if (it.t === 'use') btn('Use', () => sendMsg({ t: 'use', i: selSlot }));
+  else if (it.t !== 'junk') btn('Equip', () => { sendMsg({ t: 'equip', i: selSlot }); selSlot = -1; });
+  btn(`Sell (${it.v * s.n}g)`, () => { sendMsg({ t: 'sell', i: selSlot }); selSlot = -1; });
+  btn('Drop', () => { sendMsg({ t: 'drop', i: selSlot }); selSlot = -1; });
+  det.appendChild(row);
+}
+function toggleInv(force) {
+  $('inv').hidden = force !== undefined ? !force : !$('inv').hidden;
+  renderInv();
+}
+$('bagbtn').onclick = e => { toggleInv(); e.target.blur(); };
+$('closeinv').onclick = e => { toggleInv(false); e.target.blur(); };
+$('sellall').onclick = e => { sendMsg({ t: 'sell' }); e.target.blur(); };
 
 // ---------- input ----------
 const me = () => players.get(myId);
@@ -75,12 +132,16 @@ addEventListener('keydown', e => {
     e.preventDefault(); return;
   }
   if (chatting) return;
-  keys[e.key.toLowerCase()] = true;
-  if (e.key.toLowerCase() === 'q') sendMsg({ t: 'potion' });
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (k === 'q') sendMsg({ t: 'potion' });
+  if (k === 'i' || k === 'b') toggleInv();
+  if (k === 'escape') toggleInv(false);
   if (e.key === ' ') { e.preventDefault(); const n = nearest(); if (n) targetId = n.id; }
   if (e.key.startsWith('Arrow')) e.preventDefault();
 });
 addEventListener('keyup', e => { delete keys[e.key.toLowerCase()]; });
+addEventListener('blur', () => { keys = {}; });
 cv.addEventListener('mousedown', e => {
   if (!myId) return;
   const wx = (e.clientX - cv.width / 2) / TS + camera.x, wy = (e.clientY - cv.height / 2) / TS + camera.y;
@@ -119,25 +180,42 @@ function findPath(a, b, adjacent) {
   return out;
 }
 
+// mirrors the server's movement rules so we can predict our own steps instantly
+function tryStep(p, dx, dy, now) {
+  const nx = p.x + dx, ny = p.y + dy;
+  p.dir = dx ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+  if (!walk(nx, ny) || (dx && dy && (!walk(p.x + dx, p.y) || !walk(p.x, p.y + dy)))) return false;
+  for (const m of mons.values()) if (m.x === nx && m.y === ny) return false;
+  for (const o of players.values()) if (o.id !== myId && o.x === nx && o.y === ny) return false;
+  p.x = nx; p.y = ny; lastSend = now;
+  sendMsg({ t: 'move', dx, dy });
+  return true;
+}
 function update(now) {
-  const p = me(); if (!p) return;
-  if (now - lastSend < 140) return;
+  const p = me(); if (!p || now - lastSend < MOVE_MS) return;
   let dx = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
   let dy = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
-  if (dx || dy) { path = []; targetId = null; }
-  else if (targetId && mons.has(targetId)) {
+  if (dx || dy) {
+    path = []; targetId = null;
+    // if a diagonal is blocked by a corner, slide along one axis instead of stopping
+    if (!tryStep(p, dx, dy, now) && dx && dy) { if (!tryStep(p, dx, 0, now)) tryStep(p, 0, dy, now); }
+    return;
+  }
+  if (targetId && mons.has(targetId)) {
     const m = mons.get(targetId);
     if (Math.max(Math.abs(m.x - p.x), Math.abs(m.y - p.y)) <= 1) {
-      if (now - lastAtk > 700) { sendMsg({ t: 'attack', id: m.id }); lastAtk = now; }
+      if (now - lastAtk > 650) { sendMsg({ t: 'attack', id: m.id }); lastAtk = now; }
     } else {
       const pp = findPath(p, m, true);
-      if (pp.length) { dx = pp[0].x - p.x; dy = pp[0].y - p.y; }
+      if (pp.length) tryStep(p, pp[0].x - p.x, pp[0].y - p.y, now);
     }
   } else if (path.length) {
     while (path.length && path[0].x === p.x && path[0].y === p.y) path.shift();
-    if (path.length) { dx = path[0].x - p.x; dy = path[0].y - p.y; if (Math.abs(dx) > 1 || Math.abs(dy) > 1) path = []; }
+    if (path.length) {
+      const sx = path[0].x - p.x, sy = path[0].y - p.y;
+      if (Math.abs(sx) > 1 || Math.abs(sy) > 1 || !tryStep(p, sx, sy, now)) path = [];
+    }
   }
-  if (dx || dy) { sendMsg({ t: 'move', dx, dy }); lastSend = now; }
 }
 
 // ---------- rendering (cozy storybook style) ----------
@@ -302,10 +380,16 @@ const petals = Array.from({ length: 22 }, (_, i) => ({ x: Math.random(), y: Math
 function frame(now) {
   requestAnimationFrame(frame);
   update(now);
+  const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   const tm = now / 1000, p = me();
   if (p) {
-    for (const o of [...players.values(), ...mons.values()]) { o.rx += (o.x - o.rx) * 0.3; o.ry += (o.y - o.ry) * 0.3; }
-    camera.x += (p.rx + 0.5 - camera.x) * 0.2; camera.y += (p.ry + 0.5 - camera.y) * 0.2;
+    for (const o of [...players.values(), ...mons.values()]) {
+      const ddx = o.x - o.rx, ddy = o.y - o.ry, d = Math.hypot(ddx, ddy);
+      if (d > 4) { o.rx = o.x; o.ry = o.y; } // teleport / respawn
+      else if (d > 0.001) { const step = Math.min(d, GLIDE * Math.max(1, d / 1.5) * dt); o.rx += ddx / d * step; o.ry += ddy / d * step; }
+    }
+    const k = 1 - Math.exp(-dt * 12);
+    camera.x += (p.rx + 0.5 - camera.x) * k; camera.y += (p.ry + 0.5 - camera.y) * k;
   }
   ctx.fillStyle = '#5aa5c8'; ctx.fillRect(0, 0, cv.width, cv.height);
   const ox = cv.width / 2 - camera.x * TS, oy = cv.height / 2 - camera.y * TS;

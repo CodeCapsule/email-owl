@@ -60,6 +60,55 @@ const MON = {
   wolf:     { hp: 30, dmg: [2, 6],  xp: 16, gold: [3, 10],  speed: 380, color: '#9a9aa8', zone: 1 },
   skeleton: { hp: 60, dmg: [5, 10], xp: 38, gold: [8, 24],  speed: 450, color: '#e8e4d0', zone: 2 },
 };
+// ---------- items & loot ----------
+// t: weapon/helm/armor/charm (equippable), use (consumable), junk (sell for gold). r = rarity 0-3.
+const ITEMS = {
+  potion:      { n: 'Health Potion',   t: 'use',    i: '🧪', r: 0, heal: 40,  v: 10 },
+  big_potion:  { n: 'Greater Potion',  t: 'use',    i: '⚗️', r: 1, heal: 100, v: 30 },
+  slime_goo:   { n: 'Slime Goo',       t: 'junk',   i: '🟢', r: 0, v: 4 },
+  wolf_pelt:   { n: 'Wolf Pelt',       t: 'junk',   i: '🐾', r: 0, v: 10 },
+  bone_shard:  { n: 'Bone Shard',      t: 'junk',   i: '🦴', r: 0, v: 8 },
+  moonstone:   { n: 'Moonstone',       t: 'junk',   i: '💎', r: 2, v: 80 },
+  rusty_dagger:{ n: 'Rusty Dagger',    t: 'weapon', i: '🗡️', r: 0, atk: 2,  v: 8 },
+  wooden_club: { n: 'Wooden Club',     t: 'weapon', i: '🏏', r: 0, atk: 3,  v: 12 },
+  iron_sword:  { n: 'Iron Sword',      t: 'weapon', i: '⚔️', r: 1, atk: 6,  v: 40 },
+  fang_dagger: { n: 'Fang Dagger',     t: 'weapon', i: '🔪', r: 1, atk: 7,  v: 45 },
+  steel_blade: { n: 'Steel Blade',     t: 'weapon', i: '🗡️', r: 2, atk: 10, v: 100 },
+  bone_axe:    { n: 'Bone Axe',        t: 'weapon', i: '🪓', r: 2, atk: 11, v: 110 },
+  ember_blade: { n: 'Ember Blade',     t: 'weapon', i: '🔥', r: 3, atk: 16, v: 300 },
+  cloth_cap:   { n: 'Cloth Cap',       t: 'helm',   i: '🧢', r: 0, def: 1,  v: 8 },
+  iron_helm:   { n: 'Iron Helm',       t: 'helm',   i: '⛑️', r: 1, def: 2,  v: 40 },
+  bone_crown:  { n: 'Bone Crown',      t: 'helm',   i: '👑', r: 2, def: 4,  v: 110 },
+  leather_vest:{ n: 'Leather Vest',    t: 'armor',  i: '🦺', r: 0, def: 2,  v: 14 },
+  chainmail:   { n: 'Chainmail',       t: 'armor',  i: '🥋', r: 1, def: 4,  v: 55 },
+  plate_armor: { n: 'Plate Armor',     t: 'armor',  i: '🛡️', r: 2, def: 7,  v: 130 },
+  dragon_mail: { n: 'Dragon Mail',     t: 'armor',  i: '🐉', r: 3, def: 11, hp: 20, v: 320 },
+  clover:      { n: 'Lucky Clover',    t: 'charm',  i: '🍀', r: 0, hp: 10,  v: 15 },
+  wolf_pendant:{ n: 'Wolf Pendant',    t: 'charm',  i: '📿', r: 1, hp: 25,  v: 50 },
+  sun_amulet:  { n: 'Sun Amulet',      t: 'charm',  i: '☀️', r: 3, atk: 3, hp: 20, v: 280 },
+};
+const SLOTS = ['weapon', 'helm', 'armor', 'charm'];
+const INV_MAX = 20, STACK = 99;
+const stackable = k => ITEMS[k].t === 'use' || ITEMS[k].t === 'junk';
+const RCOL = ['#ffffff', '#7be07b', '#5aa9ff', '#d28bff'];
+const TIER = { slime: 0, wolf: 1, skeleton: 2 };
+const JUNK = { slime: 'slime_goo', wolf: 'wolf_pelt', skeleton: 'bone_shard' };
+const RARITY_W = [[70, 25, 5, 0], [45, 40, 13, 2], [25, 45, 24, 6]];
+const EQUIP_KEYS = Object.keys(ITEMS).filter(k => SLOTS.includes(ITEMS[k].t));
+function rollLoot(type) {
+  const tier = TIER[type], out = [];
+  if (Math.random() < 0.55) out.push(JUNK[type]);
+  if (Math.random() < 0.18) out.push('potion');
+  if (tier >= 1 && Math.random() < 0.06) out.push('big_potion');
+  if (Math.random() < 0.02 + tier * 0.01) out.push('moonstone');
+  if (Math.random() < [0.14, 0.2, 0.28][tier]) {
+    let roll = Math.random() * 100, rar = 0;
+    for (const w of RARITY_W[tier]) { if (roll < w) break; roll -= w; rar++; }
+    const pool = EQUIP_KEYS.filter(k => ITEMS[k].r === rar);
+    out.push(pool[Math.floor(Math.random() * pool.length)]);
+  }
+  return out;
+}
 const players = new Map();
 const monsters = [];
 let nextId = 1;
@@ -99,24 +148,45 @@ function save() {
   for (const p of players.values()) db[p.key] = pick(p);
   try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(FILE, JSON.stringify(db)); } catch (e) { console.error('save failed', e.message); }
 }
-const pick = p => ({ name: p.name, x: p.x, y: p.y, lvl: p.lvl, xp: p.xp, gold: p.gold, potions: p.potions, color: p.color });
+const pick = p => ({ name: p.name, x: p.x, y: p.y, lvl: p.lvl, xp: p.xp, gold: p.gold, inv: p.inv, eq: p.eq, color: p.color });
 setInterval(save, 30000);
 
 const xpFor = lvl => Math.floor(20 * Math.pow(lvl, 1.6));
-const maxHp = lvl => 30 + lvl * 10;
+function gear(p) {
+  const g = { atk: 0, def: 0, hp: 0 };
+  for (const k of Object.values(p.eq)) { const it = ITEMS[k]; g.atk += it.atk || 0; g.def += it.def || 0; g.hp += it.hp || 0; }
+  return g;
+}
+const maxHp = p => 30 + p.lvl * 10 + gear(p).hp;
+function addItem(p, k, n) {
+  n = n || 1;
+  if (stackable(k)) {
+    const s = p.inv.find(q => q.k === k && q.n + n <= STACK);
+    if (s) { s.n += n; p.dirty = true; return true; }
+  }
+  if (p.inv.length >= INV_MAX) return false;
+  p.inv.push({ k, n }); p.dirty = true; return true;
+}
+function takeFromSlot(p, i, n) {
+  const s = p.inv[i]; if (!s) return;
+  s.n -= n || 1; if (s.n <= 0) p.inv.splice(i, 1);
+  p.dirty = true;
+}
 
 function addPlayer(ws, rawName) {
   const name = String(rawName || '').replace(/[^\w \-]/g, '').trim().slice(0, 14);
   if (name.length < 2) return null;
   const key = name.toLowerCase();
   if ([...players.values()].some(p => p.key === key)) return 'taken';
-  const s = db[key] || { lvl: 1, xp: 0, gold: 0, potions: 2, color: `hsl(${ri(0, 359)},60%,55%)` };
+  const s = db[key] || { lvl: 1, xp: 0, gold: 0, inv: [{ k: 'potion', n: 3 }], eq: { weapon: 'rusty_dagger' }, color: `hsl(${ri(0, 359)},60%,55%)` };
+  const inv = (s.inv || [{ k: 'potion', n: s.potions || 2 }]).filter(q => ITEMS[q.k] && q.n > 0).slice(0, INV_MAX);
+  const eq = {}; for (const sl of SLOTS) if (s.eq && ITEMS[s.eq[sl]] && ITEMS[s.eq[sl]].t === sl) eq[sl] = s.eq[sl];
   const p = {
-    id: nextId++, ws, key, name, lvl: s.lvl, xp: s.xp, gold: s.gold, potions: s.potions, color: s.color,
+    id: nextId++, ws, key, name, lvl: s.lvl, xp: s.xp, gold: s.gold, inv, eq, dirty: true, color: s.color,
     x: TOWN.x + ri(-1, 1), y: TOWN.y + ri(-1, 1), dir: 2, lastMove: 0, lastAtk: 0, lastHurt: 0, lastRegen: now(),
   };
   if (s.x !== undefined && walkable(s.x, s.y) && !occupied(s.x, s.y)) { p.x = s.x; p.y = s.y; }
-  p.hp = maxHp(p.lvl);
+  p.hp = maxHp(p);
   return p;
 }
 
@@ -128,7 +198,7 @@ function gainXp(p, amount) {
   p.xp += amount;
   ev({ e: 'float', x: p.x, y: p.y, text: `+${amount} xp`, c: '#8cf' });
   while (p.xp >= xpFor(p.lvl)) {
-    p.xp -= xpFor(p.lvl); p.lvl++; p.hp = maxHp(p.lvl);
+    p.xp -= xpFor(p.lvl); p.lvl++; p.hp = maxHp(p);
     chatAll('', `${p.name} reached level ${p.lvl}!`, 'sys');
     ev({ e: 'float', x: p.x, y: p.y - 1, text: 'LEVEL UP!', c: '#ff0' });
   }
@@ -138,18 +208,32 @@ function killMonster(m, p) {
   m.dead = true; m.respawnAt = now() + 10000 + Math.random() * 5000;
   const g = ri(...def.gold); p.gold += g;
   ev({ e: 'float', x: m.x, y: m.y, text: `+${g}g`, c: '#fc4' });
-  if (Math.random() < 0.2) { p.potions++; ev({ e: 'float', x: m.x, y: m.y - 1, text: '+potion', c: '#f6a' }); }
+  rollLoot(m.type).forEach((k, i) => {
+    const it = ITEMS[k];
+    if (addItem(p, k)) {
+      ev({ e: 'float', x: m.x, y: m.y - 1 - i * 0.8, text: `${it.i} ${it.n}`, c: RCOL[it.r] });
+      if (it.r >= 2) chatAll('', `${p.name} found ${it.n}!`, 'sys');
+    } else ev({ e: 'float', x: m.x, y: m.y - 1 - i * 0.8, text: 'Bag full!', c: '#f88' });
+  });
   gainXp(p, def.xp);
 }
 function hurtPlayer(p, dmg, m) {
+  dmg = Math.max(1, Math.round(dmg * 100 / (100 + gear(p).def * 8)));
   p.hp -= dmg; p.lastHurt = now();
   ev({ e: 'float', x: p.x, y: p.y, text: `-${dmg}`, c: '#f55' });
   if (p.hp <= 0) {
     const lost = Math.floor(p.gold * 0.1); p.gold -= lost;
     chatAll('', `${p.name} was slain by a ${m.type}.`, 'sys');
-    p.x = TOWN.x; p.y = TOWN.y + 2; p.hp = maxHp(p.lvl);
+    p.x = TOWN.x; p.y = TOWN.y + 2; p.hp = maxHp(p);
     for (const mm of monsters) if (mm.target === p.id) mm.target = null;
   }
+}
+
+function usePotion(p, i) {
+  const it = ITEMS[p.inv[i].k], max = maxHp(p);
+  if (p.hp >= max) return;
+  const h = Math.min(it.heal, max - p.hp); p.hp += h; takeFromSlot(p, i, 1);
+  ev({ e: 'float', x: p.x, y: p.y, text: `+${h}`, c: '#6f6' });
 }
 
 // ---------- network ----------
@@ -177,13 +261,13 @@ wss.on('connection', ws => {
       if (r === 'taken') return send(ws, { t: 'error', msg: 'That name is already online.' });
       if (!r) return send(ws, { t: 'error', msg: 'Name must be 2-14 letters/numbers.' });
       p = r; players.set(p.id, p);
-      send(ws, { t: 'init', id: p.id, w: W, h: H, map: Buffer.from(map).toString('base64'), mon: MON });
+      send(ws, { t: 'init', id: p.id, w: W, h: H, map: Buffer.from(map).toString('base64'), mon: MON, items: ITEMS, invMax: INV_MAX });
       chatAll('', `${p.name} entered the world.`, 'sys');
       return;
     }
     const t = now();
     if (m.t === 'move') {
-      if (t - p.lastMove < 150) return;
+      if (t - p.lastMove < 95) return;
       const dx = Math.sign(m.dx | 0), dy = Math.sign(m.dy | 0);
       if (!dx && !dy) return;
       p.dir = dx ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
@@ -195,16 +279,37 @@ wss.on('connection', ws => {
       const mon = monsters.find(q => q.id === m.id && !q.dead);
       if (!mon || dist(p, mon) > 1 || t - p.lastAtk < 700) return;
       p.lastAtk = t;
-      const dmg = ri(2, 4) + p.lvl * 2;
+      const dmg = ri(2, 4) + p.lvl * 2 + gear(p).atk;
       mon.hp -= dmg; mon.target = p.id;
       ev({ e: 'float', x: mon.x, y: mon.y, text: `${dmg}`, c: '#fff' });
       ev({ e: 'swing', id: p.id, x: mon.x, y: mon.y });
       if (mon.hp <= 0) killMonster(mon, p);
     } else if (m.t === 'potion') {
-      if (p.potions > 0 && p.hp < maxHp(p.lvl)) {
-        p.potions--; const h = Math.min(40, maxHp(p.lvl) - p.hp); p.hp += h;
-        ev({ e: 'float', x: p.x, y: p.y, text: `+${h}`, c: '#6f6' });
+      let i = p.inv.findIndex(q => q.k === 'potion'); if (i < 0) i = p.inv.findIndex(q => q.k === 'big_potion');
+      if (i >= 0) usePotion(p, i);
+    } else if (m.t === 'use') {
+      const i = m.i | 0, sl = p.inv[i];
+      if (sl && ITEMS[sl.k].t === 'use') usePotion(p, i);
+    } else if (m.t === 'equip') {
+      const i = m.i | 0, sl = p.inv[i], it = sl && ITEMS[sl.k];
+      if (!it || !SLOTS.includes(it.t)) return;
+      const old = p.eq[it.t]; p.eq[it.t] = sl.k;
+      if (old) p.inv[i] = { k: old, n: 1 }; else p.inv.splice(i, 1);
+      p.hp = Math.min(p.hp, maxHp(p)); p.dirty = true;
+    } else if (m.t === 'unequip') {
+      const sl = m.slot;
+      if (SLOTS.includes(sl) && p.eq[sl]) {
+        if (addItem(p, p.eq[sl])) { delete p.eq[sl]; p.hp = Math.min(p.hp, maxHp(p)); p.dirty = true; }
+        else ev({ e: 'float', x: p.x, y: p.y, text: 'Bag full!', c: '#f88' });
       }
+    } else if (m.t === 'drop') {
+      takeFromSlot(p, m.i | 0, 9999);
+    } else if (m.t === 'sell') {
+      if (Math.hypot(p.x - TOWN.x, p.y - TOWN.y) > 9) return ev({ e: 'float', x: p.x, y: p.y, text: 'Sell in town!', c: '#f88' });
+      let gold = 0;
+      if (m.i !== undefined) { const sl = p.inv[m.i | 0]; if (sl) { gold = ITEMS[sl.k].v * sl.n; takeFromSlot(p, m.i | 0, 9999); } }
+      else { p.inv = p.inv.filter(q => { if (ITEMS[q.k].t !== 'junk') return true; gold += ITEMS[q.k].v * q.n; return false; }); p.dirty = true; }
+      if (gold) { p.gold += gold; ev({ e: 'float', x: p.x, y: p.y, text: `+${gold}g`, c: '#fc4' }); }
     } else if (m.t === 'chat') {
       const text = String(m.text || '').slice(0, 120).trim();
       if (text && t - (p.lastChat || 0) > 500) { p.lastChat = t; chatAll(p.name, text); ev({ e: 'say', id: p.id, text }); }
@@ -253,21 +358,27 @@ setInterval(() => {
     }
   }
   for (const p of players.values()) {
-    if (t - p.lastHurt > 5000 && t - p.lastRegen > 3000 && p.hp < maxHp(p.lvl)) { p.hp++; p.lastRegen = t; }
+    if (t - p.lastHurt > 5000 && t - p.lastRegen > 3000 && p.hp < maxHp(p)) { p.hp++; p.lastRegen = t; }
     const inTown = Math.hypot(p.x - TOWN.x, p.y - TOWN.y) <= 9;
-    if (inTown && t - p.lastRegen > 1000 && p.hp < maxHp(p.lvl)) { p.hp = Math.min(maxHp(p.lvl), p.hp + 3); p.lastRegen = t; }
+    if (inTown && t - p.lastRegen > 1000 && p.hp < maxHp(p)) { p.hp = Math.min(maxHp(p), p.hp + 3); p.lastRegen = t; }
   }
-  const state = {
-    t: 'state',
-    p: [...players.values()].map(p => [p.id, p.name, p.x, p.y, p.dir, p.hp, maxHp(p.lvl), p.lvl, p.color]),
-    m: monsters.filter(m => !m.dead).map(m => [m.id, m.type, m.x, m.y, m.hp, m.max]),
-    ev: events,
-  };
-  events = [];
+  const R = 24;
+  const near = (p, o) => Math.abs(o.x - p.x) <= R && Math.abs(o.y - p.y) <= R;
+  const alive = monsters.filter(m => !m.dead);
   for (const p of players.values()) {
-    send(p.ws, { ...state, you: { xp: p.xp, next: xpFor(p.lvl), gold: p.gold, potions: p.potions } });
+    const msg = {
+      t: 'state',
+      p: [...players.values()].filter(o => near(p, o)).map(o => [o.id, o.name, o.x, o.y, o.dir, o.hp, maxHp(o), o.lvl, o.color]),
+      m: alive.filter(m => near(p, m)).map(m => [m.id, m.type, m.x, m.y, m.hp, m.max]),
+      ev: events.filter(e => e.x === undefined || (Math.abs(e.x - p.x) <= R && Math.abs(e.y - p.y) <= R)),
+    };
+    const g = gear(p);
+    msg.you = { xp: p.xp, next: xpFor(p.lvl), gold: p.gold, potions: p.inv.filter(q => q.k === 'potion' || q.k === 'big_potion').reduce((a, q) => a + q.n, 0), atk: g.atk + p.lvl * 2 + 3, def: g.def };
+    if (p.dirty) { msg.you.inv = p.inv; msg.you.eq = p.eq; p.dirty = false; }
+    send(p.ws, msg);
   }
-}, 100);
+  events = [];
+}, 50);
 
 server.listen(PORT, () => console.log(`Emberwood Online running at http://localhost:${PORT}`));
 process.on('SIGINT', () => { save(); process.exit(0); });
