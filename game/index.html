@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Owlheim Online – 2D Browser MMORPG</title>
+<style>
+  :root { --panel: rgba(18,20,34,.88); --edge: #3b4268; --gold: #ffd25a; --text: #e8eaf6; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0d18; color: var(--text); font-family: system-ui, sans-serif; overflow: hidden; user-select: none; }
+  canvas#game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  #hud { top: 10px; left: 10px; width: 230px; }
+  #hud .name { font-weight: 700; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .bar { height: 12px; background: #1b1e30; border-radius: 6px; margin: 3px 0; position: relative; overflow: hidden; }
+  .bar > i { position: absolute; inset: 0 auto 0 0; display: block; transition: width .15s; }
+  .bar > span { position: absolute; inset: 0; font-size: 10px; text-align: center; line-height: 12px; text-shadow: 0 0 3px #000; }
+  #hp i { background: linear-gradient(#e85d5d, #a82a2a); } #mp i { background: linear-gradient(#5d8ee8, #2a4ea8); } #xp i { background: linear-gradient(#e8c85d, #a8892a); }
+  #gold { color: var(--gold); margin-top: 4px; }
+  #quest { top: 130px; left: 10px; width: 230px; font-size: 12px; }
+  #minimap { top: 10px; right: 10px; padding: 4px; }
+  #minimap canvas { display: block; border-radius: 4px; }
+  #skills { bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+  .skill { width: 54px; height: 54px; border: 1px solid var(--edge); border-radius: 8px; background: #151830; position: relative; text-align: center; font-size: 22px; padding-top: 6px; cursor: pointer; overflow: hidden; }
+  .skill small { display: block; font-size: 9px; opacity: .8; }
+  .skill b { position: absolute; top: 1px; left: 4px; font-size: 10px; color: var(--gold); }
+  .skill .cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.65); height: 0; }
+  #chat { bottom: 12px; left: 10px; width: 330px; height: 170px; display: flex; flex-direction: column; }
+  #log { flex: 1; overflow-y: auto; font-size: 12px; line-height: 1.35; }
+  #log .sys { color: #9fb0ff; } #log .loot { color: var(--gold); } #log .bad { color: #ff7b7b; } #log .bot b { color: #7be0a0; } #log .me b { color: #ffd25a; }
+  #chatin { margin-top: 4px; background: #0e1020; border: 1px solid var(--edge); border-radius: 4px; color: var(--text); padding: 4px 6px; font-size: 12px; width: 100%; }
+  #inv { top: 60px; right: 220px; width: 300px; display: none; }
+  #inv h3, #dlg h3 { margin: 0 0 6px; font-size: 14px; }
+  .eq { display: flex; gap: 6px; margin-bottom: 8px; }
+  .eq div { flex: 1; border: 1px dashed var(--edge); border-radius: 6px; padding: 4px; min-height: 44px; font-size: 11px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .slot { height: 56px; border: 1px solid var(--edge); border-radius: 6px; background: #12142a; font-size: 10px; padding: 3px; cursor: pointer; overflow: hidden; line-height: 1.2; }
+  .slot:hover { border-color: #fff; }
+  .r0 { color: #ddd; } .r1 { color: #6ee06e; } .r2 { color: #5da8ff; } .r3 { color: #c77dff; }
+  #dlg { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 340px; display: none; }
+  #dlg button, .btn { background: #2a3270; color: #fff; border: 1px solid #5560b0; border-radius: 6px; padding: 6px 10px; margin: 3px 3px 0 0; cursor: pointer; font-size: 12px; }
+  #dlg button:hover, .btn:hover { background: #3a45a0; }
+  #toast { top: 18%; left: 50%; transform: translateX(-50%); font-size: 20px; font-weight: 700; color: var(--gold); background: none; border: none; text-shadow: 0 2px 6px #000; display: none; }
+  #title { inset: 0; border-radius: 0; background: radial-gradient(circle at 50% 30%, #1d2850, #080a14); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; text-align: center; }
+  #title h1 { font-size: 48px; margin: 0; letter-spacing: 2px; } #title h1 span { color: var(--gold); }
+  #title p { opacity: .75; max-width: 520px; }
+  .classes { display: flex; gap: 12px; margin: 14px 0; }
+  .cls { width: 150px; padding: 12px; border: 2px solid var(--edge); border-radius: 10px; background: #12142a; cursor: pointer; font-size: 12px; }
+  .cls.sel { border-color: var(--gold); background: #1d2146; } .cls .e { font-size: 38px; }
+  #nameIn { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge); background: #0e1020; color: #fff; font-size: 16px; text-align: center; }
+  #play { font-size: 18px; padding: 10px 28px; margin-top: 14px; }
+  #help { bottom: 12px; right: 10px; font-size: 11px; opacity: .8; line-height: 1.5; }
+  #respawn { inset: 0; background: rgba(120,0,0,.45); border-radius: 0; display: none; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; pointer-events: none; }
+  @media (max-width: 700px) { #help, #quest { display: none; } #inv { right: 10px; } #chat { width: 220px; height: 110px; } }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="panel">
+  <div class="name"><span id="pname">Hero</span><span id="plvl">Lv 1</span></div>
+  <div class="bar" id="hp"><i></i><span></span></div>
+  <div class="bar" id="mp"><i></i><span></span></div>
+  <div class="bar" id="xp"><i></i><span></span></div>
+  <div id="gold">🪙 0</div>
+  <div id="zone" style="opacity:.7;font-size:11px"></div>
+</div>
+<div id="quest" class="panel"></div>
+<div id="minimap" class="panel"><canvas id="mm" width="150" height="116"></canvas></div>
+<div id="skills" class="panel"></div>
+<div id="chat" class="panel"><div id="log"></div><input id="chatin" maxlength="120" placeholder="Press Enter to chat…" autocomplete="off"></div>
+<div id="inv" class="panel"></div>
+<div id="dlg" class="panel"></div>
+<div id="toast" class="panel"></div>
+<div id="respawn" class="panel">You died…</div>
+<div id="help" class="panel">
+  <b>WASD/Arrows</b> or click: move · <b>Click monster</b>: attack<br>
+  <b>1 2 3</b>: skills · <b>Q/R</b>: HP/MP potion · <b>E</b>: talk<br>
+  <b>I</b>: inventory · <b>Tab</b>: target · <b>Enter</b>: chat
+</div>
+
+<div id="title" class="panel">
+  <h1>🦉 Owlheim <span>Online</span></h1>
+  <p>A tiny 2D MMORPG that runs entirely in your browser. Explore the island, slay monsters, level up, loot gear, complete quests, and chat with other adventurers.</p>
+  <div class="classes" id="classes"></div>
+  <input id="nameIn" maxlength="14" placeholder="Hero name" value="">
+  <button id="play" class="btn">▶ Enter World</button>
+  <p style="font-size:12px">Progress saves automatically in this browser.</p>
+</div>
+
+<script>
+'use strict';
+/* ====================== Utilities ====================== */
+const $ = id => document.getElementById(id);
+const T = 32, W = 96, H = 72;
+const rand = (a, b) => a + Math.random() * (b - a);
+const ri = (a, b) => Math.floor(rand(a, b + 1));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* ====================== World generation ====================== */
+const rnd = mulberry(20240607);
+function makeNoise(scale) {
+  const gw = Math.ceil(W / scale) + 2, gh = Math.ceil(H / scale) + 2, g = [];
+  for (let i = 0; i < gw * gh; i++) g.push(rnd());
+  return (x, y) => {
+    const fx = x / scale, fy = y / scale, ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
+    const s = t => t * t * (3 - 2 * t), a = g[iy * gw + ix], b = g[iy * gw + ix + 1], c = g[(iy + 1) * gw + ix], d = g[(iy + 1) * gw + ix + 1];
+    return (a + (b - a) * s(tx)) * (1 - s(ty)) + (c + (d - c) * s(tx)) * s(ty);
+  };
+}
+// tiles: 0 grass 1 water 2 tree 3 sand 4 town 5 rock 6 flowers
+const nA = makeNoise(9), nB = makeNoise(5), nC = makeNoise(4);
+const CX = W / 2 | 0, CY = H / 2 | 0, TOWN_R = 8;
+const map = new Uint8Array(W * H);
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const dx = (x - CX) / (W / 2), dy = (y - CY) / (H / 2), d = Math.hypot(dx, dy);
+  const h = nA(x, y) * 0.7 + nB(x, y) * 0.3 - d * 0.55;
+  let t = 0;
+  if (h < 0.18) t = 1; else if (h < 0.26) t = 3;
+  else {
+    const f = nC(x, y);
+    if (f > 0.66) t = 2; else if (f < 0.2 && rnd() < 0.5) t = 5; else if (rnd() < 0.06) t = 6;
+  }
+  if (Math.hypot(x - CX, y - CY) < TOWN_R) t = Math.hypot(x - CX, y - CY) > TOWN_R - 1 ? 3 : 4;
+  map[y * W + x] = t;
+}
+const tileAt = (tx, ty) => (tx < 0 || ty < 0 || tx >= W || ty >= H) ? 1 : map[ty * W + tx];
+const solidTile = t => t === 1 || t === 2 || t === 5;
+const blockedPx = (x, y) => solidTile(tileAt(Math.floor(x / T), Math.floor(y / T)));
+function canStand(x, y, r = 9) { return !(blockedPx(x - r, y - r) || blockedPx(x + r, y - r) || blockedPx(x - r, y + r) || blockedPx(x + r, y + r)); }
+const inTown = e => Math.hypot(e.x / T - CX, e.y / T - CY) < TOWN_R;
+const zoneLevel = (x, y) => 1 + Math.floor(Math.hypot(x / T - CX, y / T - CY) / 9);
+
+// Bake the map into one offscreen canvas
+const world = document.createElement('canvas'); world.width = W * T; world.height = H * T;
+(function bake() {
+  const c = world.getContext('2d'), r = mulberry(7);
+  const base = ['#4f9d4a', '#2a6fb5', '#4f9d4a', '#e0cf8f', '#b9a98a', '#4f9d4a', '#4f9d4a'];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const t = map[y * W + x], sh = (r() - .5) * 14;
+    c.fillStyle = base[t]; c.fillRect(x * T, y * T, T, T);
+    c.fillStyle = sh > 0 ? `rgba(255,255,255,${sh / 120})` : `rgba(0,0,0,${-sh / 120})`; c.fillRect(x * T, y * T, T, T);
+    if (t === 1) { c.fillStyle = 'rgba(255,255,255,.15)'; c.fillRect(x * T + r() * 20, y * T + r() * 28, 10, 2); }
+    if (t === 4) { c.strokeStyle = 'rgba(0,0,0,.12)'; c.strokeRect(x * T + .5, y * T + .5, T - 1, T - 1); }
+  }
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const t = map[y * W + x];
+    if (t === 2) { c.font = '30px serif'; c.fillText(r() < .8 ? '🌲' : '🌳', x * T + 16, y * T + 15); }
+    else if (t === 5) { c.font = '26px serif'; c.fillText('🪨', x * T + 16, y * T + 17); }
+    else if (t === 6) { c.font = '14px serif'; c.fillText(['🌼', '🌸', '🍄'][ri(0, 2)], x * T + 16, y * T + 16); }
+  }
+  // town decorations
+  c.font = '28px serif';
+  [['⛲', 0, 0], ['🏠', -5, -3], ['🏡', 5, -3], ['🏪', 4, 3], ['🕯️', -2, 2], ['🌳', -6, 3], ['🌳', 6, 0]].forEach(([e, dx, dy]) => c.fillText(e, (CX + dx) * T + 16, (CY + dy) * T + 16));
+})();
+
+/* ====================== Game data ====================== */
+const CLASSES = {
+  warrior: { name: 'Warrior', e: '🤺', hp: 130, mp: 50, atk: 11, range: 1.6, desc: 'Tough melee fighter.', skills: ['Power Strike', 'Second Wind', 'Whirlwind'] },
+  mage:    { name: 'Mage',    e: '🧙', hp: 85,  mp: 120, atk: 9,  range: 6.5, desc: 'Ranged spells, big mana.', skills: ['Fireball', 'Restore', 'Frost Nova'] },
+  archer:  { name: 'Archer',  e: '🧝', hp: 100, mp: 80, atk: 10, range: 6,   desc: 'Fast ranged attacks.', skills: ['Piercing Shot', 'Bandage', 'Arrow Rain'] },
+};
+const SKILLS = [
+  { icon: '💥', mp: 10, cd: 3,  name: 'Strike' },
+  { icon: '💚', mp: 20, cd: 8,  name: 'Heal' },
+  { icon: '🌀', mp: 25, cd: 6,  name: 'Nova' },
+];
+const MON = {
+  slime:    { e: '🟢', name: 'Slime',    hp: 1,   atk: 1,   spd: 40, xp: 1,   minL: 1 },
+  wolf:     { e: '🐺', name: 'Wolf',     hp: 1.1, atk: 1.2, spd: 85, xp: 1.2, minL: 2 },
+  goblin:   { e: '👺', name: 'Goblin',   hp: 1.3, atk: 1.2, spd: 62, xp: 1.4, minL: 3 },
+  skeleton: { e: '💀', name: 'Skeleton', hp: 1.5, atk: 1.4, spd: 58, xp: 1.6, minL: 5 },
+  ogre:     { e: '👹', name: 'Ogre',     hp: 2.6, atk: 1.7, spd: 48, xp: 2.4, minL: 7 },
+};
+const MON_ORDER = Object.keys(MON);
+const WEAPONS = ['Sword', 'Staff', 'Bow', 'Axe', 'Dagger', 'Mace'];
+const ARMORS = ['Tunic', 'Robe', 'Mail', 'Plate', 'Cloak'];
+const RAR = [['Worn', 1, 'r0', 1], ['Fine', 1.4, 'r1', 2.2], ['Rare', 1.9, 'r2', 4], ['Epic', 2.7, 'r3', 8]];
+const QUESTS = [
+  { type: 'slime', need: 5, xp: 40, gold: 30, text: 'Slimes are oozing over the meadow. Squash 5 of them!' },
+  { type: 'wolf', need: 6, xp: 120, gold: 70, text: 'Wolves are stalking travellers. Hunt 6 wolves.' },
+  { type: 'goblin', need: 8, xp: 300, gold: 150, text: 'Goblin raiders steal our crops. Defeat 8 goblins.' },
+  { type: 'skeleton', need: 8, xp: 700, gold: 300, text: 'Restless bones rattle in the far woods. Smash 8 skeletons.' },
+  { type: 'ogre', need: 5, xp: 1800, gold: 700, text: 'Ogres threaten Owlheim! Slay 5 of them and be a hero.' },
+];
+const xpNeed = l => Math.floor(35 * Math.pow(l, 1.6));
+const BOT_NAMES = ['Lunarix', 'ShadowFox', 'PixelPaladin', 'Mira', 'Grimble', 'Zephyra', 'BobTheBuilder', 'OwlLover', 'Kaito', 'Thornwick', 'NyxNyx', 'Drakon'];
+const BOT_CHAT = ['anyone selling a rare sword?', 'lf party for ogres', 'gg', 'those wolves are fast!', 'just hit level up 🎉', 'the slimes drop good stuff', 'brb', 'nice armor!', 'where is the merchant?', 'watch out for skeletons north', 'lol', 'need potions...', 'hello Owlheim!', 'who wants to farm goblins?', 'this game is fun'];
+
+/* ====================== State ====================== */
+let P = null, monsters = [], bots = [], npcs = [], floaters = [], fx = [], target = null, dest = null;
+const keys = {}; let camX = 0, camY = 0, mouse = { x: 0, y: 0 }, paused = true, chatting = false;
+const cv = $('game'), ctx = cv.getContext('2d');
+function resize() { cv.width = innerWidth; cv.height = innerHeight; }
+addEventListener('resize', resize); resize();
+
+function log(msg, cls = 'sys') { const d = document.createElement('div'); d.className = cls; d.innerHTML = msg; const l = $('log'); l.appendChild(d); while (l.children.length > 80) l.firstChild.remove(); l.scrollTop = l.scrollHeight; }
+function toast(t) { const e = $('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2200); }
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function newPlayer(name, cls) {
+  const c = CLASSES[cls];
+  return { name, cls, lvl: 1, xp: 0, gold: 20, maxHp: c.hp, hp: c.hp, maxMp: c.mp, mp: c.mp, baseAtk: c.atk,
+    x: CX * T + 16, y: CY * T + 16 + 60, r: 9, speed: 150, atkCd: 0, cds: [0, 0, 0], face: 1, dead: 0,
+    inv: [{ slot: 'potion', kind: 'hp', name: 'Health Potion', heal: 60, value: 8 }, { slot: 'potion', kind: 'hp', name: 'Health Potion', heal: 60, value: 8 }, { slot: 'potion', kind: 'mp', name: 'Mana Potion', heal: 40, value: 8 }],
+    eq: { weapon: null, armor: null }, quest: 0, qProg: 0, kills: 0 };
+}
+const atk = () => P.baseAtk + (P.eq.weapon ? P.eq.weapon.power : 0);
+const def = () => (P.eq.armor ? P.eq.armor.power : 0);
+
+function makeItem(lvl, forceSlot) {
+  const slot = forceSlot || (Math.random() < .5 ? 'weapon' : 'armor');
+  const roll = Math.random(), ri_ = roll < .02 ? 3 : roll < .12 ? 2 : roll < .4 ? 1 : 0, [rn, mult, rc, vm] = RAR[ri_];
+  const base = slot === 'weapon' ? WEAPONS[ri(0, WEAPONS.length - 1)] : ARMORS[ri(0, ARMORS.length - 1)];
+  const power = Math.max(1, Math.round((slot === 'weapon' ? 2 + lvl * 1.7 : 1 + lvl * 1.1) * mult));
+  return { slot, name: `${rn} ${base}`, rc, power, lvl, value: Math.round(power * 3 * vm) };
+}
+
+/* ====================== Spawning ====================== */
+function spawnMonster(m) {
+  const types = MON_ORDER.filter(k => MON[k].minL <= zoneLevel(m.hx, m.hy));
+  const ty = types[ri(0, types.length - 1)] || 'slime';
+  const d = MON[ty], lvl = Math.max(1, zoneLevel(m.hx, m.hy) + ri(-1, 1));
+  Object.assign(m, { type: ty, lvl, maxHp: Math.round((22 + lvl * 16) * d.hp), atk: (3 + lvl * 2.1) * d.atk, x: m.hx, y: m.hy, cd: 0, dead: 0, state: 'idle', wx: m.hx, wy: m.hy, wt: rand(0, 3) });
+  m.hp = m.maxHp;
+}
+function populate() {
+  monsters = [];
+  let tries = 0;
+  while (monsters.length < 170 && tries++ < 6000) {
+    const x = ri(1, W - 2), y = ri(1, H - 2);
+    if (solidTile(tileAt(x, y)) || Math.hypot(x - CX, y - CY) < TOWN_R + 2) continue;
+    const m = { hx: x * T + 16, hy: y * T + 16 }; spawnMonster(m); monsters.push(m);
+  }
+  npcs = [
+    { x: (CX - 2) * T, y: (CY - 2) * T, e: '🦉', name: 'Elder Owl', kind: 'quest' },
+    { x: (CX + 3) * T, y: (CY + 2) * T, e: '👨‍🌾', name: 'Merchant Marta', kind: 'shop' },
+  ];
+  bots = BOT_NAMES.map((n, i) => ({ name: n, cls: ['warrior', 'mage', 'archer'][i % 3], x: (CX + ri(-6, 6)) * T, y: (CY + ri(-6, 6)) * T, tx: 0, ty: 0, t: rand(0, 4), lvl: ri(3, 25) }));
+}
+
+/* ====================== Combat ====================== */
+function floatText(x, y, t, col = '#fff', big) { floaters.push({ x, y, t, col, life: 1, big }); }
+function burst(x, y, col, n = 8) { for (let i = 0; i < n; i++) fx.push({ x, y, vx: rand(-90, 90), vy: rand(-110, 40), life: rand(.3, .7), col, s: rand(2, 4) }); }
+function damageMonster(m, amt, crit) {
+  m.hp -= amt; m.aggro = true; floatText(m.x, m.y - 22, (crit ? '✦' : '') + amt, crit ? '#ffd25a' : '#fff', crit); burst(m.x, m.y, '#ff6b6b', 5);
+  if (m.hp <= 0) killMonster(m);
+}
+function playerDmg(mult = 1) {
+  const crit = Math.random() < .12; return [Math.max(1, Math.round(atk() * mult * rand(.85, 1.15) * (crit ? 1.8 : 1))), crit];
+}
+function killMonster(m) {
+  m.dead = 14 + rand(0, 8); burst(m.x, m.y, '#ffffff', 12); if (target === m) target = null;
+  const diff = clamp(1 + (m.lvl - P.lvl) * .12, .3, 1.8), xp = Math.round((8 + m.lvl * 6) * MON[m.type].xp * diff);
+  gainXp(xp); P.kills++;
+  const g = Math.round(rand(2, 6) * (m.lvl + 1) * MON[m.type].xp); P.gold += g; floatText(m.x, m.y - 40, `+${g}g`, '#ffd25a');
+  if (Math.random() < .18) addItem({ slot: 'potion', kind: Math.random() < .6 ? 'hp' : 'mp', heal: 30 + P.lvl * 6, name: 'Potion', value: 8 }, true);
+  if (Math.random() < .2) { const it = makeItem(m.lvl); addItem(it, true); }
+  const q = QUESTS[P.quest]; if (q && q.type === m.type && P.qProg < q.need) { P.qProg++; if (P.qProg >= q.need) toast('Quest complete! Return to Elder Owl 🦉'); }
+  refreshUI();
+}
+function gainXp(n) {
+  P.xp += n; floatText(P.x, P.y - 40, `+${n} xp`, '#9fd0ff');
+  while (P.xp >= xpNeed(P.lvl)) {
+    P.xp -= xpNeed(P.lvl); P.lvl++; P.maxHp += 14; P.maxMp += 6; P.baseAtk += 2; P.hp = P.maxHp; P.mp = P.maxMp;
+    toast(`⭐ Level ${P.lvl}!`); log(`You reached <b>level ${P.lvl}</b>!`, 'loot'); burst(P.x, P.y, '#ffd25a', 30);
+  }
+}
+function addItem(it, announce) {
+  if (P.inv.length >= 16) { log('Inventory full!', 'bad'); return false; }
+  P.inv.push(it); if (announce) log(`Loot: <span class="${it.rc || 'r0'}">${it.name}</span>`, 'loot'); renderInv(); return true;
+}
+function hurtPlayer(amt) {
+  if (P.dead) return; amt = Math.max(1, Math.round(amt - def() * .5)); P.hp -= amt; floatText(P.x, P.y - 24, `-${amt}`, '#ff5a5a'); burst(P.x, P.y, '#ff3030', 4);
+  if (P.hp <= 0) { P.hp = 0; P.dead = 4; P.gold = Math.floor(P.gold * .9); target = null; dest = null; $('respawn').style.display = 'flex'; log('You were slain. Lost 10% gold.', 'bad'); }
+}
+function useSkill(i) {
+  if (P.dead || paused) return; const s = SKILLS[i];
+  if (P.cds[i] > 0) return; if (P.mp < s.mp) { floatText(P.x, P.y - 30, 'No mana', '#7aa6ff'); return; }
+  const c = CLASSES[P.cls];
+  if (i === 1) { P.mp -= s.mp; P.cds[i] = s.cd; const h = Math.round(P.maxHp * .4); P.hp = Math.min(P.maxHp, P.hp + h); floatText(P.x, P.y - 30, `+${h}`, '#6ee06e'); burst(P.x, P.y, '#6ee06e', 14); return; }
+  if (i === 0) {
+    if (!target || target.dead) { floatText(P.x, P.y - 30, 'Select a target', '#ccc'); return; }
+    if (dist(P, target) > (c.range + .5) * T) { floatText(P.x, P.y - 30, 'Too far', '#ccc'); return; }
+    P.mp -= s.mp; P.cds[i] = s.cd; const [d, cr] = playerDmg(2.6); bolt(P, target, '#ffa34d'); damageMonster(target, d, cr);
+  } else {
+    P.mp -= s.mp; P.cds[i] = s.cd; let n = 0;
+    fx.push({ ring: true, x: P.x, y: P.y, life: .5, max: .5, col: P.cls === 'mage' ? '#7ad7ff' : P.cls === 'archer' ? '#9be37a' : '#ffb347' });
+    for (const m of monsters) if (!m.dead && dist(P, m) < 3.2 * T) { const [d, cr] = playerDmg(1.6); damageMonster(m, d, cr); n++; }
+  }
+}
+function bolt(a, b, col) { fx.push({ bolt: true, x: a.x, y: a.y, tx: b.x, ty: b.y, life: .18, max: .18, col }); }
+function usePotion(kind) {
+  const i = P.inv.findIndex(it => it.slot === 'potion' && it.kind === kind); if (i < 0) { toast(`No ${kind === 'hp' ? 'health' : 'mana'} potions`); return; }
+  const it = P.inv.splice(i, 1)[0]; if (kind === 'hp') P.hp = Math.min(P.maxHp, P.hp + it.heal); else P.mp = Math.min(P.maxMp, P.mp + it.heal);
+  floatText(P.x, P.y - 30, `+${it.heal}`, kind === 'hp' ? '#6ee06e' : '#7aa6ff'); renderInv();
+}
+
+/* ====================== Update ====================== */
+function move(e, dx, dy, r = 9) { if (canStand(e.x + dx, e.y, r)) e.x += dx; if (canStand(e.x, e.y + dy, r)) e.y += dy; }
+function update(dt) {
+  if (P.dead) { P.dead -= dt; if (P.dead <= 0) { P.dead = 0; P.hp = P.maxHp; P.mp = P.maxMp; P.x = CX * T + 16; P.y = CY * T + 76; $('respawn').style.display = 'none'; } return; }
+  // movement
+  let ax = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0), ay = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
+  const c = CLASSES[P.cls];
+  if (ax || ay) { dest = null; const l = Math.hypot(ax, ay); move(P, ax / l * P.speed * dt, ay / l * P.speed * dt); if (ax) P.face = ax; }
+  else {
+    let goal = dest;
+    if (target && !target.dead) { const d = dist(P, target); if (d > (c.range - .2) * T) goal = { x: target.x, y: target.y }; else goal = null; if (target.x < P.x) P.face = -1; else P.face = 1; }
+    if (goal) { const dx = goal.x - P.x, dy = goal.y - P.y, d = Math.hypot(dx, dy); if (d < 6) { if (goal === dest) dest = null; } else { const ox = P.x, oy = P.y; move(P, dx / d * P.speed * dt, dy / d * P.speed * dt); if (Math.abs(P.x - ox) + Math.abs(P.y - oy) < .2 && goal === dest) dest = null; if (dx) P.face = Math.sign(dx); } }
+  }
+  P.atkCd -= dt; for (let i = 0; i < 3; i++) P.cds[i] = Math.max(0, P.cds[i] - dt);
+  P.mp = Math.min(P.maxMp, P.mp + dt * (1.2 + P.lvl * .15)); if (!P.combat) P.hp = Math.min(P.maxHp, P.hp + dt * (.8 + P.maxHp * .004));
+  P.combat = Math.max(0, (P.combat || 0) - dt);
+  // auto attack
+  if (target && !target.dead && P.atkCd <= 0 && dist(P, target) <= c.range * T + 4) {
+    P.atkCd = P.cls === 'archer' ? .65 : .85; const [d, cr] = playerDmg(1);
+    if (c.range > 2) bolt(P, target, P.cls === 'mage' ? '#7ad7ff' : '#d8c48a'); else burst(target.x, target.y, '#ffffff', 3);
+    damageMonster(target, d, cr);
+  }
+  // monsters
+  for (const m of monsters) {
+    if (m.dead) { m.dead -= dt; if (m.dead <= 0) spawnMonster(m); continue; }
+    const d = dist(m, P), data = MON[m.type], safe = inTown(P);
+    m.cd -= dt;
+    if (m.state !== 'return' && !safe && (d < 4.5 * T || m.aggro) && d < 11 * T) m.state = 'chase';
+    if (m.state === 'chase') {
+      if (safe || d > 12 * T || dist(m, { x: m.hx, y: m.hy }) > 15 * T) { m.state = 'return'; m.aggro = false; }
+      else if (d > 26) { const sp = data.spd * dt; move(m, (P.x - m.x) / d * sp, (P.y - m.y) / d * sp, 8); }
+      else if (m.cd <= 0) { m.cd = 1.1; hurtPlayer(m.atk * rand(.8, 1.2)); P.combat = 5; }
+    } else if (m.state === 'return') {
+      const dx = m.hx - m.x, dy = m.hy - m.y, dd = Math.hypot(dx, dy); m.hp = Math.min(m.maxHp, m.hp + m.maxHp * dt * .3);
+      if (dd < 8) m.state = 'idle'; else move(m, dx / dd * data.spd * 1.4 * dt, dy / dd * data.spd * 1.4 * dt, 8);
+    } else { // idle wander
+      m.wt -= dt; if (m.wt <= 0) { m.wt = rand(1.5, 4); m.wx = m.hx + rand(-60, 60); m.wy = m.hy + rand(-60, 60); }
+      const dx = m.wx - m.x, dy = m.wy - m.y, dd = Math.hypot(dx, dy); if (dd > 4) move(m, dx / dd * data.spd * .4 * dt, dy / dd * data.spd * .4 * dt, 8);
+    }
+  }
+  // bots
+  for (const b of bots) {
+    b.t -= dt;
+    if (b.t <= 0) { b.t = rand(1, 4); b.tx = clamp(b.x + rand(-120, 120), (CX - 7) * T, (CX + 7) * T); b.ty = clamp(b.y + rand(-120, 120), (CY - 7) * T, (CY + 7) * T); if (Math.random() < .12) { log(`<b>[${b.name}]</b> ${BOT_CHAT[ri(0, BOT_CHAT.length - 1)]}`, 'bot'); } }
+    const dx = b.tx - b.x, dy = b.ty - b.y, dd = Math.hypot(dx, dy); if (dd > 4) { move(b, dx / dd * 70 * dt, dy / dd * 70 * dt); b.face = Math.sign(dx) || 1; }
+  }
+  // fx
+  for (const f of floaters) { f.y -= 28 * dt; f.life -= dt; } floaters = floaters.filter(f => f.life > 0);
+  for (const f of fx) { f.life -= dt; if (!f.ring && !f.bolt) { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 260 * dt; } } fx = fx.filter(f => f.life > 0);
+  camX = clamp(P.x - cv.width / 2, 0, Math.max(0, W * T - cv.width)); camY = clamp(P.y - cv.height / 2, 0, Math.max(0, H * T - cv.height));
+  if (W * T < cv.width) camX = (W * T - cv.width) / 2; if (H * T < cv.height) camY = (H * T - cv.height) / 2;
+}
+
+/* ====================== Render ====================== */
+function label(txt, x, y, col = '#fff', size = 11) { ctx.font = `bold ${size}px system-ui`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.strokeText(txt, x, y); ctx.fillStyle = col; ctx.fillText(txt, x, y); }
+function hpBar(x, y, w, f, col) { ctx.fillStyle = '#000a'; ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, 6); ctx.fillStyle = col; ctx.fillRect(x - w / 2, y, w * clamp(f, 0, 1), 4); }
+function sprite(e, x, y, size, face = 1) { ctx.save(); ctx.translate(x, y); ctx.scale(face < 0 ? -1 : 1, 1); ctx.font = `${size}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(e, 0, 0); ctx.restore(); }
+function shadow(x, y, w = 10) { ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(x, y + 12, w, 4, 0, 0, 7); ctx.fill(); }
+let tm = 0;
+function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0b1830'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.translate(-Math.round(camX), -Math.round(camY)); ctx.drawImage(world, 0, 0);
+  const vis = e => e.x > camX - 60 && e.x < camX + cv.width + 60 && e.y > camY - 60 && e.y < camY + cv.height + 60;
+  const list = [];
+  for (const m of monsters) if (!m.dead && vis(m)) list.push({ y: m.y, f: () => {
+    shadow(m.x, m.y, 11); const bob = Math.sin(tm * 6 + m.hx) * 2; sprite(MON[m.type].e, m.x, m.y + bob, m === target ? 30 : 26, m.x < P.x ? 1 : -1);
+    if (m === target) { ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(m.x, m.y + 12, 16, 7, 0, 0, 7); ctx.stroke(); }
+    hpBar(m.x, m.y - 24, 28, m.hp / m.maxHp, '#e44'); label(`${MON[m.type].name} Lv${m.lvl}`, m.x, m.y - 30, m.lvl > P.lvl + 2 ? '#ff7b7b' : '#fff', 10);
+  } });
+  for (const n of npcs) list.push({ y: n.y, f: () => { shadow(n.x + 16, n.y + 16, 12); sprite(n.e, n.x + 16, n.y + 14, 30); label(n.name, n.x + 16, n.y - 12, '#ffd25a'); if (dist({ x: n.x + 16, y: n.y + 16 }, P) < 70) label('[E] Talk', n.x + 16, n.y - 24, '#fff', 10); } });
+  for (const b of bots) list.push({ y: b.y, f: () => { shadow(b.x, b.y, 10); sprite(CLASSES[b.cls].e, b.x, b.y, 28, b.face); label(b.name, b.x, b.y - 22, '#7be0a0', 10); } });
+  list.push({ y: P.y, f: () => {
+    shadow(P.x, P.y, 10); ctx.globalAlpha = P.dead ? .4 : 1; sprite(CLASSES[P.cls].e, P.x, P.y, 28, P.face); ctx.globalAlpha = 1;
+    label(`${P.name} Lv${P.lvl}`, P.x, P.y - 22, '#ffd25a', 11);
+  } });
+  list.sort((a, b) => a.y - b.y).forEach(o => o.f());
+  if (dest) { ctx.strokeStyle = '#fff8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(dest.x, dest.y, 6 + Math.sin(tm * 8) * 2, 0, 7); ctx.stroke(); }
+  for (const f of fx) {
+    if (f.ring) { const k = 1 - f.life / f.max; ctx.strokeStyle = f.col; ctx.globalAlpha = 1 - k; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(f.x, f.y, k * 3.2 * T, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+    else if (f.bolt) { const k = 1 - f.life / f.max; ctx.strokeStyle = f.col; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(f.x + (f.tx - f.x) * Math.max(0, k - .4), f.y + (f.ty - f.y) * Math.max(0, k - .4)); ctx.lineTo(f.x + (f.tx - f.x) * k, f.y + (f.ty - f.y) * k); ctx.stroke(); }
+    else { ctx.fillStyle = f.col; ctx.globalAlpha = clamp(f.life * 2, 0, 1); ctx.fillRect(f.x, f.y, f.s, f.s); ctx.globalAlpha = 1; }
+  }
+  for (const f of floaters) { ctx.globalAlpha = clamp(f.life * 1.5, 0, 1); label(f.t, f.x, f.y, f.col, f.big ? 18 : 13); ctx.globalAlpha = 1; }
+  // night-ish tint when low hp
+  if (P.hp / P.maxHp < .3 && !P.dead) { ctx.setTransform(1, 0, 0, 1, 0, 0); const g = ctx.createRadialGradient(cv.width / 2, cv.height / 2, cv.height / 3, cv.width / 2, cv.height / 2, cv.height); g.addColorStop(0, 'rgba(180,0,0,0)'); g.addColorStop(1, 'rgba(180,0,0,.4)'); ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height); }
+}
+const mm = $('mm'), mmc = mm.getContext('2d'), mmBase = document.createElement('canvas'); mmBase.width = mm.width; mmBase.height = mm.height;
+(function () { const c = mmBase.getContext('2d'), col = ['#4f9d4a', '#2a6fb5', '#2f7a33', '#e0cf8f', '#b9a98a', '#777', '#4f9d4a'], sx = mm.width / W, sy = mm.height / H; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { c.fillStyle = col[map[y * W + x]]; c.fillRect(x * sx, y * sy, sx + 1, sy + 1); } })();
+function drawMinimap() {
+  const sx = mm.width / W / T, sy = mm.height / H / T; mmc.drawImage(mmBase, 0, 0);
+  mmc.fillStyle = '#f55'; for (const m of monsters) if (!m.dead && dist(m, P) < 14 * T) mmc.fillRect(m.x * sx - 1, m.y * sy - 1, 2, 2);
+  mmc.fillStyle = '#ffd25a'; for (const n of npcs) mmc.fillRect((n.x + 16) * sx - 2, (n.y + 16) * sy - 2, 4, 4);
+  mmc.fillStyle = '#fff'; mmc.fillRect(P.x * sx - 2, P.y * sy - 2, 5, 5);
+}
+
+/* ====================== UI ====================== */
+function setBar(id, v, max, txt) { const b = $(id); b.firstElementChild.style.width = clamp(v / max * 100, 0, 100) + '%'; b.lastElementChild.textContent = txt; }
+function refreshUI() {
+  $('pname').textContent = `${CLASSES[P.cls].e} ${P.name}`; $('plvl').textContent = `Lv ${P.lvl}`;
+  setBar('hp', P.hp, P.maxHp, `${Math.ceil(P.hp)} / ${P.maxHp}`); setBar('mp', P.mp, P.maxMp, `${Math.floor(P.mp)} / ${P.maxMp}`); setBar('xp', P.xp, xpNeed(P.lvl), `XP ${P.xp} / ${xpNeed(P.lvl)}`);
+  $('gold').textContent = `🪙 ${P.gold}   ⚔️ ${atk()}   🛡️ ${def()}`;
+  $('zone').textContent = inTown(P) ? '🏘️ Owlheim Town (safe zone)' : `🌲 Wilderness – area level ${zoneLevel(P.x, P.y)}`;
+  const q = QUESTS[P.quest]; $('quest').innerHTML = q ? `<b>📜 Quest ${P.quest + 1}/${QUESTS.length}</b><br>Kill ${q.need} ${MON[q.type].name}s: <b>${Math.min(P.qProg, q.need)}/${q.need}</b>${P.qProg >= q.need ? '<br><span style="color:#6ee06e">Return to Elder Owl!</span>' : ''}` : '<b>📜 All quests complete!</b><br>You are a hero of Owlheim.';
+}
+function buildSkills() {
+  const c = CLASSES[P.cls]; $('skills').innerHTML = SKILLS.map((s, i) => `<div class="skill" data-i="${i}" title="${c.skills[i]} (${s.mp} MP)"><b>${i + 1}</b>${s.icon}<small>${c.skills[i].split(' ')[0]}</small><div class="cd"></div></div>`).join('');
+  document.querySelectorAll('.skill').forEach(el => el.onclick = () => useSkill(+el.dataset.i));
+}
+function itemHtml(it) { return `<span class="${it.rc || 'r0'}">${it.name}</span><br>${it.slot === 'potion' ? '+' + it.heal + (it.kind === 'hp' ? ' HP' : ' MP') : (it.slot === 'weapon' ? '⚔️' : '🛡️') + it.power}`; }
+function renderInv() {
+  if (!P) return; const el = $('inv');
+  const eqS = s => P.eq[s] ? `<div data-un="${s}" style="cursor:pointer" title="Click to unequip"><small>${s}</small><br>${itemHtml(P.eq[s])}</div>` : `<div><small>${s}</small><br><i style="opacity:.4">empty</i></div>`;
+  let slots = ''; for (let i = 0; i < 16; i++) { const it = P.inv[i]; slots += it ? `<div class="slot" data-i="${i}" title="Click: use/equip · Right-click: sell (near merchant)">${itemHtml(it)}<br><small>${it.value}g</small></div>` : '<div class="slot"></div>'; }
+  el.innerHTML = `<h3>🎒 Inventory <span style="float:right;cursor:pointer" id="invx">✖</span></h3><div class="eq">${eqS('weapon')}${eqS('armor')}</div><div class="grid">${slots}</div><div style="margin-top:6px;font-size:11px;opacity:.7">Class: ${CLASSES[P.cls].name} · Kills: ${P.kills}</div>`;
+  $('invx').onclick = toggleInv;
+  el.querySelectorAll('[data-un]').forEach(d => d.onclick = () => { const it = P.eq[d.dataset.un]; if (it && P.inv.length < 16) { P.inv.push(it); P.eq[d.dataset.un] = null; renderInv(); refreshUI(); } });
+  el.querySelectorAll('.slot[data-i]').forEach(d => { d.onclick = () => clickItem(+d.dataset.i); d.oncontextmenu = e => { e.preventDefault(); sellItem(+d.dataset.i); }; });
+}
+function clickItem(i) {
+  const it = P.inv[i]; if (!it) return;
+  if (it.slot === 'potion') { P.inv.splice(i, 1); if (it.kind === 'hp') P.hp = Math.min(P.maxHp, P.hp + it.heal); else P.mp = Math.min(P.maxMp, P.mp + it.heal); }
+  else { const old = P.eq[it.slot]; P.eq[it.slot] = it; P.inv.splice(i, 1); if (old) P.inv.push(old); }
+  renderInv(); refreshUI();
+}
+function nearNpc(kind) { return npcs.find(n => n.kind === kind && dist({ x: n.x + 16, y: n.y + 16 }, P) < 80); }
+function sellItem(i) { if (!nearNpc('shop')) { toast('Find the merchant to sell'); return; } const it = P.inv.splice(i, 1)[0]; if (it) { P.gold += it.value; log(`Sold ${it.name} for ${it.value}g`, 'loot'); } renderInv(); refreshUI(); }
+function toggleInv() { const e = $('inv'); e.style.display = e.style.display === 'block' ? 'none' : 'block'; renderInv(); }
+function closeDlg() { $('dlg').style.display = 'none'; }
+function openDlg(html) { const d = $('dlg'); d.innerHTML = html; d.style.display = 'block'; }
+function interact() {
+  if ($('dlg').style.display === 'block') { closeDlg(); return; }
+  if (nearNpc('quest')) {
+    const q = QUESTS[P.quest];
+    if (!q) return openDlg('<h3>🦉 Elder Owl</h3>You have done everything I could ask. Owlheim is safe, hero!<br><button onclick="closeDlg()">Bye</button>');
+    if (P.qProg >= q.need) {
+      openDlg(`<h3>🦉 Elder Owl</h3>Well done! Take this reward: <b>${q.xp} XP</b> and <b>${q.gold} gold</b>.<br><button id="claim">Claim reward</button>`);
+      $('claim').onclick = () => { P.gold += q.gold; gainXp(q.xp); if (Math.random() < 1) addItem(makeItem(P.lvl + 2), true); P.quest++; P.qProg = 0; closeDlg(); refreshUI(); log('Quest completed!', 'loot'); };
+    } else openDlg(`<h3>🦉 Elder Owl</h3>${q.text}<br><br>Progress: ${P.qProg}/${q.need}<br><button onclick="closeDlg()">I'll do it</button>`);
+  } else if (nearNpc('shop')) {
+    openDlg(`<h3>👨‍🌾 Merchant Marta</h3>Potions for the road! Right-click items in your bag (I) to sell them.<br><button id="b1">Health Potion – 25g</button><button id="b2">Mana Potion – 25g</button><button onclick="closeDlg()">Leave</button>`);
+    const buy = k => () => { if (P.gold < 25) return toast('Not enough gold'); if (addItem({ slot: 'potion', kind: k, name: k === 'hp' ? 'Health Potion' : 'Mana Potion', heal: 50 + P.lvl * 6, value: 8 })) { P.gold -= 25; refreshUI(); } };
+    $('b1').onclick = buy('hp'); $('b2').onclick = buy('mp');
+  } else toast('Nobody to talk to nearby');
+}
+
+/* ====================== Input ====================== */
+const worldPos = e => ({ x: e.clientX + Math.round(camX), y: e.clientY + Math.round(camY) });
+cv.addEventListener('mousedown', e => {
+  if (paused || P.dead) return; const w = worldPos(e);
+  const m = monsters.find(m => !m.dead && Math.hypot(m.x - w.x, m.y - w.y) < 20);
+  if (m) { target = m; dest = null; return; }
+  const n = npcs.find(n => Math.hypot(n.x + 16 - w.x, n.y + 16 - w.y) < 24); if (n) { dest = { x: n.x + 16, y: n.y + 60 }; target = null; return; }
+  target = null; if (canStand(w.x, w.y)) dest = w;
+});
+cv.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('keydown', e => {
+  if (paused) return; const k = e.key.toLowerCase();
+  if (e.target === $('chatin')) { if (k === 'enter') { const v = $('chatin').value.trim(); if (v) log(`<b>[${esc(P.name)}]</b> ${esc(v)}`, 'me'); $('chatin').value = ''; $('chatin').blur(); } else if (k === 'escape') $('chatin').blur(); return; }
+  if (k === 'enter') { $('chatin').focus(); e.preventDefault(); return; }
+  keys[k] = true; if (k.startsWith('arrow') || k === 'tab') e.preventDefault();
+  if (k === '1') useSkill(0); else if (k === '2') useSkill(1); else if (k === '3') useSkill(2);
+  else if (k === 'q') usePotion('hp'); else if (k === 'r') usePotion('mp'); else if (k === 'i') toggleInv(); else if (k === 'e') interact();
+  else if (k === 'escape') { closeDlg(); target = null; }
+  else if (k === 'tab') { let best = null, bd = 1e9; for (const m of monsters) { if (m.dead) continue; const d = dist(m, P); if (d < 9 * T && d < bd && m !== target) { bd = d; best = m; } } if (best) target = best; }
+});
+addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+/* ====================== Save / Load ====================== */
+const SAVE = 'owlheim-save-v1';
+function save() { if (!P) return; try { localStorage.setItem(SAVE, JSON.stringify(P)); } catch (e) {} }
+function load() { try { return JSON.parse(localStorage.getItem(SAVE)); } catch (e) { return null; } }
+setInterval(save, 8000); addEventListener('beforeunload', save);
+
+/* ====================== Main loop & title ====================== */
+let last = performance.now(), uiT = 0;
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; tm += dt;
+  if (!paused) {
+    update(dt); render(); drawMinimap(); uiT -= dt;
+    document.querySelectorAll('.skill').forEach((el, i) => { el.lastElementChild.style.height = (P.cds[i] / SKILLS[i].cd * 100) + '%'; });
+    if (uiT <= 0) { uiT = .1; refreshUI(); }
+  }
+  requestAnimationFrame(loop);
+}
+let chosen = 'warrior';
+function buildTitle() {
+  $('classes').innerHTML = Object.entries(CLASSES).map(([k, c]) => `<div class="cls ${k === chosen ? 'sel' : ''}" data-k="${k}"><div class="e">${c.e}</div><b>${c.name}</b><br>${c.desc}<br>❤️${c.hp} 💧${c.mp} ⚔️${c.atk}<br>Range ${c.range}</div>`).join('');
+  document.querySelectorAll('.cls').forEach(el => el.onclick = () => { chosen = el.dataset.k; buildTitle(); });
+}
+buildTitle();
+const saved = load(); if (saved) { chosen = saved.cls; buildTitle(); $('nameIn').value = saved.name; $('play').textContent = '▶ Continue Adventure'; }
+$('play').onclick = () => {
+  const s = load(), name = $('nameIn').value.trim() || 'Hero';
+  P = (s && s.name === name && s.cls === chosen) ? Object.assign(newPlayer(name, chosen), s, { dead: 0 }) : newPlayer(name, chosen);
+  P.hp = Math.max(1, P.hp); populate(); buildSkills(); renderInv(); refreshUI();
+  $('title').style.display = 'none'; paused = false; target = null; dest = null;
+  log('Welcome to <b>Owlheim Online</b>! Talk to the Elder Owl 🦉 (E) to start a quest.'); log('Tip: town is a safe zone. Wander further out for tougher monsters.');
+};
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
