@@ -62,7 +62,7 @@ async function init() {
   $('load-tip').textContent = 'Tip: ' + TIPS[(Math.random() * TIPS.length) | 0];
   world = new World(scene);
   world.spawnAreas = SPAWNS;
-  const steps = ['buildTerrain', 'buildWater', 'buildSky', 'buildTown', 'buildDungeonGates', 'buildBridges', 'buildRuins', 'buildOverlook', 'buildTrees', 'buildGroundCover', 'buildBoundary', 'buildWorldTree', 'buildIslands', 'finishBatches', 'buildAmbient', 'buildMinimap'];
+  const steps = ['buildTerrain', 'buildWater', 'buildSky', 'buildTown', 'buildDungeonGates', 'buildBridges', 'buildRuins', 'buildOverlook', 'buildAltar', 'buildTrees', 'buildGroundCover', 'buildBoundary', 'buildWorldTree', 'buildIslands', 'finishBatches', 'buildAmbient', 'buildMinimap'];
   for (let i = 0; i < steps.length; i++) {
     world[steps[i]]();
     $('load-fill').style.width = ((i + 1) / steps.length) * 100 + '%';

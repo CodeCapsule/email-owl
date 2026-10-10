@@ -196,6 +196,7 @@ export const ZONES = [
   { name: 'Mossveil Forest', x: 12, z: 122, r: 70, lv: 'Lv 5-9' },
   { name: 'Elder Ruins', x: -120, z: -20, r: 95, lv: 'Lv 10-15' },
   { name: 'World Tree Overlook', x: 0, z: -130, r: 70, lv: 'Scenic' },
+  { name: 'Storm Altar', x: 128, z: -86, r: 30, lv: 'World Boss' },
 ];
 
 export const PETS = [
