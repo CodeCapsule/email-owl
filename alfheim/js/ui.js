@@ -6,6 +6,8 @@ import { needExp, fmt, esc, PET_TIER } from './game.js';
 import { RARITY, LEGENDARY_ITEMS, itemLines, itemScore, namedBySource } from './loot.js';
 import { ico } from './icons.js';
 import { installSystemsUI } from './ui-systems.js';
+import { installLifeUI } from './ui-life.js';
+import { MAX_LEVEL, SHOPS, DUNGEON_RULES } from './data-world.js';
 import { WORLD_BOSS, MATERIALS } from './systems-data.js';
 
 const $ = (id) => document.getElementById(id);
@@ -50,16 +52,16 @@ export class UI {
     $('btn-auto').innerHTML = `${ico('auto')}<small>Auto</small>`;
     // menu
     const menu = $('hud-menu'); menu.innerHTML = '';
-    const items = [['char', 'Character', 'C'], ['bag', 'Bag', 'B'], ['skills', 'Skills', 'K'], ['pets', 'Pets', 'P'], ['mounts', 'Mounts', 'U'], ['guild', 'Guild', 'G'], ['forge', 'Forge', 'Y'], ['market', 'Market', 'N'], ['codex', 'Codex', 'X'], ['quests', 'Quests', 'L'], ['map', 'World Map', 'M'], ['settings', 'Settings', 'O']];
+    const items = [['char', 'Character', 'C'], ['bag', 'Bag', 'B'], ['skills', 'Skills', 'K'], ['pets', 'Pets', 'P'], ['mounts', 'Mounts', 'U'], ['life', 'Professions', 'Z', 'professions'], ['wardrobe', 'Wardrobe', 'V', 'wardrobe'], ['collect', 'Relic Collection', '', 'collection'], ['guild', 'Guild', 'G'], ['forge', 'Forge', 'Y'], ['market', 'Market', 'N'], ['codex', 'Codex', 'X'], ['quests', 'Quests', 'L'], ['map', 'World Map', 'M'], ['settings', 'Settings', 'O']];
     this.menuBtns = {};
-    for (const [n, label, k] of items) {
-      const b = h('button', 'mbtn', `${ico(n)}<span class="k">${k}</span>`); b.title = `${label} (${k})`; b.setAttribute('aria-label', label);
+    for (const [n, label, k, icn] of items) {
+      const b = h('button', 'mbtn', `${ico(icn || n)}${k ? `<span class="k">${k}</span>` : ''}`); b.title = k ? `${label} (${k})` : label; b.setAttribute('aria-label', label);
       b.onclick = () => { this.togglePanel(n); g.sfx.play('click'); };
       menu.appendChild(b); this.menuBtns[n] = b;
     }
     // activities
     const acts = $('hud-acts'); acts.innerHTML = '';
-    const A = [['missions', 'Missions'], ['dungeon', 'Dungeon'], ['worldboss', 'World Boss'], ['war', 'Guild War'], ['event', 'Festival'], ['season', 'Season'], ['signin', 'Sign-In'], ['gift', 'Gift'], ['mall', 'Mall'], ['rank', 'Ranking'], ['bounty', 'Bounty'], ['teleport', 'Teleport']];
+    const A = [['missions', 'Missions'], ['dungeon', 'Dungeon'], ['worldboss', 'World Boss'], ['war', 'Guild War'], ['event', 'Festival'], ['season', 'Season'], ['auction', 'Auction'], ['farm', 'Farm'], ['signin', 'Sign-In'], ['gift', 'Gift'], ['mall', 'Mall'], ['rank', 'Ranking'], ['bounty', 'Bounty'], ['teleport', 'Teleport']];
     this.acts = {};
     for (const [n, label] of A) {
       const b = h('button', 'act', `<span class="ai">${ico(n)}</span><span class="al stroke">${label}</span>`); b.setAttribute('aria-label', label);
@@ -70,6 +72,7 @@ export class UI {
         if (g.dg && (n === 'bounty' || n === 'teleport')) { this.toast('Not available inside a dungeon', 'warn'); return; }
         if (n === 'bounty') { if (S.bounty) g.autoQuest('bounty'); else if (g.bountyUnlocked()) g.talkTo(g.npcById('elena')); else this.toast('Bounties unlock after "Swift as the Wind"', 'warn'); return; }
         if (n === 'teleport') { g.talkTo(g.npcById('nix')); return; }
+        if (n === 'farm') { this.sel.lifeTab = 'farm'; this.togglePanel('life'); return; }
         this.togglePanel(n);
       };
       acts.appendChild(b); this.acts[n] = b;
@@ -114,15 +117,15 @@ export class UI {
   refreshWallet() { const S = this.g.S; this.txt($('w-gold'), fmt(S.gold)); this.txt($('w-dia'), fmt(S.diamonds)); }
   refreshExp() {
     const S = this.g.S, need = needExp(S.level);
-    const pct = S.level >= 30 ? 100 : (S.exp / need) * 100;
+    const pct = S.level >= MAX_LEVEL ? 100 : (S.exp / need) * 100;
     $('exp-f').style.width = pct + '%';
-    this.txt($('exp-t'), S.level >= 30 ? 'MAX LEVEL' : `EXP ${fmt(S.exp)} / ${fmt(need)}  (${pct.toFixed(1)}%)`);
+    this.txt($('exp-t'), S.level >= MAX_LEVEL ? 'MAX LEVEL' : `EXP ${fmt(S.exp)} / ${fmt(need)}  (${pct.toFixed(1)}%)`);
   }
   refreshSkills() {
     const g = this.g; if (!g || !this.slots) return;
     const list = g.skillList();
     this.slots.forEach((b) => {
-      if (b.dataset.potion) { b.querySelector('.cnt').textContent = g.countItem(b.dataset.potion); return; }
+      if (b.dataset.potion) { b.querySelector('.cnt').textContent = g.countPotions(b.dataset.potion); return; }
       const sk = list[+b.dataset.i];
       const icEl = b.querySelector('.ic');
       if (icEl.dataset.k !== sk.id) { icEl.dataset.k = sk.id; icEl.innerHTML = ico(sk.id); }
@@ -144,6 +147,7 @@ export class UI {
   }
   refreshTarget() {
     const g = this.g, t = g?.player?.target, el = $('hud-target');
+    this.refreshTradeBtn(t);
     if (!t || t.dead) { el.hidden = true; this.tgShown = null; return; }
     el.hidden = false;
     if (this.tgShown !== t) {
@@ -168,6 +172,8 @@ export class UI {
     this.acts.bounty.classList.toggle('glow', !!(S.bounty && S.bounty.status === 'complete'));
     const anyEntry = DUNGEONS.some((d) => S.level >= d.lv - 2 && this.g.dungeonEntries(d) > 0);
     this.acts.dungeon.classList.toggle('glow', anyEntry && !this.g.dg);
+    const cl = (S.auc?.claims?.length || 0) > 0;
+    this.acts.auction.classList.toggle('glow', cl); this.setBadge(this.acts.auction, cl);
     this.refreshActsSys();
   }
   // Notification marker: a small gold sparkle (not a red "!" that reads as an error).
@@ -201,8 +207,9 @@ export class UI {
     }
     // buffs
     const bf = $('pf-buffs');
-    const sig = p.buffs.map((b) => b.id + Math.ceil(b.until - g.time)).join();
-    if (sig !== this.buffSig) { this.buffSig = sig; bf.innerHTML = p.buffs.map((b) => `<div class="buff">${ico(b.icon)}<small>${b.stacks ? 'x' + b.stacks : Math.ceil(b.until - g.time)}</small></div>`).join(''); }
+    const elx = g.activeElixirs ? g.activeElixirs() : [];
+    const sig = p.buffs.map((b) => b.id + Math.ceil(b.until - g.time)).join() + elx.map((x) => x.id + Math.ceil(x.left / 60000)).join();
+    if (sig !== this.buffSig) { this.buffSig = sig; bf.innerHTML = p.buffs.map((b) => `<div class="buff">${ico(b.icon)}<small>${b.stacks ? 'x' + b.stacks : Math.ceil(b.until - g.time)}</small></div>`).join('') + elx.map((x) => `<div class="buff elx" title="${esc(x.def.name)}">${ico(x.id)}<small>${Math.ceil(x.left / 60000)}m</small></div>`).join(''); }
     // cast bar
     if (g.casting) $('cast-f').style.width = Math.min(100, (g.casting.t / g.casting.dur) * 100) + '%';
     // coords & gift timer
@@ -304,8 +311,9 @@ export class UI {
     else if (P.cur === P.total - 1) obj = P.boss ? `Defeat ${P.boss.def0.name}` : 'Enter the boss chamber';
     else obj = `Chamber ${P.cur + 1}/${P.total}: defeat all foes (${P.count - P.alive}/${P.count})`;
     this.txt(objEl, obj);
-    this.txt($('dg-time'), `Time ${mmss(P.time)}`);
-    this.txt($('dg-deaths'), P.done ? `Rating ${P.rating}` : `Deaths ${g.dg.deaths}`);
+    this.txt($('dg-time'), P.done ? `Time ${mmss(P.time)}` : `Time left ${mmss(Math.max(0, DUNGEON_RULES.timeLimit - P.time))}`);
+    this.txt($('dg-deaths'), P.done ? `Rating ${P.rating}` : `Deaths ${g.dg.deaths}/${DUNGEON_RULES.deathLimit}`);
+    const dt = $('dg-time'); if (dt) dt.style.color = !P.done && DUNGEON_RULES.timeLimit - P.time < 120 ? '#ff8a7a' : '';
   }
   renderWarTracker() {
     const g = this.g, list = $('qt-list'); list.innerHTML = '';
@@ -457,8 +465,9 @@ export class UI {
     this.panelName = name;
     const dot = this.menuBtns[name]?.querySelector('.dotn'); if (dot) dot.remove();
     const titles = { char: 'Character', bag: 'Bag', skills: 'Skills', pets: 'Pets & Sprites', mounts: 'Mount Stable', quests: 'Quest Log', map: this.g.dg ? this.g.dg.def.name : this.g.war ? 'Spirit Crystal Arena' : 'World Map of Carlyle', settings: 'Settings', mall: 'Mall', signin: 'Daily Sign-In', gift: 'Online Gifts', rank: 'Leaderboards', dungeons: 'Dungeons',
+      life: 'Professions', collect: 'Relic Collection', wardrobe: 'Wardrobe', shop: SHOPS[this.sel.shop]?.name || 'Shop', auction: 'Auction House', trade: this.g.trade ? `Trade · ${this.g.trade.who}` : 'Trade',
       missions: 'Daily & Weekly Missions', guild: this.g.S.guild ? `Guild · ${this.g.S.guild.name}` : 'Guilds of Carlyle', market: 'Carlyle Market', forge: "Gorm's Forge", codex: 'Legendary Codex', season: 'Season Pass', event: this.g.event ? this.g.event.name : 'Festivals', worldboss: 'World Boss' };
-    const widths = { char: 600, bag: 460, skills: 520, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 560, dungeons: 620, missions: 600, guild: 600, market: 620, forge: 600, codex: 620, season: 660, event: 600, worldboss: 600 };
+    const widths = { char: 600, bag: 460, skills: 520, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 560, dungeons: 620, missions: 600, guild: 600, market: 620, forge: 600, codex: 620, season: 660, event: 600, worldboss: 600, life: 620, collect: 600, wardrobe: 600, shop: 560, auction: 640, trade: 640 };
     const p = h('div', 'panel frame');
     p.style.width = `min(${widths[name]}px, calc(100vw - 24px))`;
     p.innerHTML = `<div class="ptitle">${titles[name]}</div><button class="x-close" aria-label="Close"></button><div class="pbody"></div>`;
@@ -547,12 +556,12 @@ export class UI {
     if (tab === 'mats') { this.matsGrid(body); return; }
     const grid = h('div', 'grid-bag');
     const idx = S.bag.map((b, i) => [b, i]).filter(([b]) => tab === 'all' || (tab === 'eq' ? !!b.eq : !b.eq));
-    for (let k = 0; k < 48; k++) {
+    for (let k = 0; k < g.bagMax(); k++) {
       const e = idx[k];
       if (!e) { grid.appendChild(h('div', 'cell empty')); continue; }
       const [b, i] = e;
       const q = b.eq ? b.eq.quality : ITEMS[b.id].quality;
-      const c = h('button', `cell q${q}`, b.eq ? `${ico(b.eq.icon)}${b.eq.enh ? `<span class="enh">+${b.eq.enh}</span>` : ''}` : `${ico(b.id)}<span class="cnt">${b.qty}</span>`);
+      const c = h('button', `cell q${q}`, b.eq ? `${ico(b.eq.icon)}${b.eq.enh ? `<span class="enh">+${b.eq.enh}</span>` : ''}${b.eq.lock ? '<span class="lockd"></span>' : ''}` : `${ico(b.id)}<span class="cnt">${b.qty}</span>`);
       if (this.sel.bagIdx === i) c.style.outline = '2px solid var(--gold)';
       c.onclick = () => { this.sel.bagIdx = i; this.renderPanel(); };
       c.ondblclick = () => g.useBagItem(i);
@@ -560,7 +569,8 @@ export class UI {
       grid.appendChild(c);
     }
     body.appendChild(grid);
-    body.appendChild(h('div', '', `<div style="margin-top:8px;font-size:12px;color:var(--muted)">Slots ${S.bag.length}/48 · Double-click to use or equip</div>`));
+    body.appendChild(h('div', '', `<div style="margin-top:8px;font-size:12px;color:var(--muted)">Slots ${S.bag.length}/${g.bagMax()} · Double-click to use or equip</div>`));
+    this.bagTools(body);
     const b = S.bag[this.sel.bagIdx];
     if (b) {
       const det = h('div', 'detail');
@@ -569,6 +579,7 @@ export class UI {
       const it = b.eq ? null : ITEMS[b.id];
       if (b.eq || (it && it.type !== 'quest')) { const bu = h('button', 'btn green', b.eq ? 'Equip' : it.type === 'egg' ? 'Hatch' : 'Use'); bu.onclick = () => { const i = this.sel.bagIdx; this.sel.bagIdx = null; g.useBagItem(i); }; acts.appendChild(bu); }
       if (!it || it.type !== 'quest') { const bs = h('button', 'btn gray', 'Sell'); bs.onclick = () => { const i = this.sel.bagIdx; this.sel.bagIdx = null; g.sell(i); }; acts.appendChild(bs); }
+      if (b.eq) { const bl = h('button', 'btn gray', b.eq.lock ? 'Unlock' : 'Lock'); bl.onclick = () => g.toggleLock(this.sel.bagIdx); acts.appendChild(bl); }
       det.appendChild(acts);
       body.appendChild(det);
     }
@@ -835,6 +846,7 @@ export class UI {
 }
 
 installSystemsUI(UI);
+installLifeUI(UI);
 
 function linkify(obj) {
   return esc(obj).replace(/(Talk to |Return to |Defeat |Collect )(.+?)( \(|$)/, (m, a, b, c) => `${a}<u>${b}</u>${c}`);

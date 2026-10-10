@@ -1,5 +1,6 @@
 // Data for the live systems: missions, guilds, guild wars, world bosses, materials, crafting, market, gear progression,
 // seasons, festival events and leaderboards. Pure data + small pure helpers (no three.js, no DOM).
+import { NEW_MATERIALS, RELICS, NEW_MONSTERS, DUNGEON_MONSTERS, GATHER } from './data-world.js';
 
 // ---------------------------------------------------------------- time keys (UTC, so every reset happens at 00:00 UTC)
 export const dayKey = (d = new Date()) => d.toISOString().slice(0, 10);
@@ -65,6 +66,11 @@ for (const [type, g] of Object.entries(GEMS)) {
   });
 }
 
+// gathering / farm materials and dungeon collection relics
+const MAT_DESC = { ore: 'Ore mined from a vein. Smelted into gear by Smithing.', herb: 'A wild herb for Alchemy.', wood: 'A log for Smithing.', crop: 'Farm produce for Alchemy and cooking.' };
+for (const [id, [name, quality, price]] of Object.entries(NEW_MATERIALS)) MATERIALS[id] = { name, icon: id, quality, price, desc: MAT_DESC[id.split('_')[0]] || '' };
+for (const [id, r] of Object.entries(RELICS)) MATERIALS[id] = { name: r.name, icon: id, quality: 5, price: 4000, relic: r.dungeon, desc: 'A dungeon collection relic. Register it in the Collection and combine a full set of four into Red gear at the Forge.' };
+
 // [material, chance, min, max] rolled when a tagged monster dies
 export const MAT_DROPS = {
   jelly: [['jelly_gel', 0.45, 1, 2]], bunny: [['soft_fur', 0.45, 1, 2]], shroom: [['glow_spore', 0.4, 1, 2]], wolf: [['wolf_fang', 0.4, 1, 2]],
@@ -79,6 +85,12 @@ export const MAT_DROPS = {
   rival: [['spirit_dust', 0.5, 1, 3]],
   behemoth: [['star_essence', 1, 1, 2], ['spirit_shard', 1, 3, 5]], pumpkinking: [['star_essence', 1, 1, 2], ['spirit_shard', 1, 3, 5]], frostbehemoth: [['star_essence', 1, 1, 2], ['spirit_shard', 1, 3, 5]],
 };
+// expanded-world monsters drop the raw materials of their zone tier, plus shards and essence higher up
+for (const [id, m] of [...Object.entries(NEW_MONSTERS), ...Object.entries(DUNGEON_MONSTERS)]) {
+  const t = Math.min(4, Math.floor(m.lvl[0] / 42)), big = m.boss ? 1 : m.elite ? 0.5 : 0;
+  MAT_DROPS[id] = [[GATHER.ore.mats[t], 0.1 + big * 0.6, 1, 2 + big * 4], [GATHER.herb.mats[t], 0.1 + big * 0.6, 1, 2 + big * 4], [GATHER.tree.mats[t], 0.06 + big * 0.5, 1, 2 + big * 3], ['spirit_shard', 0.03 + big * 0.9, 1, 1 + big * 4]];
+  if (m.lvl[0] >= 80) MAT_DROPS[id].push(['star_essence', 0.015 + big * 0.9, 1, 1 + big * 2]);
+}
 
 // ---------------------------------------------------------------- crafting (Gorm's Forge)
 // out.item → ITEMS id, out.mat → MATERIALS id, gear → random gear of that tier for the chosen slot at your level
@@ -96,7 +108,7 @@ export const RECIPES = [
 ];
 
 // ---------------------------------------------------------------- gear progression
-export const SOCKETS = [0, 1, 1, 2, 2, 3]; // sockets per rarity tier
+export const SOCKETS = [0, 1, 1, 2, 2, 3, 3]; // sockets per rarity tier
 export const GEM_COMBINE = [null, { gold: 300 }, { gold: 1200 }]; // 3x level n -> 1x level n+1 (index = n)
 export const ASCEND = [ // indexed by current quality
   { to: 1, mats: { spirit_dust: 4 }, gold: 200 },
@@ -110,9 +122,9 @@ export const retemperCost = (eq, lvl) => ({ mats: { spirit_dust: Math.max(2, (lv
 export function salvageYield(eq) {
   const q = eq.quality, out = {};
   const add = (k, n) => { if (n > 0) out[k] = (out[k] || 0) + n; };
-  add('spirit_dust', [1, 2, 4, 6, 4, 6][q] + Math.floor(eq.lvl / 8) + (eq.enh || 0));
-  if (q >= 2) add('spirit_shard', [0, 0, 0, 1, 3, 5][q]);
-  if (q >= 4) add('star_essence', q === 5 ? 1 : 0);
+  add('spirit_dust', [1, 2, 4, 6, 4, 6, 10][q] + Math.floor(eq.lvl / 8) + (eq.enh || 0));
+  if (q >= 2) add('spirit_shard', [0, 0, 0, 1, 3, 5, 8][q]);
+  if (q >= 4) add('star_essence', q === 6 ? 3 : q === 5 ? 1 : 0);
   return out;
 }
 export const CODEX_MILESTONES = [

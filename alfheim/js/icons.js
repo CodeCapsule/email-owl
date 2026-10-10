@@ -3,8 +3,9 @@ import { SKILL_ICONS } from './icons/skills.js';
 import { UI_ICONS } from './icons/ui.js';
 import { ITEM_ICONS } from './icons/items.js';
 import { EXTRA_ICONS } from './icons/extra.js';
+import { EXTRA2_ICONS } from './icons/extra2.js';
 
-const ALL = { ...UI_ICONS, ...ITEM_ICONS, ...SKILL_ICONS, ...EXTRA_ICONS };
+const ALL = { ...UI_ICONS, ...ITEM_ICONS, ...SKILL_ICONS, ...EXTRA_ICONS, ...EXTRA2_ICONS };
 
 // Neutral rune-stone shown if a key is ever missing, so nothing renders as a broken image.
 const FALLBACK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><radialGradient id="fb-g" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#8ab0ff"/><stop offset="1" stop-color="#2a3a8a"/></radialGradient></defs><path d="M32 5 L56 20 L56 44 L32 59 L8 44 L8 20 Z" fill="url(#fb-g)" stroke="#1b1430" stroke-width="3" stroke-linejoin="round"/><path d="M32 18 L42 32 L32 46 L22 32 Z" fill="#e8f0ff" stroke="#1b1430" stroke-width="2.5" stroke-linejoin="round"/></svg>';
@@ -38,4 +39,12 @@ export function iconCanvas(key, size = 128) {
     }));
   }
   return rasters.get(k);
+}
+
+// Add or override an icon at runtime (e.g. template-generated relic / seed / costume icons); drops any
+// cached data URL and rasters for that key so the next lookup uses the new markup.
+export function registerIcon(key, svg) {
+  ALL[key] = svg;
+  urls.delete(key);
+  for (const k of [...rasters.keys()]) if (k.slice(0, k.lastIndexOf('|')) === key) rasters.delete(k);
 }

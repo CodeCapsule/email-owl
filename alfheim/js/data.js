@@ -1,4 +1,7 @@
 // Static game data: classes, skills, monsters, pets, mounts, sprites, NPCs, quests, items.
+import {
+  NEW_ZONES, NEW_MONSTERS, DUNGEON_MONSTERS, NEW_SPAWNS, NEW_DUNGEONS, NEW_ITEMS, NEW_PETS, NEW_MOUNTS, NEW_NPCS, NEW_TELEPORTS, NEW_TITLES, NEW_DROPS,
+} from './data-world.js';
 
 export const QUALITY = [
   { name: 'Common', color: '#e8e8e8', mult: 1.0 },
@@ -129,9 +132,9 @@ export const MONSTERS = {
   rottreant: { name: 'Rotwood Treant', lvl: [17, 18], hp: 3200, atk: 92, def: 32, exp: 800, gold: [80, 130], model: 'rottreant', aggressive: true, elite: true, speed: 3.6, range: 3, height: 4, dungeon: true },
   nidhogg: { name: 'Nidhogg Hatchling', lvl: [20, 20], hp: 26000, atk: 120, def: 40, exp: 9000, gold: [1200, 1600], model: 'nidhogg', aggressive: true, boss: true, speed: 3.4, range: 5.5, height: 7, dungeon: true, skills: ['breath', 'slam', 'nova', 'summon'], summon: 'rootwolf' },
   // ---- world bosses (Storm Altar, every 15 minutes). Stats scale with the hero's level at spawn time.
-  behemoth: { name: 'Thunderhoof Behemoth', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'behemoth', variant: 0, event: true, aggressive: true, boss: true, worldBoss: true, speed: 3.4, range: 5.5, height: 7, skills: ['slam', 'storm', 'nova', 'breath'] },
-  frostbehemoth: { name: 'Frost Behemoth', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'behemoth', variant: 1, event: true, aggressive: true, boss: true, worldBoss: true, speed: 3.4, range: 5.5, height: 7, skills: ['slam', 'storm', 'nova', 'breath'] },
-  pumpkinking: { name: 'Pumpkin King', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'pumpkinking', variant: 0, event: true, aggressive: true, boss: true, worldBoss: true, speed: 3.2, range: 5, height: 7, skills: ['slam', 'roots', 'nova', 'summon', 'storm'], summon: 'jackpuff' },
+  behemoth: { name: 'Thunderhoof Behemoth', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'behemoth', variant: 0, event: true, aggressive: true, boss: true, worldBoss: true, curve: { hp: 90, atk: 2.2, def: 1.2, exp: 60, gold: 30 }, speed: 3.4, range: 5.5, height: 7, skills: ['slam', 'storm', 'nova', 'breath'] },
+  frostbehemoth: { name: 'Frost Behemoth', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'behemoth', variant: 1, event: true, aggressive: true, boss: true, worldBoss: true, curve: { hp: 90, atk: 2.2, def: 1.2, exp: 60, gold: 30 }, speed: 3.4, range: 5.5, height: 7, skills: ['slam', 'storm', 'nova', 'breath'] },
+  pumpkinking: { name: 'Pumpkin King', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'pumpkinking', variant: 0, event: true, aggressive: true, boss: true, worldBoss: true, curve: { hp: 90, atk: 2.2, def: 1.2, exp: 60, gold: 30 }, speed: 3.2, range: 5, height: 7, skills: ['slam', 'roots', 'nova', 'summon', 'storm'], summon: 'jackpuff' },
   // ---- festival monsters (levels follow the spawn area)
   jackpuff: { name: 'Jackpuff', lvl: [1, 1], hp: 70, atk: 9, def: 2, exp: 20, gold: [3, 9], model: 'jackpuff', variant: 0, event: true, festival: true, aggressive: false, speed: 3.6, range: 1.8, height: 1.5 },
   snowpuff: { name: 'Snowpuff', lvl: [1, 1], hp: 70, atk: 9, def: 2, exp: 20, gold: [3, 9], model: 'jackpuff', variant: 1, event: true, festival: true, aggressive: false, speed: 3.6, range: 1.8, height: 1.5 },
@@ -156,7 +159,7 @@ export const SPAWNS = [
 // Instanced dungeons. Room coordinates are local to `origin` (+z is south; rooms run north toward the boss).
 export const DUNGEONS = [
   {
-    id: 'd1', name: 'Mossy Hollow', theme: 'grotto', lv: 6, recBR: 1400, entries: 3, origin: { x: 3000, z: 0 },
+    id: 'd1', name: 'Mossy Hollow', theme: 'grotto', lv: 6, recBR: 1400, entries: 3, par: 240, relicName: 'Hollow', origin: { x: 3000, z: 0 },
     portal: { x: -48, z: 146 }, zone: 'Mossveil Forest',
     desc: 'A glowing cave beneath Mossveil where cave jellies swarm around their queen.',
     rooms: [
@@ -167,7 +170,7 @@ export const DUNGEONS = [
     ],
   },
   {
-    id: 'd2', name: 'Elder Catacombs', theme: 'crypt', lv: 11, recBR: 2600, entries: 3, origin: { x: 3000, z: 700 },
+    id: 'd2', name: 'Elder Catacombs', theme: 'crypt', lv: 11, recBR: 2600, entries: 3, par: 300, relicName: 'Catacomb', origin: { x: 3000, z: 700 },
     portal: { x: -142, z: 14 }, zone: 'Elder Ruins',
     desc: 'Sealed tombs under the Elder Ruins, guarded by restless knights and a colossus of bone and stone.',
     rooms: [
@@ -178,7 +181,7 @@ export const DUNGEONS = [
     ],
   },
   {
-    id: 'd3', name: 'Yggdrasil Roots', theme: 'roots', lv: 16, recBR: 4200, entries: 3, origin: { x: 3000, z: 1400 },
+    id: 'd3', name: 'Yggdrasil Roots', theme: 'roots', lv: 16, recBR: 4200, entries: 3, par: 360, relicName: 'Rootbound', origin: { x: 3000, z: 1400 },
     portal: { x: 34, z: -146 }, zone: 'World Tree Overlook',
     desc: 'The blighted roots of the World Tree, where a hatchling of Nidhogg gnaws at the realm itself.',
     rooms: [
@@ -407,3 +410,17 @@ export const TIPS = [
   'Step out of red circles on the ground to avoid boss attacks!',
   'Claim your Daily Sign-In reward every day.',
 ];
+
+// ---- expanded world content (Lv 16-200), see data-world.js
+Object.assign(MONSTERS, NEW_MONSTERS, DUNGEON_MONSTERS);
+SPAWNS.push(...NEW_SPAWNS);
+ZONES.push(...NEW_ZONES);
+DUNGEONS.push(...NEW_DUNGEONS);
+Object.assign(ITEMS, NEW_ITEMS);
+PETS.push(...NEW_PETS);
+MOUNTS.push(...NEW_MOUNTS);
+NPCS.push(...NEW_NPCS);
+TELEPORTS.push(...NEW_TELEPORTS);
+TITLES.push(...NEW_TITLES);
+for (const [m, list] of Object.entries(NEW_DROPS)) if (MONSTERS[m]) MONSTERS[m].drops = [...(MONSTERS[m].drops || []), ...list.map(([id, chance]) => ({ id, chance }))];
+BOUNTY_TARGETS.push('sunsprite', 'tuskboar', 'bumblebuzz', 'bogcroaker', 'miresnapper', 'cinderimp', 'lavasala', 'snowboar', 'yeti', 'amethystbeetle', 'crystalstag', 'gloomboar', 'fenwraith', 'starling', 'celestag');

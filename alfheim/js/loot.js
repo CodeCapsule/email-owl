@@ -9,12 +9,13 @@ export const RARITY = [
   { key: 'special', name: 'Special', color: '#c46bff', glow: 'rgba(196,107,255,0.55)', mult: 2.0, affixes: 2, beam: 0.8 },
   { key: 'unique', name: 'Unique', color: '#ff9a2e', glow: 'rgba(255,154,46,0.65)', mult: 2.6, affixes: 3, beam: 1.0 },
   { key: 'legendary', name: 'Legendary', color: '#ffd84a', glow: 'rgba(255,216,74,0.8)', mult: 3.4, affixes: 3, beam: 1.3 },
+  { key: 'red', name: 'Red', color: '#ff3b3b', glow: 'rgba(255,59,59,0.85)', mult: 4.4, affixes: 4, beam: 1.5 },
 ];
 
 const r1 = (v) => Math.round(v * 10) / 10;
 const pct = (v) => (Math.round(v * 10) / 10).toString();
 // Affix roll: base + per-level growth, scaled by tier (Rare 1.0 ... Legendary 1.6) and a 0.8-1.2 random spread.
-const tierScale = (q) => [0.7, 0.85, 1.0, 1.2, 1.4, 1.6][q] || 1;
+const tierScale = (q) => [0.7, 0.85, 1.0, 1.2, 1.4, 1.6, 1.85][q] || 1;
 const mk = (name, stat, label, base, perLvl, cap) => ({
   name, stat, label, base, perLvl, cap,
   roll(lvl, q, rng = Math.random) {
@@ -160,6 +161,20 @@ export function genNamed(namedId, { lvl = 1, cls, uid, rng = Math.random } = {})
   };
 }
 
+// Red (tier 6) gear: crafted at the Forge from a full dungeon relic set and a Crimson Core.
+// Four affixes, a random legendary power and three sockets; the dungeon's adjective names it.
+export const RED_EFFECTS = ['meteor_proc', 'phoenix', 'frenzy', 'holy_nova', 'starfall', 'worldtree'];
+export function genRed({ adj, set, slot, lvl, cls, uid, rng = Math.random }) {
+  lvl = Math.max(1, Math.round(lvl || 1));
+  if (!SLOTS.includes(slot)) slot = SLOTS[Math.floor(rng() * SLOTS.length)];
+  const base = slot === 'weapon' ? (WEAPON_NAMES[cls] || 'Blade') : SLOT_BASE[slot];
+  return {
+    uid, slot, name: `Crimson ${adj} ${base}`, quality: 6, lvl, stats: baseStats(slot, lvl, 6),
+    affixes: rollAffixes(RARITY[6].affixes, lvl, 6, rng), effect: RED_EFFECTS[Math.floor(rng() * RED_EFFECTS.length)], named: null, red: set || null, enh: 0,
+    icon: iconKey(slot, cls, 6), flavor: `Forged from the four ${adj} relics and a Crimson Core.`, gems: new Array(SOCKETS[6]).fill(null),
+  };
+}
+
 export function namedBySource(source) {
   return [...NAMED.values()].filter((d) => d.source && d.source === source);
 }
@@ -173,7 +188,7 @@ export function normalizeItem(eq, cls) {
   if (eq.named === undefined) eq.named = null;
   if (!eq.stats || typeof eq.stats !== 'object') eq.stats = {};
   eq.enh = eq.enh | 0;
-  eq.quality = Math.max(0, Math.min(5, eq.quality | 0));
+  eq.quality = Math.max(0, Math.min(6, eq.quality | 0));
   eq.lvl = Math.max(1, eq.lvl | 0);
   if (!SLOTS.includes(eq.slot)) eq.slot = EMOJI_SLOT[eq.icon] || 'ring';
   fitSockets(eq);
@@ -244,7 +259,7 @@ export function itemLines(eq) {
 
 export function sellPrice(eq) {
   if (!eq) return 0;
-  return Math.round(12 * eq.lvl * (eq.quality + 1) * (1 + (eq.enh || 0) * 0.3) * (eq.quality >= 4 ? 2 : 1));
+  return Math.round(12 * eq.lvl * (eq.quality + 1) * (1 + (eq.enh || 0) * 0.3) * (eq.quality >= 6 ? 4 : eq.quality >= 4 ? 2 : 1));
 }
 
 // ---------------------------------------------------------------- progression helpers (Forge)

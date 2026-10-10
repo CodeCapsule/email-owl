@@ -19,6 +19,39 @@ const THEMES = {
     ambience: { background: 0x140a18, fog: [40, 140, 0x140a18], hemi: [0xf0b8ff, 0x2a1a20, 1.3], ambient: 0.5, sun: [0xffd8f0, 1.5] },
     map: { floor: '#6a5040', wall: '#2a1a24' },
   },
+  // high-level dungeons reuse the three layout styles with their own palettes and lighting
+  hive: {
+    style: 'grotto', floor: 0xd8a848, floorTint: '#c8983a', wall: [0xe8b84a, 0xd8a03a, 0xf0c860], top: 0xffe08a, accent: 0xffd84a, accent2: 0xff9a3a, barrier: '#ffd84a', pool: 0xffc030, circle: '#ffb03a', mote: 0xffe8a0, portal: '#ffc83a',
+    ambience: { background: 0x2a1a08, fog: [40, 140, 0x2a1a08], hemi: [0xfff0c0, 0x5a3a10, 1.4], ambient: 0.6, sun: [0xffe8b0, 1.6] }, map: { floor: '#c8983a', wall: '#4a3010' },
+  },
+  marsh: {
+    style: 'roots', floor: 0x4a6a44, floorTint: '#3a5a34', wall: [0x4a5a3a, 0x3a4a30, 0x5a6a44], top: 0x5a8a3a, accent: 0x7aff9a, accent2: 0x4ae8c8, barrier: '#7aff9a', circle: '#7aff9a', mote: 0xb8ff8a, portal: '#4ae8c8',
+    ambience: { background: 0x0a1a12, fog: [36, 130, 0x0a1a12], hemi: [0xc8ffd8, 0x1a2a1a, 1.3], ambient: 0.5, sun: [0xd8ffe0, 1.4] }, map: { floor: '#4a6a44', wall: '#1a2a1a' },
+  },
+  ember: {
+    style: 'grotto', floor: 0x5a3a2a, floorTint: '#4a2a1a', wall: [0x6a3a2a, 0x5a2a20, 0x7a4a30], top: 0xff6a2a, accent: 0xff7a2a, accent2: 0xffd04a, barrier: '#ff7a2a', pool: 0xff6a1a, circle: '#ff7a2a', mote: 0xffa040, portal: '#ff6a2a',
+    ambience: { background: 0x1a0804, fog: [36, 130, 0x1a0804], hemi: [0xffc8a0, 0x3a1008, 1.35], ambient: 0.55, sun: [0xffd8b0, 1.6] }, map: { floor: '#6a3a2a', wall: '#2a0e08' },
+  },
+  frost: {
+    style: 'crypt', floor: 0xd8e8f4, floorTint: '#b8d0e8', wall: [0xb8d0e8, 0xa8c0d8, 0xc8dcf0], top: 0xffffff, accent: 0x9ae8ff, accent2: 0x7ab8ff, barrier: '#9ae8ff', circle: '#9ae8ff', mote: 0xffffff, portal: '#9ae8ff',
+    ambience: { background: 0x0c1828, fog: [40, 140, 0x0c1828], hemi: [0xe8f8ff, 0x2a3a4a, 1.4], ambient: 0.6, sun: [0xf0f8ff, 1.6] }, map: { floor: '#a8c8e0', wall: '#1a2a3a' },
+  },
+  crystal: {
+    style: 'grotto', floor: 0x5a4a8a, floorTint: '#4a3a7a', wall: [0x6a5a9a, 0x5a4a8a, 0x7a6aaa], top: 0xc89aff, accent: 0xc89aff, accent2: 0x9ae8ff, barrier: '#c89aff', pool: 0xc8a8ff, circle: '#9ae8ff', mote: 0xd8b8ff, portal: '#c89aff',
+    ambience: { background: 0x120a24, fog: [40, 140, 0x120a24], hemi: [0xe8d8ff, 0x2a1a40, 1.4], ambient: 0.55, sun: [0xf0e8ff, 1.6] }, map: { floor: '#6a5a9a', wall: '#1a1030' },
+  },
+  shadow: {
+    style: 'crypt', floor: 0x3a3448, floorTint: '#2a2438', wall: [0x3a3448, 0x2a2438, 0x4a4458], top: 0x5a5468, accent: 0x7aff9a, accent2: 0xb07aff, barrier: '#7aff9a', circle: '#7aff9a', mote: 0x9aff9a, portal: '#7aff9a',
+    ambience: { background: 0x06040c, fog: [34, 120, 0x06040c], hemi: [0xc8b8ff, 0x100818, 1.2], ambient: 0.45, sun: [0xd8c8ff, 1.4] }, map: { floor: '#3a3448', wall: '#0a0814' },
+  },
+  astral: {
+    style: 'crypt', floor: 0xe8e4f8, floorTint: '#d0c8f0', wall: [0xd8d4f0, 0xc8c4e0, 0xf0ecff], top: 0xffffff, accent: 0xffd84a, accent2: 0x9ad8ff, barrier: '#ffd84a', circle: '#ffd84a', mote: 0xfff2b8, portal: '#ffd84a',
+    ambience: { background: 0x0a0c2a, fog: [50, 160, 0x0a0c2a], hemi: [0xf8f4ff, 0x2a2a5a, 1.5], ambient: 0.65, sun: [0xfff8e8, 1.7] }, map: { floor: '#c8c0e8', wall: '#14163a' },
+  },
+  sacred: {
+    style: 'roots', floor: 0x7a6a44, floorTint: '#6a5a34', wall: [0x8a6448, 0x7a5438, 0x9a7458], top: 0x7ad87a, accent: 0x7aff7a, accent2: 0xffd84a, barrier: '#ffd84a', circle: '#ffd84a', mote: 0xfff08a, portal: '#7aff7a',
+    ambience: { background: 0x0c1a0c, fog: [40, 150, 0x0c1a0c], hemi: [0xfff8c8, 0x2a3a1a, 1.45], ambient: 0.6, sun: [0xfff4c8, 1.7] }, map: { floor: '#7a6a44', wall: '#1a2a10' },
+  },
   // guild-war battleground: sunlit stone colosseum, blue (south, yours) vs red (north, theirs)
   arena: {
     floor: 0xcfc4ae, floorTint: '#b8ab92', wall: [0xb0a48c, 0xa09478, 0xbcb098], top: 0x7aa84a, accent: 0x6ad8ff, accent2: 0xff6a6a, barrier: '#ffd84a',
@@ -115,6 +148,7 @@ export class Dungeon {
   constructor(scene, def) {
     this.scene = scene; this.def = def; this.isDungeon = true;
     this.theme = THEMES[def.theme] || THEMES.grotto;
+    this.style = this.theme.style || (THEMES[def.theme] ? def.theme : 'grotto');
     this.ambience = this.theme.ambience;
     this.disposables = []; this.anim = []; this.motes = [];
   }
@@ -202,7 +236,7 @@ export class Dungeon {
   buildFloors() {
     const T = this.theme;
     let tex;
-    if (this.def.theme === 'crypt' || this.def.theme === 'arena') { tex = stoneTexture().clone(); tex.needsUpdate = true; }
+    if (this.style === 'crypt' || this.style === 'arena') { tex = stoneTexture().clone(); tex.needsUpdate = true; }
     else tex = blotchTexture(T.floorTint, this.def.id.charCodeAt(1) * 31);
     this.track(tex);
     const mat = this.track(new THREE.MeshToonMaterial({ color: T.floor, map: tex, gradientMap: getGradient() }));
@@ -234,13 +268,13 @@ export class Dungeon {
       // walls on the camera (south) side of a floor stay low so they never hide the hero
       const low = free(cx, cz - 1) && !free(cx, cz + 1);
       if (low) {
-        if (this.def.theme === 'arena') { this.toonBatch.add(GEO.box, col, M(x, 0.6, z, 2.05, 1.2, 2.05)); this.toonBatch.add(GEO.box, 0x8a7e66, M(x, 1.3, z, 2.2, 0.25, 2.2)); }
-        else if (this.def.theme === 'crypt') { this.toonBatch.add(GEO.box, col, M(x, 0.8, z, 2.05, 1.6, 2.05)); this.toonBatch.add(GEO.box, 0x5a546a, M(x, 1.7, z, 2.2, 0.3, 2.2)); }
-        else if (this.def.theme === 'roots') this.toonBatch.add(GEO.cyl, col, M(x, 0.7, z, 1.1, 1.8, 1.1, Math.PI / 2, rng() * 3, 0));
+        if (this.style === 'arena') { this.toonBatch.add(GEO.box, col, M(x, 0.6, z, 2.05, 1.2, 2.05)); this.toonBatch.add(GEO.box, 0x8a7e66, M(x, 1.3, z, 2.2, 0.25, 2.2)); }
+        else if (this.style === 'crypt') { this.toonBatch.add(GEO.box, col, M(x, 0.8, z, 2.05, 1.6, 2.05)); this.toonBatch.add(GEO.box, 0x5a546a, M(x, 1.7, z, 2.2, 0.3, 2.2)); }
+        else if (this.style === 'roots') this.toonBatch.add(GEO.cyl, col, M(x, 0.7, z, 1.1, 1.8, 1.1, Math.PI / 2, rng() * 3, 0));
         else this.toonBatch.add(GEO.dode, col, M(x, 0.6, z, 1.6, 1.1, 1.6, rng() * 3, rng() * 3, rng() * 3));
         continue;
       }
-      if (this.def.theme === 'arena') {
+      if (this.style === 'arena') {
         const h = 4.2;
         this.toonBatch.add(GEO.box, col, M(x, h / 2, z, 2.05, h, 2.05));
         if (n % 2) this.toonBatch.add(GEO.box, 0x9a8e76, M(x, h + 0.45, z, 1.3, 0.9, 1.3));
@@ -250,13 +284,13 @@ export class Dungeon {
         }
         continue;
       }
-      if (this.def.theme === 'grotto') {
+      if (this.style === 'grotto') {
         const h = 4 + rng() * 4, s = 1.5 + rng() * 0.9;
         this.toonBatch.add(GEO.dode, col, M(x, h * 0.42, z, s, h * 0.55, s, rng() * 3, rng() * 3, rng() * 3));
         if (rng() < 0.35) this.toonBatch.add(GEO.sph, T.top, M(x, h * 0.85, z, s * 0.9, 0.4, s * 0.9));
         if (rng() < 0.12) this.addCrystal(x + (rng() - 0.5), 0.2, z + (rng() - 0.5), rng() < 0.5 ? T.accent : T.accent2, 0.5 + rng() * 0.5);
         if (rng() < 0.1) this.toonBatch.add(GEO.cone, col, M(x, h + 1.2, z, 0.8, 3, 0.8));
-      } else if (this.def.theme === 'crypt') {
+      } else if (this.style === 'crypt') {
         const h = 6 + (n % 7 === 0 ? 1.4 : 0);
         this.toonBatch.add(GEO.box, col, M(x, h / 2, z, 2.05, h, 2.05));
         this.toonBatch.add(GEO.box, 0x5a546a, M(x, h + 0.2, z, 2.2, 0.4, 2.2));
@@ -311,22 +345,22 @@ export class Dungeon {
         placed++;
         this.decorPiece(x, z, rng, r);
       }
-      if (this.def.theme === 'grotto' && rng() < 0.9) this.addPool(r.x + (rng() - 0.5) * r.w * 0.3, r.z + (rng() - 0.5) * r.d * 0.3, 1.6 + rng() * 1.2);
-      if (this.def.theme === 'crypt') this.addFloorCircle(r.x, r.z, 3.2, '#b07aff', 0.35);
+      if (this.style === 'grotto' && rng() < 0.9) this.addPool(r.x + (rng() - 0.5) * r.w * 0.3, r.z + (rng() - 0.5) * r.d * 0.3, 1.6 + rng() * 1.2);
+      if (this.style === 'crypt') this.addFloorCircle(r.x, r.z, 3.2, this.theme.circle || '#b07aff', 0.35);
     }
   }
   decorPiece(x, z, rng, room) {
     const T = this.theme;
-    if (this.def.theme === 'grotto') {
+    if (this.style === 'grotto') {
       if (rng() < 0.55) {
         for (let i = 0; i < 3; i++) {
           const ox = x + (rng() - 0.5) * 1.6, oz = z + (rng() - 0.5) * 1.6, s = 0.5 + rng() * 0.6;
           this.toonBatch.add(GEO.cyl6, 0xe8e0c8, M(ox, s * 0.5, oz, 0.12 * s, s, 0.12 * s));
-          this.glowBatch.add(GEO.sph, rng() < 0.5 ? 0x6af0ff : 0x9affc8, M(ox, s, oz, 0.45 * s, 0.25 * s, 0.45 * s));
+          this.glowBatch.add(GEO.sph, rng() < 0.5 ? T.accent : T.accent2, M(ox, s, oz, 0.45 * s, 0.25 * s, 0.45 * s));
         }
         this.nav.blockCircle(x, z, 0.6);
       } else { this.addCrystal(x, 0, z, rng() < 0.5 ? T.accent : T.accent2, 0.9 + rng() * 0.5); this.nav.blockCircle(x, z, 0.7); }
-    } else if (this.def.theme === 'crypt') {
+    } else if (this.style === 'crypt') {
       const r = rng();
       if (r < 0.4) {
         const rot = Math.abs(x - room.minX) < 3 || Math.abs(x - room.maxX) < 3 ? 0 : Math.PI / 2;
@@ -353,7 +387,7 @@ export class Dungeon {
     }
   }
   addPool(x, z, r) {
-    const m = new THREE.Mesh(this.track(new THREE.CircleGeometry(r, 28)), this.track(new THREE.MeshBasicMaterial({ color: 0x4ae8ff, transparent: true, opacity: 0.55, depthWrite: false })));
+    const m = new THREE.Mesh(this.track(new THREE.CircleGeometry(r, 28)), this.track(new THREE.MeshBasicMaterial({ color: this.theme.pool ?? 0x4ae8ff, transparent: true, opacity: 0.55, depthWrite: false })));
     m.rotation.x = -Math.PI / 2; m.position.set(x, 0.03, z); this.root.add(m);
     this.toonBatch.add(GEO.torus, 0x7a7a62, M(x, 0.05, z, r, r, 1.6, Math.PI / 2, 0, 0));
     this.anim.push((t) => { m.material.opacity = 0.45 + Math.sin(t * 1.7 + x) * 0.1; });
@@ -367,19 +401,19 @@ export class Dungeon {
 
   buildBossRoom() {
     const T = this.theme, r = this.rooms[this.rooms.length - 1];
-    const circleColor = { grotto: '#ff8ad8', crypt: '#c07aff', roots: '#7affb0', arena: '#ffd84a' }[this.def.theme];
+    const circleColor = this.theme.circle || { grotto: '#ff8ad8', crypt: '#c07aff', roots: '#7affb0', arena: '#ffd84a' }[this.style];
     this.addFloorCircle(r.x, r.z, Math.min(r.w, r.d) * 0.32, circleColor, 0.75);
     const n = 8, rad = Math.min(r.w, r.d) * 0.42;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + Math.PI / 8, x = r.x + Math.cos(a) * rad, z = r.z + Math.sin(a) * rad;
       if (Math.hypot(x - r.x, z - r.maxZ) < 9 || Math.hypot(x - this.exitPos.x, z - this.exitPos.z) < 5) continue;
-      if (this.def.theme === 'arena') {
+      if (this.style === 'arena') {
         this.toonBatch.add(GEO.cyl, 0xd8ccb4, M(x, 2.2, z, 0.8, 4.4, 0.8));
         this.toonBatch.add(GEO.box, 0xbcb098, M(x, 4.55, z, 1.9, 0.4, 1.9));
         this.toonBatch.add(GEO.box, 0xbcb098, M(x, 0.2, z, 1.9, 0.4, 1.9));
         this.glowBatch.add(GEO.oct, z > r.z ? T.accent : T.accent2, M(x, 5.4, z, 0.4, 0.7, 0.4));
         this.nav.blockCircle(x, z, 0.9);
-      } else if (this.def.theme === 'crypt') {
+      } else if (this.style === 'crypt') {
         this.toonBatch.add(GEO.cyl, 0x8a8498, M(x, 3.5, z, 0.9, 7, 0.9));
         this.toonBatch.add(GEO.box, 0x9a94a8, M(x, 7.2, z, 2.2, 0.5, 2.2));
         this.glowBatch.add(GEO.sph, T.accent2, M(x, 7.9, z, 0.45, 0.45, 0.45));
@@ -390,7 +424,7 @@ export class Dungeon {
         this.nav.blockCircle(x, z, 1.1);
       }
     }
-    if (this.def.theme === 'roots') {
+    if (this.style === 'roots') {
       for (let i = 0; i < 5; i++) {
         const a = Math.PI * (1.15 + i * 0.17), x = r.x + Math.cos(a) * (rad + 6), z = r.z + Math.sin(a) * (rad + 6);
         this.toonBatch.add(GEO.cyl, T.wall[2], M(x, 6, z, 2.2, 14, 2.2, 0.25, 0, (r.x - x) * 0.02));
@@ -474,7 +508,7 @@ export class Dungeon {
       seeds.push([x, z, rng() * 10]);
     }
     const g = this.track(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const color = this.def.theme === 'roots' ? 0xd8ff8a : this.def.theme === 'crypt' ? 0xc8a8ff : this.def.theme === 'arena' ? 0xffe8a0 : 0x9af0ff;
+    const color = this.theme.mote ?? (this.style === 'roots' ? 0xd8ff8a : this.style === 'crypt' ? 0xc8a8ff : this.style === 'arena' ? 0xffe8a0 : 0x9af0ff);
     const pts = new THREE.Points(g, this.track(new THREE.PointsMaterial({ map: glowTexture(), color, size: 0.6, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
     pts.frustumCulled = false; this.root.add(pts);
     this.anim.push((t) => {
@@ -557,32 +591,33 @@ export class Dungeon {
 // ---------------------------------------------------------------- overworld entrances
 export function buildDungeonEntrance(theme) {
   const T = THEMES[theme] || THEMES.grotto, g = new THREE.Group();
-  const portalColor = { grotto: '#6af0ff', crypt: '#c07aff', roots: '#ff5ad8' }[theme] || '#6af0ff';
+  const portalColor = T.portal || { grotto: '#6af0ff', crypt: '#c07aff', roots: '#ff5ad8' }[theme] || '#6af0ff';
+  const style = T.style || (THEMES[theme] ? theme : 'grotto');
   const add = (geo, color, x, y, z, sx, sy, sz, rx = 0, ry = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, toon(color)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.set(rx, ry, rz); m.castShadow = true;
     m.add(new THREE.Mesh(geo, outlineMaterial(Math.round(0.06 / Math.max(sx, sy, sz) * 1000) / 1000, 0x24160f))); g.add(m); return m;
   };
-  if (theme === 'crypt') {
-    for (const s of [-1, 1]) { add(GEO.box, 0x8a8498, s * 3.4, 3.2, 0, 1.6, 6.4, 1.8); add(GEO.box, 0x9a94a8, s * 3.4, 6.6, 0, 2, 0.5, 2.2); }
+  if (style === 'crypt') {
+    for (const s of [-1, 1]) { add(GEO.box, T.wall[0], s * 3.4, 3.2, 0, 1.6, 6.4, 1.8); add(GEO.box, 0x9a94a8, s * 3.4, 6.6, 0, 2, 0.5, 2.2); }
     add(GEO.box, 0x7a748a, 0, 7.3, 0, 8.6, 1.2, 2.2);
     add(GEO.cone, 0x6a6478, 0, 8.6, 0, 1.2, 1.6, 1.2);
     add(GEO.box, 0x6a6478, 0, 3.2, -0.9, 5.2, 6.4, 0.4);
     for (let i = 0; i < 3; i++) add(GEO.box, 0x9a94a8, 0, 0.15 + i * 0.25, 1.6 - i * 0.6, 7 - i * 0.6, 0.3, 0.8);
-  } else if (theme === 'roots') {
+  } else if (style === 'roots') {
     for (const s of [-1, 1]) {
       add(GEO.cyl, T.wall[0], s * 3.6, 3.5, 0, 1.1, 7.5, 1.1, 0, 0, s * 0.25);
       add(GEO.cyl, T.wall[1], s * 2.2, 7.3, 0, 0.8, 4.4, 0.8, 0, 0, s * 1.15);
       add(GEO.sph, T.top, s * 3.8, 7.3, 0, 1.6, 1.0, 1.6);
     }
     add(GEO.cyl, T.wall[2], 0, 0.5, -0.6, 0.6, 9, 0.6, 0, 0, Math.PI / 2);
-    for (const s of [-1, 1]) { const c = new THREE.Mesh(GEO.oct, glow(0xff4ad8)); c.position.set(s * 4.8, 0.8, 0.8); c.scale.set(0.4, 1.1, 0.4); g.add(c); }
+    for (const s of [-1, 1]) { const c = new THREE.Mesh(GEO.oct, glow(T.accent ?? 0xff4ad8)); c.position.set(s * 4.8, 0.8, 0.8); c.scale.set(0.4, 1.1, 0.4); g.add(c); }
   } else {
     const rocks = [[-3.8, 1.6, 2.2, 2.2], [-4.2, 4, 1.8, 1.9], [-2.8, 6.3, 1.9, 1.6], [0, 7.4, 2.6, 1.5], [2.8, 6.3, 1.9, 1.6], [4.2, 4, 1.8, 1.9], [3.8, 1.6, 2.2, 2.2]];
     rocks.forEach(([x, y, s, sy], i) => add(GEO.dode, T.wall[i % 3], x, y, 0, s, sy, s * 0.9, i, i * 2, 0));
     add(GEO.sph, T.top, 0, 8.6, 0, 2.6, 0.7, 2);
     for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
       add(GEO.cyl6, 0xe8e0c8, s * (4.6 + i * 0.5), 0.35, 1.2 - i * 0.4, 0.12, 0.7, 0.12);
-      const cap = new THREE.Mesh(GEO.sph, glow(i % 2 ? 0x6af0ff : 0x9affc8)); cap.position.set(s * (4.6 + i * 0.5), 0.75, 1.2 - i * 0.4); cap.scale.set(0.4, 0.22, 0.4); g.add(cap);
+      const cap = new THREE.Mesh(GEO.sph, glow(i % 2 ? T.accent : T.accent2)); cap.position.set(s * (4.6 + i * 0.5), 0.75, 1.2 - i * 0.4); cap.scale.set(0.4, 0.22, 0.4); g.add(cap);
     }
   }
   const dark = new THREE.Mesh(new THREE.CircleGeometry(2.7, 32), new THREE.MeshBasicMaterial({ color: 0x0a0612 }));

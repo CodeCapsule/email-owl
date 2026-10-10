@@ -331,6 +331,14 @@ export function npcLook(look) {
     case 'mira': return { gender: 'f', hair: '#4a3a8a', eye: '#d89a2a', hairStyle: 'bob', hat: 'circlet', apron: true, outfit: { main: 0x2a6a8a, accent: 0xf0c050, trim: 0xe8b64a, skirt: 0x1a4a6a } };
     case 'aldric': return { gender: 'm', hair: '#3a3a4a', eye: '#3a6fd8', hairStyle: 'spiky', armor: true, cape: 0x2a5ab8, weapon: 'spear', outfit: { main: 0xc8d0e0, accent: 0x2a5ab8, trim: 0xe8b64a, skirt: 0x2a3a6a }, scale: 1.06 };
     case 'host': return { gender: 'f', hair: '#ff7a2a', eye: '#7a3ad8', hairStyle: 'twin', hat: 'witch', hatColor: 0x4a2a6a, outfit: { main: 0xff8a2a, accent: 0x7a3ad8, trim: 0x2a1a3a, skirt: 0x5a2a7a } };
+    case 'tilly': return { gender: 'f', hair: '#e8a040', eye: '#3a8a3a', hairStyle: 'twin', hat: 'cowboy', hatColor: 0xe8c860, apron: true, outfit: { main: 0x6ab04a, accent: 0xf0e0a0, trim: 0x8a5a2a, skirt: 0x4a7ad8 } };
+    case 'vera': return { gender: 'f', hair: '#6a3aa8', eye: '#3ac8a0', hairStyle: 'long', robe: true, hood: 0x3a6a5a, outfit: { main: 0x2a8a7a, accent: 0xc8f0a0, trim: 0xe8c86a, skirt: 0x1a5a50 } };
+    case 'coco': return { gender: 'f', hair: '#ff6ab8', eye: '#7a3ad8', hairStyle: 'bob', hat: 'circlet', scarf: true, outfit: { main: 0xfff0f8, accent: 0xff6ab8, trim: 0xffd84a, skirt: 0xff9ad0 } };
+    case 'opal': return { gender: 'f', hair: '#e8f0ff', eye: '#4a8aff', hairStyle: 'long', hat: 'circlet', outfit: { main: 0x4a5ad8, accent: 0x5fd0ff, trim: 0xe8e0ff, skirt: 0x2a3a9a } };
+    case 'hilda': return { gender: 'f', hair: '#c84a2a', eye: '#3a5a8a', hairStyle: 'long', armor: true, hat: 'scarf', outfit: { main: 0x9a7a4a, accent: 0x3a7ad8, trim: 0xe8c86a, skirt: 0x5a4a2a }, scale: 1.05 };
+    case 'grimsby': return { gender: 'm', hair: '#8a8a9a', eye: '#3a3a5a', hairStyle: 'bob', beard: 0x9a9aaa, hat: 'cowboy', hatColor: 0x2a2a3a, weapon: 'hammer', outfit: { main: 0x5a2a3a, accent: 0xf0c050, trim: 0x2a1a1a, skirt: 0x3a1a2a }, scale: 0.95 };
+    case 'elias': return { gender: 'm', hair: '#3a2a1a', eye: '#c84a3a', hairStyle: 'spiky', robe: true, cape: 0x8a1a2a, weapon: 'orb', outfit: { main: 0x2a2a3a, accent: 0xff3b3b, trim: 0xe8c86a, skirt: 0x1a1a2a } };
+    case 'trader': return { gender: 'm', hair: '#7a4a2a', eye: '#3a6a3a', hairStyle: 'bob', hood: 0x7a5a3a, weapon: 'spear', outfit: { main: 0x8a6a3a, accent: 0x3a8a5a, trim: 0xd8b070, skirt: 0x5a4a2a } };
   }
   return {};
 }

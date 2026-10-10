@@ -17,14 +17,27 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
 
 - **World of Carlyle**: Sylvan Haven town with the four Spirit shrines and fountain, Breezy Meadow, Mossveil Forest,
   the Elder Ruins with a boss arena, a river with bridges, floating islands and the World Tree on the horizon.
+- **A world four times larger, up to Lv 200**: the map is 800 x 800 m with eight outer zones around the starter areas:
+  Sunpetal Plains (Lv 16-30), Whispering Marsh (30-50), Ember Canyon (50-80), Frostpeak Highlands (80-110), Crystal Wilds
+  (110-140), Shadow Fen (140-170), Starfall Plateau (170-200) and the Yggdrasil Gate (190-200). Each has its own biome,
+  about five new monster types, elites, a field boss and an outpost camp with a merchant and a teleport point. The level
+  cap is 200, and monster HP grows faster than their damage, so high-level monsters take far longer to kill.
 - **4 classes, each tied to one of the four elements**: Knight (Earth), Assassin (Wind), Mage (Fire) and Priest (Water). Each class has 6 skills and a dual talent.
 - **Story chapter**: 11 quests with NPC dialogs, auto-pathing from the quest tracker, kill and collect objectives and
   the Treant King Yggr boss with telegraphed red-circle attacks. Repeatable bounties follow.
-- **Pets, sprites, mounts and wings**: 12 collectible pets that fight beside you, 4 elemental sprites, 5 mounts and fairy wings.
-- **Dungeons**: three instanced dungeons with their own entrances in the world (Mossy Hollow Lv 6, Elder Catacombs Lv 11,
-  Yggdrasil Roots Lv 16). Clear each chamber to break the rune seal ahead, then fight a boss with telegraphed attacks
-  (slams, novas, root bursts, dragon breath, summons). Runs are timed and rated S/A/B; the rating sets the size of the
-  treasure chest. Three free entries a day, then Dungeon Tickets or diamonds.
+- **Pets, sprites, mounts and wings**: 27 collectible pets that fight beside you (up to Lv 60), 4 elemental sprites,
+  13 mounts and fairy wings. New pets and mounts drop from the new monsters and bosses or are sold by Mimi and Brom.
+- **Costumes**: 23 cosmetic outfits, hats and wings in the Wardrobe (V). They change only your look, never your stats.
+  Buy them at Coco's Boutique or find them in Wardrobe Boxes.
+- **Dungeons**: eleven instanced dungeons with their own entrances in the world, from Mossy Hollow (Lv 6) to the
+  Throne of Yggdrasil, where Fenrir, the World Devourer waits as the Lv 200 boss. Clear each chamber to break the rune
+  seal ahead, then fight a boss with telegraphed attacks (slams, novas, root bursts, dragon breath, summons). Dungeons
+  are hard: monsters inside are tougher than in the field, a run fails after 15 minutes or a fourth death, and bosses go
+  berserk after 4 minutes. Runs are rated S/A/B; the rating sets the size of the treasure chest.
+- **Relic collections and Red gear**: every dungeon hides four collection relics (crown, seal, idol and tome) dropped by
+  its monsters and chest. Completing a set gives a permanent Attack and HP bonus. Four relics of one dungeon, a Crimson
+  Core, Star Essence and gold forge a **Red** item at the Crimson Forge: the new top rarity, with four affixes, a
+  legendary power and three gem sockets.
 - **Loot**: gear drops on the ground with a light beam in its rarity color across six tiers: Common, Uncommon, Rare,
   Special, Unique and Legendary. Rare and better items roll bonus affixes (lifesteal, crit damage, cooldowns, thorns and
   more). Unique and Legendary items are named and carry a special power, such as chain lightning, meteor strikes every
@@ -53,6 +66,17 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   damage, dungeon speed, guild war wins and guilds. Festivals follow the calendar: the Harvest Moon (October to early
   November) brings Jackpuffs, the Pumpkin King, Moon Candy, pumpkin decorations in town and a festival shop with the
   Pumpkin Pip pet, orange fairy wings and a title. Winter Starlight (December) and Sakura Bloom (spring) work the same way.
+- **Professions**: Mining, Herbalism and Logging at ore veins, herbs and trees in every zone (five tiers, each
+  needing a higher skill level); Farming on eight plots at the homestead west of town, where seven crops grow in real
+  time (water and fertilize to speed them up); Alchemy turns herbs and produce into stronger potions and timed elixirs
+  (Might, Iron Skin, Swiftness, Wisdom, Fortune, Phoenix Draught); Smithing turns ore and logs into gear and Crimson
+  Cores. Each profession levels to 100.
+- **Shops, auction and trading**: new NPCs in town run shops: Hilda (supplies, bag scrolls), Tilly (seeds), Vera
+  (alchemy), Opal (gems), Coco (costumes), Elias (relics and Crimson Cores), plus pet and stable shops and a trader at
+  every outpost. Grimsby runs the **Auction House**: real-time lots with bidding, buyouts and rival bidders, and your
+  own auctions. Click another adventurer and press Trade to open a trade window and haggle item for item.
+- **Bag**: 48 slots, expandable to 160 with Bag Expansion Scrolls, gold or diamonds. **Sell All** sells everything up to
+  a chosen rarity in one go; locked gear is always kept.
 - **MMO systems**: Battle Rating, bag, skill upgrades, auto battle, auto potions, titles, daily sign-in, online gifts,
   a gold/diamond mall, world/guild/whisper chat with other adventurers, minimap and world map.
 - **Icons**: every icon is a hand-made SVG in `js/icons/`, so nothing depends on the device's emoji font.
@@ -66,7 +90,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
 | Skills | 1–6 |
 | Potions | Q (HP), E (MP) |
 | Mount / Auto battle | R / T |
-| Panels | C character, B bag, K skills, P pets, U mounts, L quests, M map, O settings |
+| Panels | C character, B bag, K skills, P pets, U mounts, Z professions, V wardrobe, L quests, M map, O settings |
 | Live systems | H missions, G guild, N market, Y forge, X codex, J season pass |
 | Other | Space jump, Tab next target, F talk, Enter chat, Esc close |
 
@@ -78,6 +102,10 @@ Other players, guildmates, market sellers and rivals are simulated, so everythin
 | File | Purpose |
 | --- | --- |
 | `js/data.js` | Classes, skills, monsters, pets, mounts, quests and other tables |
+| `js/data-world.js` | Expanded world content: outer zones, Lv 16-200 monsters, dungeons 4-11, relics, professions, crops, recipes, costumes, shops |
+| `js/life.js` | Gathering nodes, farming, alchemy, smithing, elixirs, costumes, relic collection and Red gear |
+| `js/economy.js` | Bag expansion, Sell All, NPC shops, Auction House and direct trades |
+| `js/models-monsters.js`, `js/models-extra.js` | New monsters and bosses; new pets, mounts, gathering nodes and crops |
 | `js/toon.js` | Cel-shaded materials, ink outlines and canvas textures |
 | `js/models.js` | Procedural chibi characters, monsters, pets, mounts and sprites |
 | `js/world.js` | Terrain, town, scenery batching, collision grid and A* pathfinding |
@@ -93,4 +121,5 @@ Other players, guildmates, market sellers and rivals are simulated, so everythin
 | `js/icons.js`, `js/icons/*.js` | SVG icon set (skills, UI, items) |
 | `js/ui.js` | HUD, panels, dialogs, chat, minimap and world map |
 | `js/ui-systems.js` | Panels and HUD widgets for the live systems |
+| `js/ui-life.js` | Professions, farm, Crimson Forge, collection, wardrobe, shop, auction and trade panels |
 | `js/main.js` | Boot, title screen, character creation and main loop |

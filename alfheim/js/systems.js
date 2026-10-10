@@ -18,6 +18,7 @@ import { Dungeon } from './dungeon.js';
 import { buildHumanoid, classLook, HAIR_COLORS, EYE_COLORS } from './models.js';
 import { buildEventMonster } from './models-event.js';
 import { glowTexture, toon, outlineMaterial } from './toon.js';
+import { curveStats, MAX_LEVEL } from './data-world.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
@@ -77,6 +78,8 @@ const M = {
     if (S.ms.onlineAcc >= 60) { S.ms.onlineAcc -= 60; this.track('online', 1); }
     this.updateWar(dt);
     this.updateMarket(dt);
+    this.updateLife(dt);
+    this.updateEconomy(dt);
     if (this.festival) this.festival.update(this.time);
     if (this.wb && this.wb.altarFx) this.wb.altarFx(this.time);
     if (this.sysT <= 0) {
@@ -95,6 +98,7 @@ const M = {
     if (this.event && id === this.event.currency) { S.ev.got += n; this.track('eventToken', n); }
     if (!quiet) this.ui.chat('system', `Obtained <span class="it" style="color:${RARITY[MATERIALS[id].quality].color}">[${esc(MATERIALS[id].name)}]</span> x${n}`);
     this.ui.markMenu && this.ui.markMenu('bag');
+    if (this.onMatGain) this.onMatGain(id);
   },
   matCount(id) { return this.S.mats[id] || 0; },
   takeMat(id, n) { const S = this.S; if ((S.mats[id] || 0) < n) return false; S.mats[id] -= n; if (S.mats[id] <= 0) delete S.mats[id]; return true; },
@@ -155,6 +159,7 @@ const M = {
     let atk = 0, hp = 0, br = 0;
     if (S.guild) { const b = guildBuff(S.guild.lv); atk += b.atk; hp += b.hp; br += S.guild.lv * 60; }
     const cx = this.codexBonus(); atk += cx.atk; hp += cx.hp; br += cx.found * 40;
+    if (this.collectionMods) { const cm = this.collectionMods(); atk += cm.atk; hp += cm.hp; br += cm.br; }
     return { atk, hp, br };
   },
 
@@ -359,7 +364,7 @@ const M = {
   },
   bagRoomFor(id) {
     const S = this.S;
-    if (S.bag.some((b) => b.id === id) || S.bag.length < 48) return true;
+    if (S.bag.some((b) => b.id === id) || S.bag.length < this.bagMax()) return true;
     this.ui.toast('Bag is full!', 'warn'); return false;
   },
   updateGuildLife() {
@@ -421,7 +426,7 @@ const M = {
     this.map = arena; p.map = arena;
     p.pos.set(arena.start.x, 0, arena.start.z); p.yaw = p.yawT = Math.PI; this.cam.yaw = 0; this.cam.target.copy(p.pos);
     if (this.pet) { this.pet.map = arena; this.pet.pos.set(p.pos.x - 1.2, 0, p.pos.z + 1.2); }
-    const crystalHp = Math.round(2600 + 1600 * L);
+    const crystalHp = Math.round(Math.max(2600 + 1600 * L, p.atk * 140));
     // our crystal (an allied structure the rivals attack)
     const oc = this.makeEnt('ally', buildEventMonster('warcrystal', 0), { name: 'Spirit Crystal', radius: 2.6, shadowR: 2.4, height: 5.5 });
     oc.map = arena; oc.pos.set(ours.x, 0, ours.z); oc.crystal = true; oc.maxHp = oc.hp = crystalHp; oc.def = 20 + L; oc.atk = 0; oc.yaw = oc.yawT = 0;
@@ -444,7 +449,8 @@ const M = {
       const look = classLook(cls, gender, HAIR_COLORS[(rand() * HAIR_COLORS.length) | 0], EYE_COLORS[(rand() * EYE_COLORS.length) | 0], { wings: rand() < 0.5, wingColor: '#ffb0b0' });
       const lvl = clamp(L + Math.round(rand() * 4 - 2), 1, 32);
       const C = CLASSES[cls];
-      const st = { level: lvl, hp: Math.round((190 + 34 * lvl) * (C.base.hp / 220)), atk: (13 + 4.1 * lvl) * (C.base.atk / 22), def: 5 + 2.3 * lvl };
+      // rivals are measured against your own hero so wars stay fair from Lv 10 to Lv 200
+      const st = { level: lvl, hp: Math.round(Math.max((190 + 34 * lvl), p.maxHp * 0.62) * (C.base.hp / 220)), atk: Math.max(13 + 4.1 * lvl, p.atk * 0.48) * (C.base.atk / 22), def: Math.max(5 + 2.3 * lvl, p.def * 0.55) };
       const r = this.createMonster({ type: 'rival', x: theirs.x + (i - 2) * 3.2, z: theirs.z + 6, r: 3 }, { map: arena, exact: true, look, fixed: st });
       r.warUnit = true; r.cls = cls; r.name = name; r.speed = C.speed * 0.92; r.rangeW = C.ranged ? C.range * 0.8 : 2.4; r.ranged = C.ranged;
       r.labelHtml = `<span class="g">&lt;${esc(opp.name)}&gt;</span> Lv${lvl} ${esc(name)}`;
@@ -463,7 +469,8 @@ const M = {
     const e = this.makeEnt('ally', hum, { name: m.name, radius: 0.6 });
     const C = CLASSES[m.cls];
     e.humanoid = hum; e.cls = m.cls; e.map = this.war.map; e.level = L;
-    e.maxHp = e.hp = Math.round((200 + 36 * L) * (C.base.hp / 220)); e.atk = (14 + 4.3 * L) * (C.base.atk / 22); e.def = 6 + 2.5 * L; e.crit = 10;
+    const p = this.player;
+    e.maxHp = e.hp = Math.round(Math.max(200 + 36 * L, p.maxHp * 0.66) * (C.base.hp / 220)); e.atk = Math.max(14 + 4.3 * L, p.atk * 0.5) * (C.base.atk / 22); e.def = Math.max(6 + 2.5 * L, p.def * 0.6); e.crit = 10;
     e.speed = C.speed * 0.92; e.range = C.ranged ? C.range * 0.8 : 2.4; e.ranged = C.ranged; e.home = { x, z };
     e.pos.set(x, 0, z); e.yaw = e.yawT = Math.PI; e.attackCD = rnd(0, 1);
     this.nameplate(e, `<div class="g">&lt;${esc(this.S.guild.name)}&gt;</div><div class="n">${esc(m.name)}</div>`, 'ally', true);
@@ -651,7 +658,7 @@ const M = {
     const active = into < WORLD_BOSS.lasts;
     return { slot, active, endsIn: WORLD_BOSS.lasts - into, nextIn: WORLD_BOSS.every - into };
   },
-  wbStats(L) { return { level: L, hp: Math.round(2400 * L * (1 + L / 12)), atk: 30 + 6 * L, def: 10 + 2 * L }; },
+  wbStats(L) { const c = curveStats(L, { hp: 90, atk: 2.2, def: 1.2 }); return { level: L, hp: c.hp, atk: c.atk, def: c.def }; },
   updateWorldBoss() {
     const S = this.S, st = this.wbState();
     if (!st.active && st.nextIn < 120 && S.wb.warned !== st.slot + 1) {
@@ -664,7 +671,7 @@ const M = {
   },
   spawnWorldBoss(slot) {
     const S = this.S, type = this.wbType(), site = WORLD_BOSS.site;
-    const L = clamp(S.level + 3, 8, 32);
+    const L = clamp(S.level + 3, 8, MAX_LEVEL + 3);
     const e = this.createMonster({ type, x: site.x, z: site.z, r: 0 }, { exact: true, fixed: this.wbStats(L) });
     e.wb = true; e.yaw = e.yawT = Math.atan2(-site.x, -site.z); e.skillT = 6;
     this.wb = { e, slot, dmg: new Map(), start: this.time, bots: [] };
@@ -763,7 +770,7 @@ const M = {
     if (S.level < r.lv) { this.ui.toast(`Requires Lv ${r.lv}`, 'warn'); return; }
     const cost = { gold: r.gold, mats: r.mats };
     if (!this.canAfford(cost)) { this.ui.toast(this.missingText(cost), 'warn'); this.sfx.play('error'); return; }
-    if (r.gear && S.bag.length >= 48) { this.ui.toast('Bag is full!', 'warn'); return; }
+    if (r.gear && S.bag.length >= this.bagMax()) { this.ui.toast('Bag is full!', 'warn'); return; }
     if (r.out?.item && !this.bagRoomFor(r.out.item)) return;
     this.pay(cost);
     let msg;
@@ -876,7 +883,7 @@ const M = {
       return true;
     }
     if (id === 'unique_cache' || id === 'legend_cache') {
-      if (S.bag.length >= 48) { this.ui.toast('Bag is full!', 'warn'); return true; }
+      if (S.bag.length >= this.bagMax()) { this.ui.toast('Bag is full!', 'warn'); return true; }
       this.removeItem(id, 1);
       const eq = this.makeEquip(null, S.level, id === 'legend_cache' ? 5 : 4);
       this.addEquip(eq);
@@ -937,7 +944,7 @@ const M = {
       const [kind, id, [a, b]] = g, qty = Math.round(rnd(a, b));
       const deal = Math.random() < 0.18 ? rnd(0.62, 0.8) : rnd(0.9, 1.3);
       const L = { lid: 'b' + i + '_' + Math.floor(this.time), kind, seller: pick(sellers), note: pick(MARKET_LINES), qty };
-      if (kind === 'gear') { L.eq = this.makeEquip(null, clamp(S.level + Math.round(rnd(-2, 2)), 1, 32), id); L.price = Math.round(this.mkPrice('gear', null, L.eq) * deal); L.kind = 'gear'; }
+      if (kind === 'gear') { L.eq = this.makeEquip(null, clamp(S.level + Math.round(rnd(-2, 2)), 1, MAX_LEVEL), id); L.price = Math.round(this.mkPrice('gear', null, L.eq) * deal); L.kind = 'gear'; }
       else { L.id = id; L.price = Math.round(this.mkPrice(kind, id, null, qty) * deal); }
       L.deal = deal < 0.82;
       K.listings.push(L);
@@ -947,7 +954,7 @@ const M = {
     const S = this.S, K = this.market, i = K.listings.findIndex((l) => l.lid === lid); if (i < 0) return;
     const L = K.listings[i];
     if (S.gold < L.price) { this.ui.toast('Not enough Gold', 'warn'); this.sfx.play('error'); return; }
-    if (L.kind === 'gear' && S.bag.length >= 48) { this.ui.toast('Bag is full!', 'warn'); return; }
+    if (L.kind === 'gear' && S.bag.length >= this.bagMax()) { this.ui.toast('Bag is full!', 'warn'); return; }
     if (L.kind === 'item' && !this.bagRoomFor(L.id)) return;
     S.gold -= L.price;
     if (L.kind === 'gear') this.addEquip(L.eq);
@@ -1188,8 +1195,8 @@ const M = {
     const L = S.level;
     let val, me, fmtv = fmt, lowerBetter = false;
     switch (cat) {
-      case 'level': rows.forEach((r) => { r.v = clamp(Math.round(32 - r.i * 0.9 - r.r * 3), 6, 30); }); me = S.level; fmtv = (v) => `Lv ${v}`; break;
-      case 'wboss': { const top = this.wbStats(clamp(L + 3, 8, 32)).hp * 0.32; rows.forEach((r) => { r.v = Math.round(top * Math.pow(0.86, r.i) * (0.9 + r.r * 0.2)); }); me = S.lb.wbBest || 0; break; }
+      case 'level': rows.forEach((r) => { r.v = clamp(Math.round(200 - r.i * 7 - r.r * 6 - (1 - prog) * 60), 6, 200); }); me = S.level; fmtv = (v) => `Lv ${v}`; break;
+      case 'wboss': { const top = this.wbStats(clamp(L + 3, 8, MAX_LEVEL + 3)).hp * 0.32; rows.forEach((r) => { r.v = Math.round(top * Math.pow(0.86, r.i) * (0.9 + r.r * 0.2)); }); me = S.lb.wbBest || 0; break; }
       case 'dungeon': { lowerBetter = true; const id = this.ui?.sel?.lbDungeon || 'd1', par = { d1: 240, d2: 300, d3: 360 }[id]; rows.forEach((r) => { r.v = Math.round(par * (0.5 + r.i * 0.035 + r.r * 0.03)); }); me = S.lb.dgTime?.[id] || 0; fmtv = (v) => (v ? `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}` : '—'); break; }
       case 'season': rows.forEach((r) => { r.v = Math.round(30000 * Math.pow(0.88, r.i) * (0.85 + r.r * 0.3) * prog); }); me = mine ?? S.season.exp; break;
       case 'war': rows.forEach((r) => { r.v = Math.round(46 * Math.pow(0.84, r.i) * (0.8 + r.r * 0.4) * prog); }); me = S.season.warWins || 0; fmtv = (v) => `${v} wins`; break;

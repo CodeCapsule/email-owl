@@ -37,7 +37,7 @@ async function init() {
   app.prepend(renderer.domElement);
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xcfeaff, 160, 950);
+  scene.fog = new THREE.Fog(0xcfeaff, 180, 1500);
   camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.3, 3200);
   camera.position.set(60, 40, 90);
 
@@ -62,7 +62,7 @@ async function init() {
   $('load-tip').textContent = 'Tip: ' + TIPS[(Math.random() * TIPS.length) | 0];
   world = new World(scene);
   world.spawnAreas = SPAWNS;
-  const steps = ['buildTerrain', 'buildWater', 'buildSky', 'buildTown', 'buildDungeonGates', 'buildBridges', 'buildRuins', 'buildOverlook', 'buildAltar', 'buildTrees', 'buildGroundCover', 'buildBoundary', 'buildWorldTree', 'buildIslands', 'finishBatches', 'buildAmbient', 'buildMinimap'];
+  const steps = ['buildTerrain', 'buildWater', 'buildSky', 'buildTown', 'buildDungeonGates', 'buildBridges', 'buildRuins', 'buildOverlook', 'buildAltar', 'buildFarm', 'buildOutposts', 'buildBiomeProps', 'buildTrees', 'buildGroundCover', 'buildBoundary', 'buildWorldTree', 'buildIslands', 'finishBatches', 'buildAmbient', 'buildBiomeWeather', 'buildMinimap'];
   for (let i = 0; i < steps.length; i++) {
     world[steps[i]]();
     $('load-fill').style.width = ((i + 1) / steps.length) * 100 + '%';

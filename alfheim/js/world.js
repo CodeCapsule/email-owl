@@ -2,29 +2,58 @@
 import * as THREE from 'three';
 import { NavGrid } from './nav.js';
 import { DUNGEONS } from './data.js';
+import { NEW_ZONES, FARM, OUTPOSTS } from './data-world.js';
 import { buildDungeonEntrance } from './dungeon.js';
 import { toon, glow, outlineMaterial, grassTexture, stoneTexture, cloudTexture, glowTexture, magicCircleTexture, getGradient } from './toon.js';
 
-export const SIZE = 400, HALF = 200;
+export const SIZE = 800, HALF = 400;
 export const WATER_Y = -1.0;
-const SEG = 200;
+const SEG = 400;
 const CELL = 2, GN = SIZE / CELL;
 
-const RIVER = [[112, -215], [88, -120], [72, -50], [70, 10], [85, 80], [118, 150], [150, 215]];
+const RIVER = [[110, -410], [124, -300], [112, -215], [88, -120], [72, -50], [70, 10], [85, 80], [118, 150], [150, 215], [162, 300], [150, 410]];
 const ROADS = [
   [[0, 0], [60, 0], [100, 1], [158, 2]],
   [[0, 0], [0, 60], [2, 95], [-12, 124]],
   [[0, 0], [-60, 0], [-100, -12], [-128, -60], [-146, -92]],
-  [[0, 0], [0, -60], [0, -150]],
+  [[0, 0], [0, -60], [0, -150], [0, -250], [0, -350]],
+  [[158, 2], [230, 8], [300, 10], [370, 14]],
+  [[-12, 124], [8, 200], [24, 260], [36, 360]],
+  [[-100, -12], [-180, 0], [-260, 8], [-370, 14]],
+  [[230, 8], [250, -120], [266, -260]],
+  [[230, 8], [255, 140], [270, 262]],
+  [[-180, 0], [-228, 140], [-262, 262]],
+  [[-180, 0], [-222, -140], [-256, -262]],
 ];
 export const BRIDGES = [{ x: 70.5, z: 0.5, len: 26, w: 6, axis: 'x' }, { x: 102, z: 118, len: 24, w: 5, axis: 'x' }];
 export const ARENA = { x: -150, z: -112, r: 21 };
 export const ALTAR = { x: 128, z: -86, r: 13 }; // Storm Altar: world boss stage
 export const OVERLOOK = { x: 0, z: -160 };
 export const TELEPORT_CIRCLE = { x: 0, z: -46 };
-export const WORLD_TREE = { x: 0, z: -470 };
+export const WORLD_TREE = { x: 0, z: -760 };
 const PLATFORMS = [{ x: 0, z: 0, r: 17.2, y: 0.3 }, { x: -150, z: -112, r: 21.5, y: 0.55 }, { x: 0, z: -160, r: 8, y: 1.95 }, { x: 0, z: -46, r: 4.6, y: 0.2 }, { x: ALTAR.x, z: ALTAR.z, r: ALTAR.r + 0.4, y: 0.5 }];
 const nearAltar = (x, z, m = 6) => Math.hypot(x - ALTAR.x, z - ALTAR.z) < ALTAR.r + m;
+const nearFarm = (x, z, m = 4) => Math.hypot(x - FARM.x, z - FARM.z) < FARM.r + m;
+const nearOutpost = (x, z, m = 9) => OUTPOSTS.some((o) => Math.hypot(x - o.x, z - o.z) < m);
+// Biome weight of a zone at a point (1 in the core, fading out at the rim) and the strongest biome there.
+function biomeW(x, z, zn) { return 1 - smooth(zn.r * 0.55, zn.r * 1.05, Math.hypot(x - zn.x, z - zn.z)); }
+export function biomeAt(x, z) {
+  let best = null, bw = 0.35;
+  for (const zn of NEW_ZONES) { const w = biomeW(x, z, zn); if (w > bw) { bw = w; best = zn.biome; } }
+  return best;
+}
+function biomeHeight(b, x, z) {
+  switch (b) {
+    case 'plains': return fbm(x / 90, z / 90) * 4 - 1.2 + fbm(x / 25, z / 25) * 0.8;
+    case 'marsh': return fbm(x / 30 + 7, z / 30 + 2) * 3.4 - 2.3;
+    case 'ember': { const m = smooth(0.54, 0.6, fbm(x / 45 + 3, z / 45 + 9)); return fbm(x / 60, z / 60) * 5 - 1 + m * 8; }
+    case 'frost': return fbm(x / 55 + 1, z / 55 + 4) * 12 - 2 + fbm(x / 18, z / 18) * 2;
+    case 'crystal': return fbm(x / 50 + 6, z / 50 + 1) * 8 - 1.5;
+    case 'shadow': return fbm(x / 35 + 2, z / 35 + 5) * 4.2 - 1.9;
+    case 'astral': return fbm(x / 70 + 9, z / 70 + 7) * 5 + 1.5;
+    default: return fbm(x / 60, z / 60) * 4 + 0.5;
+  }
+}
 
 // ---------------------------------------------------------------- noise
 function hash(x, z) { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); }
@@ -55,7 +84,8 @@ function bridgeDeckY(b, x) { const t = (x - (b.x - b.len / 2)) / b.len; return 0
 
 function rawHeight0(x, z) {
   let h = fbm(x / 70 + 10, z / 70 + 3) * 7 - 2.2 + fbm(x / 20, z / 20) * 1.3;
-  if (z > 60 && x < 80) h += fbm(x / 30 + 5, z / 30) * 3;
+  if (z > 60 && x < 80 && z < 200) h += fbm(x / 30 + 5, z / 30) * 3;
+  for (const zn of NEW_ZONES) { const w = biomeW(x, z, zn); if (w > 0) h = lerp(h, biomeHeight(zn.biome, x, z), w); }
   const dT = Math.hypot(x, z);
   h = lerp(0, h, smooth(50, 78, dT));
   const rd = roadDist(x, z);
@@ -66,10 +96,13 @@ function rawHeight0(x, z) {
   h = lerp(0.3, h, smooth(ALTAR.r + 1, ALTAR.r + 10, dal));
   const dO = Math.hypot(x - OVERLOOK.x, z - OVERLOOK.z);
   h = lerp(1.5, h, smooth(14, 24, dO));
+  const dF = Math.hypot(x - FARM.x, z - FARM.z);
+  h = lerp(0.35, h, smooth(FARM.r + 2, FARM.r + 10, dF));
+  for (const o of OUTPOSTS) { const d = Math.hypot(x - o.x, z - o.z); if (d < 16) h = lerp(Math.max(0.2, h * 0.4), h, smooth(7, 15, d)); }
   const rv = riverDist(x, z);
   if (rv < 14) { h = Math.max(h, -0.2); h = lerp(-2.9, h, smooth(5.5, 12, rv)); }
   const e = Math.max(Math.abs(x), Math.abs(z));
-  if (e > 158) h += Math.pow((e - 158) / 42, 2) * 48 * (0.7 + 0.6 * fbm(x / 25, z / 25));
+  if (e > 358) h += Math.pow((e - 358) / 42, 2) * 48 * (0.7 + 0.6 * fbm(x / 25, z / 25));
   return h;
 }
 
@@ -196,12 +229,12 @@ export class World {
     this.buildTerrain(); onProgress(0.2);
     this.buildWater(); this.buildSky(); onProgress(0.3);
     this.buildTown(); this.buildDungeonGates(); onProgress(0.45);
-    this.buildBridges(); this.buildRuins(); this.buildOverlook(); this.buildAltar(); onProgress(0.55);
+    this.buildBridges(); this.buildRuins(); this.buildOverlook(); this.buildAltar(); this.buildFarm(); this.buildOutposts(); this.buildBiomeProps(); onProgress(0.55);
     this.buildTrees(); onProgress(0.7);
     this.buildGroundCover(); onProgress(0.8);
     this.buildBoundary(); this.buildWorldTree(); this.buildIslands(); onProgress(0.9);
     this.finishBatches();
-    this.buildAmbient();
+    this.buildAmbient(); this.buildBiomeWeather();
     this.buildMinimap(); onProgress(1);
   }
 
@@ -220,7 +253,10 @@ export class World {
       grass: new THREE.Color('#7cc650'), meadow: new THREE.Color('#9ad85e'), forest: new THREE.Color('#4f9c40'),
       ruins: new THREE.Color('#a4b860'), dirt: new THREE.Color('#dcbc80'), sand: new THREE.Color('#ead9a0'),
       bed: new THREE.Color('#9ab0a0'), rock: new THREE.Color('#a39b90'), snow: new THREE.Color('#f4f8ff'), town: new THREE.Color('#86cc5a'),
+      plains: new THREE.Color('#b8dc5a'), marsh: new THREE.Color('#6a8a4c'), ember: new THREE.Color('#c0663a'), emberTop: new THREE.Color('#8a4a34'),
+      frost: new THREE.Color('#eaf4fc'), crystal: new THREE.Color('#9a90e0'), shadow: new THREE.Color('#5a4a72'), astral: new THREE.Color('#e4dcf6'), sacred: new THREE.Color('#9ae07a'), farm: new THREE.Color('#b0884a'),
     };
+    const bc = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       // PlaneGeometry rotated: rows run along z
@@ -233,6 +269,14 @@ export class World {
       c.lerp(C.forest, smooth(60, 95, z) * (1 - smooth(70, 110, x)));
       c.lerp(C.ruins, smooth(-60, -95, x));
       c.lerp(C.town, 1 - smooth(40, 60, Math.hypot(x, z)));
+      for (const zn of NEW_ZONES) {
+        const w = biomeW(x, z, zn); if (w <= 0) continue;
+        bc.copy(C[zn.biome]);
+        if (zn.biome === 'ember' && h > 4) bc.lerp(C.emberTop, smooth(4, 7, h));
+        if (zn.biome === 'marsh' && h < -0.6) bc.lerp(C.bed, 0.5);
+        c.lerp(bc, w);
+      }
+      if (Math.hypot(x - FARM.x, z - FARM.z) < FARM.r) c.lerp(C.farm, 0.55);
       const n = fbm(x / 9, z / 9);
       c.multiplyScalar(0.86 + n * 0.28);
       const rd = roadDist(x, z);
@@ -241,13 +285,13 @@ export class World {
       if (rv < 12) c.lerp(C.sand, 1 - smooth(8, 12, rv));
       if (h < WATER_Y) c.copy(C.bed);
       const e = Math.max(Math.abs(x), Math.abs(z));
-      if (e > 168) c.lerp(C.rock, smooth(168, 182, e));
+      if (e > 368) c.lerp(C.rock, smooth(368, 382, e));
       if (h > 26) c.lerp(C.snow, smooth(26, 34, h));
       colors.set([c.r, c.g, c.b], i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    const gt = grassTexture(); gt.repeat.set(90, 90);
+    const gt = grassTexture(); gt.repeat.set(180, 180);
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: gt });
     this.terrain = new THREE.Mesh(geo, mat);
     this.terrain.receiveShadow = true;
@@ -257,8 +301,9 @@ export class World {
     for (let cz = 0; cz < GN; cz++) for (let cx = 0; cx < GN; cx++) {
       const [x, z] = this.nav.center(cx, cz);
       const e = Math.max(Math.abs(x), Math.abs(z));
-      let blocked = e > 176;
+      let blocked = e > 376;
       if (!blocked && riverDist(x, z) < 7.2 && !onBridge(x, z)) blocked = true;
+      if (!blocked && rawHeight(x, z) < WATER_Y - 0.25 && riverDist(x, z) > 7.2 && roadDist(x, z) > 3) blocked = true;
       if (blocked) this.nav.setCell(cx, cz, 1);
     }
   }
@@ -307,9 +352,9 @@ export class World {
     // clouds
     this.clouds = [];
     const ct = cloudTexture();
-    for (let i = 0; i < 46; i++) {
+    for (let i = 0; i < 70; i++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: ct, transparent: true, depthWrite: false, fog: false, opacity: 0.92 }));
-      const a = Math.random() * Math.PI * 2, r = 120 + Math.random() * 700;
+      const a = Math.random() * Math.PI * 2, r = 120 + Math.random() * 1000;
       s.position.set(Math.cos(a) * r, 120 + Math.random() * 110, Math.sin(a) * r);
       const sc = 70 + Math.random() * 90; s.scale.set(sc * 2, sc, 1);
       this.root.add(s); this.clouds.push(s);
@@ -599,6 +644,108 @@ export class World {
     this.put(GEO.sph, 0xf0c040, x, y + 7.5, z, 0.5, 0.5, 0.5);
   }
 
+  // Landmarks that give each outer biome its own silhouette.
+  buildBiomeProps() {
+    const rng = mulberry(77);
+    const okSpot = (x, z, m = 8) => !this.isBlocked(x, z) && roadDist(x, z) > m && riverDist(x, z) > 10 && !nearOutpost(x, z, 14) && !(this.gates || []).some((gt) => Math.hypot(x - gt.x, z - gt.z) < 16) && !(this.spawnAreas || []).some((sp) => Math.hypot(x - sp.x, z - sp.z) < sp.r * 0.6);
+    const scatter = (zn, n, fn, m) => {
+      for (let i = 0, k = 0; i < n * 12 && k < n; i++) {
+        const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * zn.r * 0.95, x = zn.x + Math.cos(a) * r, z = zn.z + Math.sin(a) * r;
+        if (Math.max(Math.abs(x), Math.abs(z)) > 365 || !okSpot(x, z, m) || this.heightAt(x, z) < WATER_Y + 0.2) continue;
+        fn(x, this.heightAt(x, z), z); k++;
+      }
+    };
+    for (const zn of NEW_ZONES) {
+      switch (zn.biome) {
+        case 'plains':
+          scatter(zn, 16, (x, y, z) => { // sunflower patch
+            for (let i = 0; i < 7; i++) { const px = x + (rng() - 0.5) * 6, pz = z + (rng() - 0.5) * 6, hgt = 1.6 + rng() * 0.8; this.put(GEO.cyl6, 0x5aa83a, px, y + hgt / 2, pz, 0.08, hgt, 0.08); this.put(GEO.cyl, 0xffd23a, px, y + hgt, pz, 0.55, 0.12, 0.55, Math.PI / 2 - 0.3, rng() * 6, 0); this.put(GEO.cyl, 0x7a4a1a, px, y + hgt + 0.02, pz, 0.24, 0.14, 0.24, Math.PI / 2 - 0.3, 0, 0); }
+          }, 6);
+          scatter(zn, 12, (x, y, z) => { this.put(GEO.cyl, 0xe8c860, x, y + 0.7, z, 1.3, 1.4, 1.3); this.put(GEO.cone8, 0xd8b850, x, y + 1.8, z, 1.4, 0.9, 1.4); this.blockCircle(x, z, 1.3); }, 8);
+          scatter(zn, 2, (x, y, z) => { // windmill
+            this.put(GEO.cyl, 0xf4ead8, x, y + 4, z, 2.2, 8, 2.2); this.put(GEO.cone8, 0xd8504a, x, y + 9.4, z, 2.8, 2.8, 2.8);
+            for (let i = 0; i < 4; i++) this.put(GEO.box, 0xfff6e0, x, y + 7, z + 2.4, 0.5, 7, 0.1, 0, 0, i * Math.PI / 2 + 0.4);
+            this.blockCircle(x, z, 2.6);
+          }, 12);
+          break;
+        case 'marsh':
+          scatter(zn, 40, (x, y, z) => { for (let i = 0; i < 6; i++) this.put(GEO.cone8, i % 2 ? 0x6a8a3a : 0x8a9a4a, x + (rng() - 0.5) * 2, y + 0.9, z + (rng() - 0.5) * 2, 0.08, 1.8 + rng(), 0.08); }, 4);
+          for (let i = 0; i < 80; i++) { const a = rng() * Math.PI * 2, r = rng() * zn.r, x = zn.x + Math.cos(a) * r, z = zn.z + Math.sin(a) * r; if (this.heightAt(x, z) < WATER_Y - 0.3) { this.put(GEO.cyl, 0x5aa84a, x, WATER_Y + 0.03, z, 0.6 + rng() * 0.4, 0.04, 0.6 + rng() * 0.4); if (rng() < 0.4) this.putGlow(GEO.sph, 0xffb8e8, x + 0.2, WATER_Y + 0.15, z, 0.18, 0.12, 0.18); } }
+          scatter(zn, 4, (x, y, z) => { // stilt hut
+            for (const [dx, dz] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]]) this.put(GEO.cyl6, 0x5a4a34, x + dx, y + 1.2, z + dz, 0.2, 2.4, 0.2);
+            this.put(GEO.box, 0x8a6a44, x, y + 3.2, z, 4.2, 2.2, 4.2); this.put(GEO.roof, 0x6a7a3a, x, y + 5.1, z, 3.6, 1.8, 3.6);
+            this.blockRect(x, z, 4.4, 4.4, 0);
+          }, 10);
+          break;
+        case 'ember':
+          scatter(zn, 26, (x, y, z) => { const hgt = 6 + rng() * 10, w = 1.6 + rng() * 2; this.put(GEO.cone8, rng() < 0.5 ? 0x8a3a24 : 0xa04a2a, x, y + hgt / 2 - 0.5, z, w, hgt, w, (rng() - 0.5) * 0.2, rng() * 3, (rng() - 0.5) * 0.2); this.blockCircle(x, z, w * 0.8); }, 7);
+          scatter(zn, 10, (x, y, z) => { const r = 2 + rng() * 2.5; this.putGlow(GEO.cyl, 0xff7a1a, x, y + 0.08, z, r, 0.08, r); this.putGlow(GEO.cyl, 0xffd04a, x, y + 0.1, z, r * 0.55, 0.08, r * 0.55); this.put(GEO.torus, 0x4a2a20, x, y + 0.1, z, r, r, 2.4, Math.PI / 2, 0, 0); this.blockCircle(x, z, r); }, 9);
+          break;
+        case 'frost':
+          scatter(zn, 26, (x, y, z) => { for (let i = 0; i < 3; i++) { const a = i * 2.1 + rng(); this.putGlow(GEO.oct, i % 2 ? 0xc8f4ff : 0x9ae0ff, x + Math.cos(a) * 0.7, y + 1.2, z + Math.sin(a) * 0.7, 0.5, 1.8 + rng() * 1.2, 0.5, Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3); } this.blockCircle(x, z, 1); }, 6);
+          scatter(zn, 6, (x, y, z) => { this.put(GEO.sph, 0xffffff, x, y + 0.8, z, 0.9, 0.85, 0.9); this.put(GEO.sph, 0xffffff, x, y + 2, z, 0.62, 0.6, 0.62); this.put(GEO.sph, 0xffffff, x, y + 2.9, z, 0.45, 0.45, 0.45); this.put(GEO.cone8, 0xff8a2a, x, y + 2.9, z + 0.5, 0.08, 0.4, 0.08, Math.PI / 2, 0, 0); this.put(GEO.cyl, 0xd04a3a, x, y + 2.45, z, 0.55, 0.14, 0.55); this.blockCircle(x, z, 1); }, 8);
+          break;
+        case 'crystal':
+          scatter(zn, 34, (x, y, z) => { const sc = 0.8 + rng() * 1.4; for (let i = 0; i < 4; i++) { const a = i * 1.6 + rng(); this.putGlow(GEO.oct, [0xc89aff, 0x9ae8ff, 0xffa8f0][i % 3], x + Math.cos(a) * 0.8 * sc, y + 1.4 * sc, z + Math.sin(a) * 0.8 * sc, 0.55 * sc, (2 + rng() * 1.5) * sc, 0.55 * sc, Math.cos(a) * 0.35, 0, Math.sin(a) * 0.35); } this.blockCircle(x, z, 1.2 * sc); }, 6);
+          break;
+        case 'shadow':
+          scatter(zn, 30, (x, y, z) => { this.put(GEO.box, 0x6a6478, x, y + 0.7, z, 0.9, 1.4, 0.3, 0, rng() * 3, (rng() - 0.5) * 0.3); this.put(GEO.cyl, 0x6a6478, x, y + 1.4, z, 0.45, 0.3, 0.45, Math.PI / 2, 0, 0); this.blockCircle(x, z, 0.6); }, 5);
+          scatter(zn, 26, (x, y, z) => { for (let i = 0; i < 4; i++) { const px = x + (rng() - 0.5) * 2, pz = z + (rng() - 0.5) * 2, hh = 0.3 + rng() * 0.5; this.put(GEO.cyl6, 0xe0d8f0, px, y + hh / 2, pz, 0.08, hh, 0.08); this.putGlow(GEO.sph, rng() < 0.5 ? 0xb07aff : 0x7aff9a, px, y + hh, pz, 0.3, 0.16, 0.3); } }, 4);
+          scatter(zn, 5, (x, y, z) => { const r = rng() * 3; for (const sx of [-1, 1]) { this.put(GEO.box, 0x5a5468, x + Math.cos(r) * sx * 3, y + 2.6, z - Math.sin(r) * sx * 3, 1.2, 5.2, 1.2, 0, r, 0); this.blockCircle(x + Math.cos(r) * sx * 3, z - Math.sin(r) * sx * 3, 0.9); } this.put(GEO.box, 0x5a5468, x, y + 5.6, z, 7.4, 1, 1.4, 0, r, 0); }, 10);
+          break;
+        case 'astral':
+          scatter(zn, 16, (x, y, z) => { this.put(GEO.cyl, 0xf4f0ff, x, y + 3, z, 0.7, 6, 0.7); this.put(GEO.box, 0xe8e0f8, x, y + 6.2, z, 1.8, 0.4, 1.8); this.putGlow(GEO.sph, 0xfff0a0, x, y + 7, z, 0.6, 0.6, 0.6); this.blockCircle(x, z, 0.9); }, 6);
+          scatter(zn, 20, (x, y, z) => { this.putGlow(GEO.oct, 0xfff4c8, x, y + 3 + rng() * 6, z, 0.3, 0.5, 0.3); }, 3);
+          break;
+        case 'sacred':
+          scatter(zn, 10, (x, y, z) => { const r = rng() * 3; this.put(GEO.cyl, 0x8a6448, x, y + 1.5, z, 1.4, 14, 1.4, Math.PI / 2 - 0.25, r, 0); this.blockCircle(x, z, 1.6); }, 9);
+          scatter(zn, 20, (x, y, z) => { for (let i = 0; i < 5; i++) this.putGlow(GEO.sph, 0xffe07a, x + (rng() - 0.5) * 2.4, y + 0.25, z + (rng() - 0.5) * 2.4, 0.2, 0.16, 0.2); }, 4);
+          break;
+      }
+    }
+  }
+
+  // Homestead: fenced farmland west of town with a barn; plots themselves are placed by the game.
+  buildFarm() {
+    const { x, z } = FARM, y = this.heightAt(x, z);
+    const R = 13;
+    this.fence(x - R, z - R, x + R, z - R); this.fence(x - R, z + R, x + R, z + R);
+    this.fence(x - R, z - R, x - R, z + R);
+    this.fence(x + R, z - R, x + R, z - 3); this.fence(x + R, z + 3, x + R, z + R);
+    this.house(x - 4, z - 9, 0, { w: 9, d: 6, h: 4.2, roof: 0xb83a2a, wall: 0xc8503a });
+    for (const [dx, dz] of [[-10, -9], [-10, -6]]) { this.put(GEO.cyl, 0xe8c860, x + dx, y + 0.6, z + dz, 1, 1.2, 1, 0, 0, Math.PI / 2); this.blockCircle(x + dx, z + dz, 1); }
+    // scarecrow
+    this.put(GEO.cyl6, 0x7a5234, x + 8, y + 1.3, z - 8, 0.1, 2.6, 0.1); this.put(GEO.box, 0x7a5234, x + 8, y + 2, z - 8, 1.8, 0.12, 0.12);
+    this.put(GEO.sph, 0xf0d890, x + 8, y + 2.8, z - 8, 0.38, 0.4, 0.38); this.put(GEO.cone8, 0x8a6a3a, x + 8, y + 3.2, z - 8, 0.6, 0.4, 0.6);
+    this.put(GEO.box, 0x4a7ad8, x + 8, y + 1.9, z - 8, 0.7, 0.8, 0.3);
+    this.farmPlots = [];
+    for (let row = 0; row < 2; row++) for (let col = 0; col < 4; col++) this.farmPlots.push({ x: x - 7.5 + col * 5, z: z + 0.5 + row * 5.5 });
+  }
+
+  // Outpost camps at the edge of each new zone: tent, campfire, crates and a banner.
+  buildOutposts() {
+    this.campfires = [];
+    for (const o of OUTPOSTS) {
+      const bx = o.x - Math.sin(o.face) * 4.5, bz = o.z - Math.cos(o.face) * 4.5, y = this.heightAt(bx, bz);
+      this.put(GEO.cone4, 0xe8d8b0, bx, y + 1.6, bz, 2.6, 3.2, 2.6, 0, o.face + Math.PI / 4, 0);
+      this.put(GEO.box, 0x6a4a2a, bx, y + 0.9, bz + 0.01, 0.9, 1.8, 0.1, 0, o.face, 0);
+      this.blockCircle(bx, bz, 2.2);
+      const fx = o.x + Math.cos(o.face) * 3.2, fz = o.z - Math.sin(o.face) * 3.2, fy = this.heightAt(fx, fz);
+      for (let i = 0; i < 3; i++) this.put(GEO.cyl6, 0x5a3a24, fx, fy + 0.2, fz, 0.12, 1.2, 0.12, Math.PI / 2, i * 1.05, 0);
+      this.putGlow(GEO.cone8, 0xffa040, fx, fy + 0.6, fz, 0.35, 0.8, 0.35);
+      this.putGlow(GEO.cone8, 0xffe07a, fx, fy + 0.5, fz, 0.18, 0.5, 0.18);
+      this.blockCircle(fx, fz, 0.8);
+      this.campfires.push([fx, fy + 0.8, fz]);
+      const cx = o.x - Math.cos(o.face) * 3, cz = o.z + Math.sin(o.face) * 3, cy = this.heightAt(cx, cz);
+      this.put(GEO.box, 0x9a6a3a, cx, cy + 0.45, cz, 0.9, 0.9, 0.9, 0, o.face, 0); this.put(GEO.box, 0x8a5a2a, cx + 0.3, cy + 1.2, cz, 0.6, 0.6, 0.6, 0, o.face + 0.4, 0);
+      this.blockCircle(cx, cz, 0.8);
+      this.put(GEO.cyl6, 0x7a5234, bx + 2.4, y + 2.5, bz, 0.08, 5, 0.08); this.put(GEO.box, 0x2a7ad8, bx + 2.4 + 0.6, y + 4.4, bz, 1.2, 0.8, 0.04);
+    }
+    const lm = new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffa040, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.8 });
+    for (const [x, y, z] of this.campfires) { const sp = new THREE.Sprite(lm); sp.position.set(x, y, z); sp.scale.setScalar(4); sp.raycast = () => {}; this.root.add(sp); }
+    this.anim.push((t) => { lm.opacity = 0.65 + Math.sin(t * 9) * 0.1 + Math.sin(t * 5.3) * 0.08; });
+  }
+
   // Storm Altar: a rune platform ringed by standing stones where world bosses descend.
   buildAltar() {
     const { x, z, r } = ALTAR;
@@ -659,6 +806,33 @@ export class World {
         this.put(GEO.cyl, 0x6a4628, x, y + 3.5 * s, z, 0.9 * s, 7 * s, 0.9 * s);
         for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; this.put(GEO.cyl6, 0x6a4628, x + Math.cos(a) * 1.0 * s, y + 0.4 * s, z + Math.sin(a) * 1.0 * s, 0.35 * s, 1.6 * s, 0.35 * s, Math.sin(a) * 0.7, 0, -Math.cos(a) * 0.7); }
         for (const [dx, dy, dz, r] of [[0, 8.5, 0, 3.8], [2.5, 7.3, 0.8, 2.7], [-2.4, 7.5, -0.6, 2.9], [0.4, 10.2, -0.3, 2.6], [0.5, 7.4, 2.4, 2.4], [-0.6, 7.6, -2.5, 2.5]]) this.put(GEO.sph, greens[(Math.abs(dx * 7 + dz) | 0) % 4] - 0x101008, x + dx * s, y + dy * s, z + dz * s, r * s, r * s * 0.85, r * s);
+      } else if (kind === 'snowpine') {
+        this.put(GEO.cyl6, 0x6a4a34, x, y + 1.2 * s, z, 0.35 * s, 2.4 * s, 0.35 * s);
+        for (let i = 0; i < 3; i++) {
+          this.put(GEO.cone8, [0x3a7a6a, 0x428a72, 0x4a9a7a][i], x, y + (3.0 + i * 1.6) * s, z, (2.6 - i * 0.6) * s, (3.0 - i * 0.3) * s, (2.6 - i * 0.6) * s);
+          this.put(GEO.cone8, 0xf4faff, x, y + (3.7 + i * 1.6) * s, z, (1.6 - i * 0.38) * s, (1.3 - i * 0.12) * s, (1.6 - i * 0.38) * s);
+        }
+      } else if (kind === 'dead' || kind === 'charred') {
+        const col = kind === 'dead' ? 0x6a5a44 : 0x2e2622;
+        this.put(GEO.cyl6, col, x, y + 2 * s, z, 0.38 * s, 4 * s, 0.38 * s);
+        for (const [a, h2] of [[0.6, 3], [2.4, 3.6], [4.2, 2.6]]) {
+          this.put(GEO.cyl6, col, x + Math.cos(a) * 0.8 * s, y + h2 * s, z + Math.sin(a) * 0.8 * s, 0.14 * s, 1.9 * s, 0.14 * s, Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+          if (kind === 'charred') this.putGlow(GEO.cone8, 0xff7a2a, x + Math.cos(a) * 1.5 * s, y + (h2 + 0.7) * s, z + Math.sin(a) * 1.5 * s, 0.16 * s, 0.4 * s, 0.16 * s);
+        }
+      } else if (kind === 'willow') {
+        this.put(GEO.cyl6, 0x6a5a3a, x, y + 1.7 * s, z, 0.42 * s, 3.4 * s, 0.42 * s);
+        this.put(GEO.sph, 0x5a8a44, x, y + 3.9 * s, z, 2.1 * s, 1.3 * s, 2.1 * s);
+        for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; this.put(GEO.sph, i % 2 ? 0x6a9a4a : 0x5a8a44, x + Math.cos(a) * 1.6 * s, y + 2.8 * s, z + Math.sin(a) * 1.6 * s, 0.6 * s, 1.5 * s, 0.6 * s); }
+      } else if (kind === 'crystal') {
+        this.put(GEO.cyl6, 0x5a4a8a, x, y + 1.6 * s, z, 0.32 * s, 3.2 * s, 0.32 * s);
+        for (const [dx, dy, dz, r, c] of [[0, 4, 0, 1.2, 0xc89aff], [1, 3.4, 0.3, 0.8, 0x9ae8ff], [-0.9, 3.5, -0.3, 0.85, 0xe0a8ff], [0.2, 4.9, -0.2, 0.7, 0x9ae8ff]]) this.putGlow(GEO.oct, c, x + dx * s, y + dy * s, z + dz * s, r * s * 0.8, r * s * 1.4, r * s * 0.8);
+      } else if (kind === 'twisted') {
+        this.put(GEO.cyl6, 0x3a2a44, x, y + 1.8 * s, z, 0.4 * s, 3.8 * s, 0.4 * s, 0.18, 0, 0.12);
+        for (const [dx, dy, dz, r] of [[0.4, 3.9, 0, 1.6], [1.4, 3.3, 0.5, 1.1], [-0.9, 3.4, -0.4, 1.2]]) this.put(GEO.sph, 0x4a3a66, x + dx * s, y + dy * s, z + dz * s, r * s, r * s * 0.8, r * s);
+        this.putGlow(GEO.sph, 0xb07aff, x + 0.5 * s, y + 0.3, z + 0.6 * s, 0.25 * s, 0.18 * s, 0.25 * s);
+      } else if (kind === 'star') {
+        this.put(GEO.cyl6, 0xf4f0e8, x, y + 1.6 * s, z, 0.3 * s, 3.2 * s, 0.3 * s);
+        for (const [dx, dy, dz, r] of [[0, 4, 0, 1.5], [1.2, 3.4, 0.4, 1], [-1.1, 3.5, -0.3, 1.05], [0.2, 4.9, -0.2, 0.9]]) this.putGlow(GEO.sph, r > 1.2 ? 0xfff2b8 : 0xffffff, x + dx * s, y + dy * s, z + dz * s, r * s, r * s * 0.9, r * s);
       } else if (kind === 'olive') {
         this.put(GEO.cyl6, 0x8a6a48, x, y + 1.3 * s, z, 0.3 * s, 2.6 * s, 0.3 * s, 0, 0, 0.15);
         for (const [dx, dy, dz, r] of [[0.3, 3.0, 0, 1.4], [-0.8, 2.6, 0.4, 1.0], [0.8, 2.4, -0.6, 0.9]]) this.put(GEO.sph, 0x9ab048, x + dx * s, y + dy * s, z + dz * s, r * s, r * s * 0.8, r * s);
@@ -671,7 +845,7 @@ export class World {
       this.treeSpots.push([x, z, kind, s]);
     };
     const ok = (x, z, spawns) => {
-      if (Math.max(Math.abs(x), Math.abs(z)) > 172) return false;
+      if (Math.max(Math.abs(x), Math.abs(z)) > 372 || nearFarm(x, z, 6) || nearOutpost(x, z, 12)) return false;
       for (const gt of this.gates || []) if (Math.hypot(x - gt.x, z - gt.z) < 15) return false;
       if (Math.hypot(x, z) < 64) return false;
       if (roadDist(x, z) < 7 || riverDist(x, z) < 11) return false;
@@ -697,6 +871,18 @@ export class World {
       tree(x, z, kind, 0.85 + rng() * 0.45);
       placed++;
     }
+    // the wider world: each biome has its own trees and density
+    const BIOME_TREES = { plains: [0.07, ['round', 'round', 'blossom']], marsh: [0.32, ['willow', 'dead', 'willow']], ember: [0.1, ['charred', 'dead']], frost: [0.42, ['snowpine', 'snowpine', 'dead']], crystal: [0.28, ['crystal', 'crystal', 'pine']], shadow: [0.38, ['twisted', 'dead', 'twisted']], astral: [0.16, ['star', 'star', 'round']], sacred: [0.3, ['big', 'blossom', 'round']] };
+    let outer = 0;
+    for (let i = 0; i < 16000 && outer < 1150; i++) {
+      const x = -372 + rng() * 744, z = -372 + rng() * 744;
+      if (Math.abs(x) < 185 && Math.abs(z) < 185) continue;
+      const b = biomeAt(x, z), def = BIOME_TREES[b] || [0.2, ['round', 'pine']];
+      if (rng() > def[0]) continue;
+      if (!ok(x, z, spawns) || this.heightAt(x, z) < WATER_Y + 0.2) continue;
+      tree(x, z, def[1][(rng() * def[1].length) | 0], 0.85 + rng() * 0.55);
+      outer++;
+    }
     // town trees
     for (const [x, z, k] of [[10, 28, 'blossom'], [-24, -42, 'round'], [26, -44, 'blossom'], [-48, 14, 'round'], [48, 46, 'round'], [-50, -36, 'pine'], [14, 50, 'blossom'], [-28, 46, 'blossom'], [50, -30, 'pine'], [-8, -52, 'round'], [8, -52, 'round']]) tree(x, z, k, k === 'blossom' ? 1.3 : 1.1);
     this.sacredTree = { x: 10, z: 28 };
@@ -706,16 +892,19 @@ export class World {
     const rng = mulberry(99);
     const tuft = new THREE.ConeGeometry(0.12, 0.7, 3); tuft.translate(0, 0.35, 0);
     const pts = [];
-    for (let i = 0; i < 9000 && pts.length < 4200; i++) {
-      const x = -170 + rng() * 340, z = -170 + rng() * 340;
-      if (Math.hypot(x, z) < 18 || roadDist(x, z) < 3.5 || riverDist(x, z) < 8 || Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r + 1 || nearAltar(x, z, 1)) continue;
+    for (let i = 0; i < 40000 && pts.length < 13000; i++) {
+      const x = -370 + rng() * 740, z = -370 + rng() * 740;
+      if (Math.hypot(x, z) < 18 || roadDist(x, z) < 3.5 || riverDist(x, z) < 8 || Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r + 1 || nearAltar(x, z, 1) || nearFarm(x, z, 0)) continue;
+      if (this.heightAt(x, z) < WATER_Y + 0.15) continue;
       pts.push([x, z]);
     }
+    const TUFT = { plains: 0xb8d850, marsh: 0x5a8a3a, ember: 0xa07a3a, frost: 0xd8e8f0, crystal: 0xa08ae0, shadow: 0x5a4a70, astral: 0xe0d8f4, sacred: 0x8ad86a };
     const im = new THREE.InstancedMesh(tuft, new THREE.MeshLambertMaterial({ color: 0xffffff }), pts.length * 3);
     const m = new THREE.Matrix4(), c = new THREE.Color();
     let k = 0;
     for (const [x, z] of pts) {
-      const y = this.heightAt(x, z), base = z > 60 && x < 85 ? 0x4a9a3a : x > 75 ? 0x8ad050 : 0x6ac048;
+      const bio = biomeAt(x, z);
+      const y = this.heightAt(x, z), base = bio ? TUFT[bio] : z > 60 && x < 85 ? 0x4a9a3a : x > 75 ? 0x8ad050 : 0x6ac048;
       for (let j = 0; j < 3; j++) {
         m.compose(new THREE.Vector3(x + (rng() - 0.5) * 0.5, y - 0.05, z + (rng() - 0.5) * 0.5), new THREE.Quaternion().setFromEuler(new THREE.Euler((rng() - 0.5) * 0.6, rng() * 3, (rng() - 0.5) * 0.6)), new THREE.Vector3(1, 0.7 + rng() * 0.8, 1));
         im.setMatrixAt(k, m); c.setHex(base).multiplyScalar(0.85 + rng() * 0.35); im.setColorAt(k, c); k++;
@@ -725,69 +914,70 @@ export class World {
     // flowers
     const fgeo = new THREE.SphereGeometry(0.2, 6, 4); fgeo.scale(1, 0.6, 1); fgeo.translate(0, 0.25, 0);
     const fl = [];
-    for (let i = 0; i < 6000 && fl.length < 2000; i++) {
-      const x = -170 + rng() * 340, z = -170 + rng() * 340;
-      if (Math.hypot(x, z) < 18 || roadDist(x, z) < 3.5 || riverDist(x, z) < 9) continue;
-      const meadow = x > 70 || (Math.hypot(x, z) < 60);
+    for (let i = 0; i < 16000 && fl.length < 5200; i++) {
+      const x = -370 + rng() * 740, z = -370 + rng() * 740;
+      if (Math.hypot(x, z) < 18 || roadDist(x, z) < 3.5 || riverDist(x, z) < 9 || nearFarm(x, z, 0) || this.heightAt(x, z) < WATER_Y + 0.15) continue;
+      const meadow = x > 70 || (Math.hypot(x, z) < 60) || biomeAt(x, z) === 'plains';
       if (!meadow && rng() < 0.6) continue;
       fl.push([x, z]);
     }
     const fim = new THREE.InstancedMesh(fgeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), fl.length);
     const fcols = [0xff7aa0, 0xffe066, 0xffffff, 0xc89aff, 0x7ac8ff, 0xff9a5a];
+    const FLOWER = { plains: [0xffe04a, 0xffb03a, 0xffffff], marsh: [0xc89aff, 0xfff08a], ember: [0xff6a2a, 0xffb03a], frost: [0xffffff, 0x9ae8ff], crystal: [0xd8a8ff, 0x9ae8ff], shadow: [0xb07aff, 0x7aff9a], astral: [0xfff2b8, 0xffffff], sacred: [0xffe07a, 0xff9ad0] };
     fl.forEach(([x, z], i) => {
-      m.makeTranslation(x, this.heightAt(x, z), z); fim.setMatrixAt(i, m); fim.setColorAt(i, c.setHex(fcols[(rng() * fcols.length) | 0]));
+      const fc = FLOWER[biomeAt(x, z)] || fcols;
+      m.makeTranslation(x, this.heightAt(x, z), z); fim.setMatrixAt(i, m); fim.setColorAt(i, c.setHex(fc[(rng() * fc.length) | 0]));
     });
     fim.instanceMatrix.needsUpdate = true; this.root.add(fim);
     // rocks
-    for (let i = 0; i < 70; i++) {
-      const x = -170 + rng() * 340, z = -170 + rng() * 340;
-      if (Math.hypot(x, z) < 62 || roadDist(x, z) < 6 || riverDist(x, z) < 9 || this.isBlocked(x, z) || nearAltar(x, z, 5)) continue;
+    const ROCK = { ember: 0x9a5a3a, frost: 0xe0ecf4, crystal: 0x8a7ab8, shadow: 0x4a4258, astral: 0xd8d4e8, marsh: 0x6a7a5a };
+    for (let i = 0; i < 300; i++) {
+      const x = -370 + rng() * 740, z = -370 + rng() * 740;
+      if (Math.hypot(x, z) < 62 || roadDist(x, z) < 6 || riverDist(x, z) < 9 || this.isBlocked(x, z) || nearAltar(x, z, 5) || nearFarm(x, z, 3) || nearOutpost(x, z, 10)) continue;
       if ((this.gates || []).some((gt) => Math.hypot(x - gt.x, z - gt.z) < 14)) continue;
       const s = 0.6 + rng() * 1.4, y = this.heightAt(x, z);
-      this.put(GEO.dode, 0xa8a49a, x, y + s * 0.3, z, s, s * 0.7, s * 1.1, rng(), rng() * 3, 0);
+      this.put(GEO.dode, ROCK[biomeAt(x, z)] ?? 0xa8a49a, x, y + s * 0.3, z, s, s * 0.7, s * 1.1, rng(), rng() * 3, 0);
       if (s > 1.2) this.blockCircle(x, z, s * 0.8);
     }
   }
 
   buildBoundary() {
     const rng = mulberry(5);
+    const E = HALF - 22;
     // big rocks along the edge
-    for (let i = 0; i < 48; i++) {
-      const side = i % 4, t = -175 + rng() * 350;
-      const x = side === 0 ? 178 + rng() * 15 : side === 1 ? -178 - rng() * 15 : t;
-      const z = side === 2 ? 178 + rng() * 15 : side === 3 ? -178 - rng() * 15 : t;
-      const s = 4 + rng() * 5;
-      this.put(GEO.dode, rng() < 0.5 ? 0x9a948a : 0x8a8a90, x, this.heightAt(x, z) + s * 0.2, z, s, s * 1.2, s, rng(), rng() * 3, rng());
+    for (let i = 0; i < 96; i++) {
+      const side = i % 4, t = -E + rng() * E * 2;
+      const x = side === 0 ? E + rng() * 15 : side === 1 ? -E - rng() * 15 : t;
+      const z = side === 2 ? E + rng() * 15 : side === 3 ? -E - rng() * 15 : t;
+      const sc = 4 + rng() * 5;
+      this.put(GEO.dode, rng() < 0.5 ? 0x9a948a : 0x8a8a90, x, this.heightAt(x, z) + sc * 0.2, z, sc, sc * 1.2, sc, rng(), rng() * 3, rng());
     }
-    // mountain wall hugging the map edge so the terrain never ends in a cliff
-    const wallMat = [new THREE.MeshLambertMaterial({ color: 0x7aa078, flatShading: true }), new THREE.MeshLambertMaterial({ color: 0x8a9a88, flatShading: true })];
-    const snowMat = new THREE.MeshLambertMaterial({ color: 0xf4f8ff, flatShading: true });
-    for (let side = 0; side < 4; side++) for (let k = -5; k <= 5; k++) {
-      const t = k * 40 + (rng() - 0.5) * 14, off = 214 + rng() * 22;
+    // mountain wall hugging the map edge plus a distant ring, batched into two flat-shaded meshes
+    const cone6 = new THREE.ConeGeometry(1, 1, 6), cone7 = new THREE.ConeGeometry(1, 1, 7);
+    const wall = new Batch(), ring = new Batch();
+    for (let side = 0; side < 4; side++) for (let k = -10; k <= 10; k++) {
+      const t = k * 40 + (rng() - 0.5) * 14, off = HALF + 14 + rng() * 22;
       const x = side < 2 ? (side ? -off : off) : t, z = side < 2 ? t : (side === 2 ? off : -off);
-      const north = side === 3 && Math.abs(t) < 90;
-      const hgt = (north ? 45 : 60) + rng() * 45, w = 34 + rng() * 16;
-      const m = new THREE.Mesh(new THREE.ConeGeometry(w, hgt, 6), wallMat[(rng() * 2) | 0]);
-      m.position.set(x, hgt / 2 + 6, z); m.rotation.y = rng() * 3; this.root.add(m);
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.32, hgt * 0.32, 6), snowMat);
-      cap.position.set(x, hgt + 6 - hgt * 0.16 + 0.3, z); cap.rotation.y = m.rotation.y; this.root.add(cap);
+      const north = side === 3 && Math.abs(t) < 110;
+      const hgt = (north ? 40 : 60) + rng() * 45, w = 34 + rng() * 16, ry = rng() * 3;
+      wall.add(cone6, rng() < 0.5 ? 0x7aa078 : 0x8a9a88, M(x, hgt / 2 + 6, z, w, hgt, w, 0, ry, 0));
+      wall.add(cone6, 0xf4f8ff, M(x, hgt + 6 - hgt * 0.16 + 0.3, z, w * 0.32, hgt * 0.32, w * 0.32, 0, ry, 0));
     }
-    // distant mountain ring
-    for (let i = 0; i < 44; i++) {
-      const a = i / 44 * Math.PI * 2 + rng() * 0.08, r = 270 + rng() * 80;
+    for (let i = 0; i < 76; i++) {
+      const a = i / 76 * Math.PI * 2 + rng() * 0.08, r = HALF + 80 + rng() * 90;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      const north = z < 0 && Math.abs(x) < 120;
-      const h = (north ? 50 : 80) + rng() * 70, w = 50 + rng() * 40;
-      const m = new THREE.Mesh(new THREE.ConeGeometry(w, h, 7), new THREE.MeshLambertMaterial({ color: rng() < 0.5 ? 0x6a9a7a : 0x5a8a8a, flatShading: true }));
-      m.position.set(x, h / 2 - 10, z); m.rotation.y = rng() * 3; this.root.add(m);
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.3, h * 0.3, 7), new THREE.MeshLambertMaterial({ color: 0xf4f8ff, flatShading: true }));
-      cap.position.set(x, h - 10 - h * 0.15 + 0.5, z); cap.rotation.y = m.rotation.y; this.root.add(cap);
+      const north = z < 0 && Math.abs(x) < 160;
+      const h = (north ? 50 : 85) + rng() * 70, w = 55 + rng() * 40, ry = rng() * 3;
+      ring.add(cone7, rng() < 0.5 ? 0x6a9a7a : 0x5a8a8a, M(x, h / 2 - 10, z, w, h, w, 0, ry, 0));
+      ring.add(cone7, 0xf4f8ff, M(x, h - 10 - h * 0.15 + 0.5, z, w * 0.3, h * 0.3, w * 0.3, 0, ry, 0));
     }
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    for (const b of [wall, ring]) { const g = b.build(); if (g) this.root.add(new THREE.Mesh(g, mat)); }
   }
 
   buildWorldTree() {
     const { x, z } = WORLD_TREE;
-    const g = new THREE.Group(); g.position.set(x, -30, z);
+    const g = new THREE.Group(); g.position.set(x, -40, z); g.scale.setScalar(1.6);
     const bark = toon(0x8a6448);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(26, 44, 340, 18), bark); trunk.position.y = 170; g.add(trunk);
     for (let i = 0; i < 7; i++) {
@@ -817,13 +1007,13 @@ export class World {
     const rng = mulberry(11);
     this.islands = [];
     for (let i = 0; i < 7; i++) {
-      const a = -Math.PI / 2 + (i - 3) * 0.45 + rng() * 0.2, r = 300 + rng() * 120;
+      const a = -Math.PI / 2 + (i - 3) * 0.45 + rng() * 0.2, r = 520 + rng() * 160;
       const g = new THREE.Group(); const s = 10 + rng() * 14;
       const rock = new THREE.Mesh(new THREE.ConeGeometry(s, s * 2.2, 7), new THREE.MeshLambertMaterial({ color: 0x9a7a5a, flatShading: true })); rock.rotation.x = Math.PI; rock.position.y = -s * 1.1; g.add(rock);
       const top = new THREE.Mesh(new THREE.CylinderGeometry(s * 1.02, s, s * 0.35, 7), toon(0x7ad458)); top.position.y = s * 0.12; g.add(top);
       const tr = new THREE.Mesh(new THREE.SphereGeometry(s * 0.45, 10, 8), toon(0x5ab84a)); tr.position.set(s * 0.2, s * 0.9, 0); g.add(tr);
       const tk = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.06, s * 0.09, s * 0.7, 6), toon(0x7a5234)); tk.position.set(s * 0.2, s * 0.45, 0); g.add(tk);
-      g.position.set(Math.cos(a) * r, 70 + rng() * 90, Math.sin(a) * r);
+      g.position.set(Math.cos(a) * r, 90 + rng() * 110, Math.sin(a) * r);
       g.userData.base = g.position.y; g.userData.ph = rng() * 6;
       this.root.add(g); this.islands.push(g);
     }
@@ -889,8 +1079,32 @@ export class World {
     }
   }
 
+  // Weather of the outer biomes: snow, rising embers, marsh spores, astral sparkles.
+  buildBiomeWeather() {
+    const kinds = { frost: [0xffffff, 1.0, -1], ember: [0xff8a3a, 0.7, 1], marsh: [0xc8ff8a, 0.6, 0.3], shadow: [0xb07aff, 0.7, 0.4], astral: [0xfff2b8, 0.8, 0.2], crystal: [0xd8b8ff, 0.6, 0.3] };
+    for (const zn of NEW_ZONES) {
+      const k = kinds[zn.biome]; if (!k) continue;
+      const N = 360, pos = new Float32Array(N * 3), seeds = [];
+      const rng = mulberry(zn.x * 7 + zn.z);
+      for (let i = 0; i < N; i++) { const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * zn.r; seeds.push([zn.x + Math.cos(a) * r, zn.z + Math.sin(a) * r, rng() * 20]); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pts = new THREE.Points(g, new THREE.PointsMaterial({ map: glowTexture(), color: k[0], size: k[1], transparent: true, depthWrite: false, blending: zn.biome === 'frost' ? THREE.NormalBlending : THREE.AdditiveBlending }));
+      pts.frustumCulled = false; this.root.add(pts);
+      const base = seeds.map(([x, z]) => this.heightAt(x, z));
+      this.anim.push((t) => {
+        for (let i = 0; i < N; i++) {
+          const [x, z, p] = seeds[i], cyc = (t * 0.6 + p) % 14;
+          pos[i * 3] = x + Math.sin(t * 0.4 + p) * 2;
+          pos[i * 3 + 2] = z + Math.cos(t * 0.33 + p) * 2;
+          pos[i * 3 + 1] = base[i] + (k[2] < 0 ? 14 - cyc : k[2] > 0.5 ? cyc : 0.8 + Math.sin(t + p) * 0.6 + cyc * k[2] * 0.5);
+        }
+        g.attributes.position.needsUpdate = true;
+      });
+    }
+  }
+
   buildMinimap() {
-    const S = 400; const c = document.createElement('canvas'); c.width = S; c.height = S; const g = c.getContext('2d');
+    const S = 800; const c = document.createElement('canvas'); c.width = S; c.height = S; const g = c.getContext('2d');
     const img = g.createImageData(S, S);
     const col = this.terrain.geometry.attributes.color;
     const W = SEG + 1;
@@ -915,6 +1129,8 @@ export class World {
     }
     g.fillStyle = '#c8b8d8'; g.beginPath(); g.arc(toPx(ARENA.x), toPx(ARENA.z), ARENA.r, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#a8c8e8'; g.beginPath(); g.arc(toPx(ALTAR.x), toPx(ALTAR.z), ALTAR.r * S / SIZE, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#b08a4a'; g.fillRect(toPx(FARM.x - 13), toPx(FARM.z - 13), 26 * S / SIZE, 26 * S / SIZE);
+    for (const o of OUTPOSTS) { g.fillStyle = '#ffd27a'; g.strokeStyle = '#4a2a10'; g.lineWidth = 1.5; g.beginPath(); g.arc(toPx(o.x), toPx(o.z), 4, 0, Math.PI * 2); g.fill(); g.stroke(); }
     g.fillStyle = '#b07a50';
     for (const b of BRIDGES) g.fillRect(toPx(b.x - b.len / 2), toPx(b.z - b.w / 2), b.len, b.w);
     for (const gt of this.gates || []) {
@@ -929,7 +1145,7 @@ export class World {
     this.t = t;
     this.water.material.uniforms.uTime.value = t;
     for (const f of this.anim) f(t, dt);
-    for (const c of this.clouds) { c.position.x += dt * 3; if (c.position.x > 800) c.position.x = -800; }
+    for (const c of this.clouds) { c.position.x += dt * 3; if (c.position.x > 1100) c.position.x = -1100; }
     for (const g of this.islands) { g.position.y = g.userData.base + Math.sin(t * 0.3 + g.userData.ph) * 3; g.rotation.y += dt * 0.02; }
   }
 }

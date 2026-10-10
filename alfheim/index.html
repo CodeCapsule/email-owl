@@ -13,7 +13,7 @@
   --panel: rgba(14, 22, 50, 0.93); --panel-2: rgba(30, 46, 92, 0.94); --panel-edge: #0a0f22;
   --ink: #fff6e0; --muted: #b6c2dc; --dim: #7d8aa8;
   --hp: #ff4a5a; --mp: #3aa0ff; --exp: #b8ec4a; --cyan: #6fe0ff; --green: #6cf06a; --red: #ff5a4a;
-  --q0: #e8e8e8; --q1: #5ee05a; --q2: #4aa8ff; --q3: #c46bff; --q4: #ff9a2e; --q5: #ffd84a;
+  --q0: #e8e8e8; --q1: #5ee05a; --q2: #4aa8ff; --q3: #c46bff; --q4: #ff9a2e; --q5: #ffd84a; --q6: #ff3b3b;
   --f-logo: 'Cinzel Decorative', 'Cinzel', Georgia, serif;
   --f-title: 'Cinzel', Georgia, serif;
   --f-ui: 'Nunito', 'Trebuchet MS', system-ui, sans-serif;
@@ -747,6 +747,64 @@ button { font-family: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ---- life skills, collection, wardrobe, shops, auction, trade, Red tier ---- */
+.cell.q6 { border-color: var(--q6); box-shadow: inset 0 0 16px rgba(255, 59, 59, .75), 0 0 12px rgba(255, 59, 59, .8); animation: redGlow 1.3s ease-in-out infinite; }
+@keyframes redGlow { 50% { box-shadow: inset 0 0 24px rgba(255, 120, 100, .95), 0 0 22px rgba(255, 40, 40, .95); } }
+.lcard.q6 { border-color: var(--q6); box-shadow: 0 0 22px rgba(255, 59, 59, .95); }
+.row .ic.q6 { border-color: var(--q6); box-shadow: 0 0 10px rgba(255, 59, 59, .7); }
+#banner.loot6 .b1 { background: linear-gradient(180deg, #ffffff, #ffb0a0 35%, #ff3b3b 65%, #a01020); -webkit-background-clip: text; background-clip: text; -webkit-text-stroke: 2px #3a0008; filter: drop-shadow(0 0 16px rgba(255, 59, 59, .95)); }
+.btn.red { border-color: #4a0a10; background: linear-gradient(180deg, #ffa090 0%, #ff3b3b 48%, #c01a2a 52%, #d82a3a 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 3px 0 #4a0a10, 0 4px 10px rgba(0, 0, 0, .4); text-shadow: 0 1px 0 #4a0a10, 0 0 3px #4a0a10; }
+.np.node .n { color: #d8ffd0; font-size: 12px; } .np.node .t { color: #b8d8a0; font-size: 10px; } .np.node.dim { opacity: .45; }
+.np.plot .n { color: #f0e0b0; font-size: 12px; } .np.plot .t { color: #c8b080; font-size: 10px; } .np.plot.ripe .n { color: #7aff7a; }
+.cell.dim { opacity: .45; } .cell.ghost { opacity: .35; filter: grayscale(.8); } .cell .lockd { position: absolute; top: 2px; left: 3px; width: 9px; height: 9px; border-radius: 2px; background: #ffd84a; box-shadow: 0 0 0 1.5px #3a2400; }
+.tabs.small button { padding: 3px 9px; font-size: 12px; }
+.prof-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-bottom: 10px; }
+.prof-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.prof-bar .pl { min-width: 128px; color: var(--ink); } .prof-bar .pl b { color: var(--gold); }
+.prof-bar .bar.xp { flex: 1; height: 8px; background: rgba(0, 0, 0, .45); border-radius: 4px; overflow: hidden; } .bar.xp i { display: block; height: 100%; background: linear-gradient(90deg, #7aff7a, #3ac8a0); }
+.prof-bar small { min-width: 70px; text-align: right; font-family: var(--f-num); }
+.row .needs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.seed-pick { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 4px 0 8px; } .seed-pick .cell { width: 42px; height: 42px; }
+.farm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.plot { padding: 8px 6px; border-radius: 8px; background: linear-gradient(180deg, rgba(122, 79, 48, .45), rgba(60, 36, 20, .5)); border: 1px solid rgba(240, 200, 140, .3); text-align: center; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.plot.ripe { border-color: #7aff7a; box-shadow: 0 0 10px rgba(122, 255, 122, .45); } .plot b { color: var(--ink); font-size: 13px; }
+.plot .pi { width: 40px; height: 40px; } .plot .pi .ico { width: 100%; height: 100%; } .plot .bar.xp { width: 100%; height: 6px; background: rgba(0, 0, 0, .45); border-radius: 3px; overflow: hidden; }
+.plot .tags span { font-size: 10px; margin: 0 2px; color: #9ad8ff; } .plot .pa { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.red-hero { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 10px; background: linear-gradient(90deg, rgba(160, 16, 32, .45), rgba(40, 8, 16, .4)); border: 1px solid rgba(255, 59, 59, .5); margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+.red-hero .ico { width: 56px; height: 56px; flex: none; } .red-hero b { display: block; color: #ffd0c8; font-size: 16px; } .red-hero span b { display: inline; font-size: inherit; }
+.row.red { border-color: rgba(255, 59, 59, .35); }
+.row.coll { flex-wrap: wrap; } .row.coll.done { border-color: rgba(122, 255, 122, .45); background: rgba(122, 255, 122, .06); } .coll-cells { display: flex; gap: 5px; }
+.wd-wrap { display: flex; gap: 12px; align-items: flex-start; } .wd-prev { width: 170px; flex: none; text-align: center; font-size: 11px; color: var(--muted); }
+.wd-prev img { width: 170px; height: 224px; border-radius: 10px; background: radial-gradient(circle at 50% 40%, #4a6ac8, #10183a); display: block; margin-bottom: 6px; }
+.wd-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; max-height: 330px; overflow-y: auto; }
+.wd-item { border: 2px solid #4a5a8a; border-radius: 8px; background: rgba(255, 255, 255, .05); color: var(--muted); padding: 6px 4px; cursor: pointer; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; }
+.wd-item b { color: var(--ink); font-size: 12px; } .wd-item .wi { width: 46px; height: 46px; } .wd-item .wi .ico { width: 100%; height: 100%; }
+.wd-item.on { border-color: var(--gold); box-shadow: 0 0 10px rgba(243, 199, 91, .6); } .wd-item.locked { opacity: .55; }
+.wd-item small .coin, .wd-item small .gem { width: 11px; height: 11px; display: inline-block; vertical-align: -2px; }
+.row.auc.lead { border-color: rgba(122, 255, 122, .5); } .row.auc .hot { color: #ff8a7a; }
+.auc-p { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 11px; color: var(--muted); min-width: 84px; }
+.deal.good { background: #2a9a3a; }
+.sell-ctl select, .sellall select { background: #10183a; color: #fff; border: 1px solid #4a5a8a; border-radius: 4px; padding: 2px; }
+.sellall label { margin-right: 8px; font-size: 12px; white-space: nowrap; } .sellall .dtx b { font-size: 15px; }
+.bag-tools { margin-top: 8px; } .bag-tools .ico.inl { width: 16px; height: 16px; }
+.trade-msg { padding: 8px 10px; border-radius: 8px; background: rgba(90, 160, 255, .12); border: 1px solid rgba(90, 160, 255, .3); font-size: 13px; color: var(--muted); margin-bottom: 8px; } .trade-msg b { color: #9ad0ff; }
+.trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.trade-side { padding: 8px; border-radius: 8px; background: rgba(0, 0, 0, .25); border: 1px solid rgba(243, 199, 91, .25); display: flex; flex-direction: column; gap: 4px; min-height: 120px; }
+.trade-side h4 { margin: 0 0 4px; font-size: 13px; color: var(--ink); } .trade-side h4 small { color: var(--gold); font-weight: 400; }
+.trow { display: flex; align-items: center; gap: 6px; padding: 3px 5px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .04); color: var(--muted); cursor: pointer; font-size: 12px; text-align: left; font-family: inherit; opacity: .55; }
+.trow.on { opacity: 1; border-color: rgba(122, 255, 122, .4); } .trow .ic { width: 28px; height: 28px; flex: none; border-radius: 5px; border: 1.5px solid #4a5a8a; display: grid; place-items: center; }
+.trow .ic .ico { width: 90%; height: 90%; } .trow .tn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .trow .tv { font-family: var(--f-num); color: var(--gold); }
+.tgold { font-size: 12px; color: var(--muted); margin-top: auto; } .tgold input { width: 110px; }
+#tg-trade { margin-left: 6px; pointer-events: auto; }
+.buff.elx { border-color: #c8a0ff; }
+@media (max-width: 640px) {
+  .farm-grid { grid-template-columns: repeat(2, 1fr); } .prof-grid, .trade-cols { grid-template-columns: 1fr; }
+  .wd-wrap { flex-direction: column; align-items: center; } .wd-grid { width: 100%; }
+  .list.mk .row, .row.auc, .row.red, .life-list .row { flex-wrap: wrap; }
+  .list.mk .row .tx, .row.auc .tx, .row.red .tx { flex: 1 1 calc(100% - 64px); }
+  .list.mk .row .mk-price, .row.auc .auc-p { margin-left: auto; }
 }
 </style>
 </head>

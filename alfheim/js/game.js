@@ -12,6 +12,11 @@ import {
 import { buildDungeonMonster } from './models-dungeon.js';
 import { buildEventMonster, buildEventPet, EVENT_PET_MODELS } from './models-event.js';
 import { installSystems, initSystemsSave } from './systems.js';
+import { installLife, initLifeSave } from './life.js';
+import { installEconomy, initEconomySave } from './economy.js';
+import { buildExtraMonster, EXTRA_MONSTER_MODELS } from './models-monsters.js';
+import { buildExtraPet, buildExtraMount, EXTRA_PET_MODELS, EXTRA_MOUNT_MODELS } from './models-extra.js';
+import { MAX_LEVEL, curveStats, DUNGEON_RULES, RELIC_SETS } from './data-world.js';
 import { activeEvent } from './systems-data.js';
 import { Dungeon } from './dungeon.js';
 import {
@@ -21,7 +26,7 @@ import { iconCanvas } from './icons.js';
 import { shadowTexture, textTexture, targetRingTexture, beamTexture, ringTexture, glowTexture } from './toon.js';
 
 export const SAVE_KEY = 'alfheim_tales_save_v1';
-const MAX_LEVEL = 30, BAG_SIZE = 48;
+
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
 const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -29,7 +34,7 @@ const angLerp = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= Math.PI *
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
-const PAR_TIME = { d1: 240, d2: 300, d3: 360 };
+const POTION_TIERS = { hp: [['potion_hp3', 0.7], ['potion_hp2', 0.5], ['hp_potion', 0.35]], mp: [['potion_mp3', 0.7], ['potion_mp2', 0.5], ['mp_potion', 0.35]] };
 export const PET_TIER = [1, 2, 3, 5]; // pet rarity (Common, Rare, Special, Legendary) -> item tier colors
 
 export function newSave({ name, cls, gender, hair, eye }) {
@@ -43,12 +48,15 @@ export function newSave({ name, cls, gender, hair, eye }) {
   });
 }
 const HOST_NAMES = { harvest: 'Pumpkin Pam', winter: 'Frosty Fay', sakura: 'Blossom Bea' };
-const PET_BUILD = (model) => (EVENT_PET_MODELS.has(model) ? buildEventPet(model) : buildPet(model));
+const PET_BUILD = (model) => (EVENT_PET_MODELS.has(model) ? buildEventPet(model) : EXTRA_PET_MODELS.has(model) ? buildExtraPet(model) : buildPet(model));
+export const MOUNT_BUILD = (model) => (EXTRA_MOUNT_MODELS.has(model) ? buildExtraMount(model) : buildMount(model));
 // Monster model by family: guild-war rivals are humanoids, event/world-boss models and dungeon models have their own builders.
+const DUNGEON_MODELS = new Set(['cavejelly', 'sporeling', 'mossbeast', 'queenjelly', 'boneknight', 'wisp', 'cryptgolem', 'gravelord', 'rootwolf', 'blightspore', 'rottreant', 'nidhogg']);
 function monsterModel(d, variant, look) {
+  if (EXTRA_MONSTER_MODELS.has(d.model)) return buildExtraMonster(d.model, d.variant ?? variant);
   if (d.model === 'rival') { const h = buildHumanoid(look || classLook('knight', 'm', HAIR_COLORS[0], EYE_COLORS[0])); h.userData.humanoid = true; return h; }
   if (d.event) return buildEventMonster(d.model, d.variant ?? variant);
-  if (d.dungeon) return buildDungeonMonster(d.model, variant);
+  if (d.dungeon || DUNGEON_MODELS.has(d.model)) return buildDungeonMonster(d.model, d.variant ?? variant);
   return buildMonster(d.model, variant);
 }
 // Upgrades saves from older versions in place (v1: 5 item tiers, emoji icons, no dungeons).
@@ -59,7 +67,7 @@ export function migrateSave(S) {
   for (const b of S.bag || []) if (b.eq) normalizeItem(b.eq, S.cls);
   for (const k of Object.keys(S.equip || {})) if (S.equip[k]) normalizeItem(S.equip[k], S.cls);
   S.bag = (S.bag || []).filter((b) => b.eq || ITEMS[b.id]);
-  initSystemsSave(S);
+  initSystemsSave(S); initLifeSave(S); initEconomySave(S);
   S.v = 3;
   return S;
 }
@@ -86,7 +94,7 @@ export class Game {
     const S = this.S;
     this.createPlayer();
     let p = S.pos || { x: 0, z: 9 };
-    if (Math.abs(p.x) > 200 || Math.abs(p.z) > 200) p = { x: 0, z: 9 };
+    if (Math.abs(p.x) > 380 || Math.abs(p.z) > 380) p = { x: 0, z: 9 };
     this.player.pos.set(p.x, this.world.heightAt(p.x, p.z), p.z);
     this.player.yaw = Math.PI;
     for (const n of NPCS) {
@@ -97,6 +105,8 @@ export class Game {
     this.createBots();
     this.createPortals();
     this.initSystems();
+    this.initLife();
+    this.initEconomy();
     this.targetRing = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ map: targetRingTexture('#ff4a3a'), transparent: true, depthWrite: false }));
     this.targetRing.rotation.x = -Math.PI / 2; this.targetRing.visible = false; this.targetRing.renderOrder = 2;
     this.scene.add(this.targetRing);
@@ -108,6 +118,7 @@ export class Game {
     this.ui.chat('system', 'Welcome to <b>Carlyle</b>! Click the quest in the tracker on the right to auto-path to your goal.');
     this.ui.chat('system', 'Controls: click to move or attack · drag to turn the camera · scroll to zoom · 1–6 skills · R mount · T auto battle.');
     this.ui.chat('system', 'New: <b>Daily & Weekly Missions</b> (H), <b>Guilds</b> (G) with Guild Wars, <b>World Bosses</b> every 15 minutes, the <b>Market</b> (N), the <b>Forge</b> (Y) for crafting, gems and ascension, the <b>Season Pass</b> and leaderboards.');
+    this.ui.chat('system', 'New: the world is four times larger with zones up to <b>Lv 200</b>. <b>Professions</b> (Z): gather ore, herbs and wood, farm the homestead west of town, brew with Vera. The <b>Auction House</b> (Grimsby), <b>Wardrobe</b> (V), shops all over town, relic collections and <b>Red</b> gear at the Crimson Forge. Click another player and press Trade to swap items.');
     if (this.event) this.ui.chat('announce', `<b>[Festival]</b> The <span style="color:${this.event.color}">${esc(this.event.name)}</span> is on! ${esc(this.event.desc)}`);
     if (S.level === 1 && S.quest.id === 'q1') setTimeout(() => this.ui.banner('Sylvan Haven', 'Carlyle · Town', 'zone'), 400);
     this.bindInput();
@@ -191,8 +202,10 @@ export class Game {
 
   monsterStats(type, lvl) {
     const d = MONSTERS[type], k = lvl - d.lvl[0];
+    if (d.curve) return curveStats(lvl, d.curve);
     if (d.festival) return { hp: Math.round(d.hp * Math.pow(1.28, lvl - 1)), atk: d.atk * Math.pow(1.2, lvl - 1), def: d.def + lvl * 1.8 };
-    return { hp: Math.round(d.hp * (1 + 0.18 * k)), atk: d.atk * (1 + 0.1 * k), def: d.def * (1 + 0.08 * k) };
+    const hard = d.dungeon ? 1.5 : 1; // dungeon monsters hit harder and last longer than their overworld cousins
+    return { hp: Math.round(d.hp * (1 + 0.18 * k) * hard), atk: d.atk * (1 + 0.1 * k) * (d.dungeon ? 1.25 : 1), def: d.def * (1 + 0.08 * k) };
   }
   // exp / gold multipliers for a kill (festival monsters follow the level curve of the zone they live in)
   killScale(d, lvl) {
@@ -203,6 +216,7 @@ export class Game {
     const d = MONSTERS[sp.type];
     const variant = d.variant ?? ((Math.random() * 3) | 0);
     const inner = monsterModel(d, variant, o.look);
+    if (d.scale && d.scale !== 1) inner.scale.multiplyScalar(d.scale);
     const e = this.makeEnt('monster', inner, { radius: d.boss ? 3 : d.structure ? 2.6 : d.elite ? 1.6 : d.height > 3 ? 1.4 : d.war ? 0.6 : 0.9, shadowR: d.boss ? 4 : d.structure ? 2.4 : d.elite || d.height > 3 ? 1.6 : 0.85, height: d.height });
     e.type = sp.type; e.def0 = d; e.spawn = sp; e.speed = d.speed;
     e.baseScale = inner.scale.x || 1;
@@ -239,7 +253,7 @@ export class Game {
     }
     if (!first) {
       this.fx.spawnPuff(e.pos, 0xffffff);
-      if (d.boss && !e.dungeon && !d.worldBoss) this.ui.chat('announce', `<b>[Announcement]</b> ${d.name} has awakened in the Elder Ruins arena!`);
+      if (d.boss && !e.dungeon && !d.worldBoss) this.ui.chat('announce', `<b>[Announcement]</b> ${d.name} has awakened in ${esc(this.world.zoneAt(sp.x, sp.z, ZONES)?.name || 'Carlyle')}!`);
     }
   }
   removeEnt(e) {
@@ -252,7 +266,7 @@ export class Game {
   }
 
   createBots() {
-    const roles = ['town', 'town', 'town', 'town', 'town', 'town', 'jelly', 'bunny', 'jelly', 'shroom', 'wolf', 'golem', 'treant'];
+    const roles = ['town', 'town', 'town', 'town', 'town', 'town', 'jelly', 'bunny', 'jelly', 'shroom', 'wolf', 'golem', 'treant', 'tuskboar', 'miresnapper', 'cinderimp', 'yeti', 'crystalstag', 'fenwraith', 'starling'];
     const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
     const classes = Object.keys(CLASSES);
     roles.forEach((role, i) => {
@@ -260,8 +274,8 @@ export class Game {
       const look = classLook(cls, gender, pick(HAIR_COLORS), pick(EYE_COLORS), { wings: Math.random() < 0.5, wingColor: pick(['#9fe8ff', '#ffb8e8', '#d8b8ff', '#b8ffd0']) });
       const hum = buildHumanoid(look);
       const e = this.makeEnt('bot', hum, { name: names[i], radius: 0.6 });
-      e.humanoid = hum; e.cls = cls; e.look = look; e.level = role === 'town' ? ((rnd(8, 32)) | 0) : ({ jelly: 3, bunny: 5, shroom: 8, wolf: 10, golem: 15, treant: 16 }[role] + ((Math.random() * 3) | 0));
-      e.maxHp = e.hp = 200 + e.level * 40; e.atk = 18 + e.level * 4.5; e.def = 6 + e.level * 2.5; e.crit = 10;
+      e.humanoid = hum; e.cls = cls; e.look = look; e.level = role === 'town' ? ((8 + Math.pow(Math.random(), 1.6) * 180) | 0) : (MONSTERS[role].lvl[0] + ((Math.random() * 4) | 0));
+      e.maxHp = e.hp = 200 + e.level * 40 + e.level * e.level * 0.6; e.atk = 18 + e.level * 4.5 + e.level * e.level * 0.04; e.def = 6 + e.level * 2.5; e.crit = 10;
       e.speed = CLASSES[cls].speed; e.role = role; e.guild = pick(GUILDS); e.range = CLASSES[cls].range * (CLASSES[cls].ranged ? 0.8 : 1);
       e.skills = SKILLS[cls];
       const sp = role === 'town' ? null : SPAWNS.find((s) => s.type === role);
@@ -276,7 +290,7 @@ export class Game {
       const pm = buildPet(pd.model); pm.scale.setScalar(0.85);
       e.petModel = pm; this.scene.add(pm);
       if (role === 'town' && Math.random() < 0.45) {
-        const md = pick(MOUNTS); const mm = buildMount(md.model);
+        const md = pick(MOUNTS); const mm = MOUNT_BUILD(md.model);
         e.mountModel = mm; e.mountSpeed = md.speed;
         e.model.remove(hum); mm.add(hum); mm.userData.parts.seat.add(hum); hum.position.set(0, -0.55, 0);
         e.model.add(mm); e.inner = mm; e.mounted = true;
@@ -306,6 +320,8 @@ export class Game {
     if (S.wings) { hp *= 1.05; atk *= 1.05; }
     const X = this.systemMods ? this.systemMods() : { atk: 0, hp: 0, br: 0 };
     hp *= 1 + X.hp; atk *= 1 + X.atk;
+    const EL = this.elixirMods ? this.elixirMods() : {};
+    atk *= EL.atk || 1; def *= EL.def || 1; speed *= EL.speed || 1;
     if (fxs.has('worldtree')) hp *= 1.2;
     speed *= 1 + (gs.speed || 0) / 100;
     if (fxs.has('swift')) speed *= 1.12;
@@ -388,7 +404,7 @@ export class Game {
     this.keys[k] = down;
     if (!down) return;
     if (this.player.dead && k !== 'escape') return;
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { this.player.path = []; this.autoPathing = false; this.pendingTalk = null; this.pendingPortal = null; this.ui.setAutoPath(false); if (k.startsWith('arrow')) e.preventDefault(); return; }
+    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { this.player.path = []; this.autoPathing = false; this.pendingTalk = null; this.pendingPortal = null; this.pendingLife = null; this.ui.setAutoPath(false); if (k.startsWith('arrow')) e.preventDefault(); return; }
     if (k >= '1' && k <= '6') { this.useSkill(+k); return; }
     switch (k) {
       case 'q': this.usePotion('hp_potion'); break;
@@ -414,6 +430,8 @@ export class Game {
       case 'y': this.ui.togglePanel('forge'); break;
       case 'x': this.ui.togglePanel('codex'); break;
       case 'j': this.ui.togglePanel('season'); break;
+      case 'z': this.ui.togglePanel('life'); break;
+      case 'v': this.ui.togglePanel('wardrobe'); break;
     }
   }
 
@@ -427,7 +445,7 @@ export class Game {
     const x = sx - rect.left, y = sy - rect.top;
     let best = null, bd = Infinity;
     const focal = rect.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
-    const extra = this.dg ? [this.dg.chestEnt, this.dg.exitEnt].filter(Boolean) : this.war ? [] : this.portals;
+    const extra = this.dg ? [this.dg.chestEnt, this.dg.exitEnt].filter(Boolean) : this.war ? [] : [...this.portals, ...(this.lifeEnts || [])];
     const cands = [...this.monsters, ...this.npcs, ...(this.S.settings.others ? this.bots : []), ...this.loots.filter((l) => l.map === this.map), ...extra];
     for (const e of cands) {
       if (e.dead || !e.model.visible) continue;
@@ -469,9 +487,10 @@ export class Game {
       if (h.kind === 'bot') { this.setTarget(h); return; }
       if (h.kind === 'loot' || h.kind === 'chest' || h.kind === 'exit') { this.engage = false; this.pendingTalk = null; this.pathTo(h.pos.x, h.pos.z, false); return; }
       if (h.kind === 'portal') { this.goToPortal(h); return; }
+      if (h.kind === 'node' || h.kind === 'plot') { this.lifeClick(h); return; }
     }
     const g = this.groundPoint(x, y);
-    if (g) { this.engage = false; this.pendingSkill = null; this.pendingTalk = null; this.pendingPortal = null; this.pathTo(g.x, g.z, false); this.fx.clickMarker(g); }
+    if (g) { this.engage = false; this.pendingSkill = null; this.pendingTalk = null; this.pendingPortal = null; this.pendingLife = null; this.pathTo(g.x, g.z, false); this.fx.clickMarker(g); }
   }
 
   pathTo(x, z, auto = true) {
@@ -679,7 +698,8 @@ export class Game {
       if (dst === this.player) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Miss', 'miss');
       return 0;
     }
-    let dmg = o.fixed != null ? Math.max(1, Math.round(o.fixed)) : Math.max(1, Math.round(base * 60 / (60 + this.defOf(dst))));
+    const K = 50 + 8 * (src.level || 1); // armor matters relative to the attacker's level, so it scales to Lv 200
+    let dmg = o.fixed != null ? Math.max(1, Math.round(o.fixed)) : Math.max(1, Math.round(base * K / (K + this.defOf(dst))));
     if (dst.shield > 0) {
       const ab = Math.min(dst.shield, dmg); dst.shield -= ab; dmg -= ab;
       if (dst === this.player && ab > 0) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Absorb', 'miss');
@@ -786,23 +806,26 @@ export class Game {
     m.tagged = false;
     const K = this.killScale(d, m.level);
     // exp
-    let exp = d.exp * K.exp;
+    const cs = d.curve ? curveStats(m.level, d.curve) : null;
+    const EL = this.elixirMods ? this.elixirMods() : {};
+    let exp = cs ? cs.exp : d.exp * K.exp;
     if (this.S.level - m.level > 4) exp *= 0.4;
-    exp = Math.round(exp * (1 + this.stat('expGain') / 100));
+    exp = Math.round(exp * (1 + this.stat('expGain') / 100 + (EL.exp || 0)));
     this.after(0.3, () => { this.fx.text(p.pos.clone().setY(p.pos.y + p.height + 0.3), `+${exp} EXP`, 'exp'); this.gainExp(exp); });
     // gold
-    const gold = Math.round(rnd(d.gold[0], d.gold[1]) * K.gold * (1 + this.stat('goldFind') / 100));
+    const gold = Math.round((cs ? rnd(cs.gold[0], cs.gold[1]) : rnd(d.gold[0], d.gold[1]) * K.gold) * (1 + this.stat('goldFind') / 100 + (EL.gold || 0)));
     this.fx.coins(m.pos, p, Math.min(8, 2 + (gold / 15) | 0), () => { this.S.gold += gold; this.sfx.play('coin'); this.ui.refreshWallet(); this.fx.text(p.pos.clone().setY(p.pos.y + p.height), `+${gold} Gold`, 'gold', 0.5); this.track('gold', gold); });
     this.S.kills[m.type] = (this.S.kills[m.type] || 0) + 1;
     if (this.hasFx('frenzy')) this.addFrenzy();
     if (!d.structure && !d.war) this.rollDrops(m);
     this.onKillSystems(m);
+    if (m.dungeon && this.dg) this.dungeonRelicDrop(m);
     this.questKill(m);
   }
 
   rollDrops(m) {
     const d = m.def0, S = this.S;
-    const ctx = { elite: !!d.elite, boss: !!d.boss, dungeon: !!m.dungeon, luck: Math.min(0.5, this.stat('goldFind') / 200) };
+    const ctx = { elite: !!d.elite, boss: !!d.boss, dungeon: !!m.dungeon, luck: Math.min(0.6, this.stat('goldFind') / 200 + ((this.elixirMods && this.elixirMods().luck) || 0)) };
     const rolls = d.boss ? (m.dungeon ? 1 : 2) : 1;
     const chance = d.boss ? 1 : d.elite ? 0.55 : m.dungeon ? 0.24 : 0.12;
     for (let i = 0; i < rolls; i++) {
@@ -810,8 +833,9 @@ export class Game {
       this.dropLoot({ eq: this.makeEquip(null, Math.max(1, m.level), rollRarity(ctx)) }, m.pos);
     }
     if (!m.dungeon) for (const nd of namedBySource(m.type)) if (Math.random() < 0.15) this.dropLoot({ eq: genNamed(nd.id, { lvl: m.level, cls: S.cls, uid: S.uid++ }) }, m.pos);
-    if (Math.random() < 0.08) this.dropLoot({ id: 'hp_potion', qty: 1 }, m.pos);
-    if (Math.random() < 0.05) this.dropLoot({ id: 'mp_potion', qty: 1 }, m.pos);
+    const pt = m.level >= 60 ? 3 : m.level >= 25 ? 2 : 1;
+    if (Math.random() < 0.08) this.dropLoot({ id: pt === 1 ? 'hp_potion' : 'potion_hp' + pt, qty: 1 }, m.pos);
+    if (Math.random() < 0.05) this.dropLoot({ id: pt === 1 ? 'mp_potion' : 'potion_mp' + pt, qty: 1 }, m.pos);
     for (const dr of d.drops || []) {
       if (Math.random() > dr.chance) continue;
       if (dr.id.startsWith('pet_') && dr.id !== 'pet_egg') {
@@ -916,6 +940,8 @@ export class Game {
       const unlocked = this.skillList().filter((s) => s.lvl === S.level && !s.basic);
       for (const s of unlocked) { this.ui.toast(`New skill unlocked: ${s.name}`, 'good'); this.ui.chat('system', `New skill unlocked: <b>${esc(s.name)}</b>`); }
       if (S.level >= 10 && S.title < 3) { S.title = 3; this.refreshPlayerPlate(); }
+      if (S.level >= MAX_LEVEL) { this.unlockTitle('Legend of Alfheim'); this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached the maximum level ${MAX_LEVEL}!`); }
+      else if (S.level % 25 === 0) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached Level ${S.level}!`);
       this.ui.refreshSkills();
       this.save();
     }
@@ -929,10 +955,16 @@ export class Game {
     if (this.mounted) this.dismount(true);
     for (const m of this.monsters) if (m.target === p) { m.target = null; m.returning = true; }
     this.ui.chat('system', `You were defeated by ${esc(src?.name || src?.def0?.name || 'a monster')}.`);
+    if (this.countItem('phoenix_draught') > 0 && !this.war) {
+      this.removeItem('phoenix_draught', 1);
+      this.after(1.2, () => { if (!p.dead) return; p.dead = false; p.state = 'idle'; p.hp = p.maxHp; p.mp = p.maxMp; this.fx.pillar(p.pos, 0xff8a2a, 2.2, 12, 1.2); this.ui.toast('The Phoenix Draught revives you!', 'good'); this.sfx.play('level'); });
+      return;
+    }
     if (this.war) { this.warPlayerDown(); return; }
     if (this.dg) {
       this.dg.deaths++;
-      this.ui.modal('You have been defeated', `The ${this.dg.def.name} claims another adventurer... Deaths lower your clear rating.`, [
+      if (this.dg.deaths > DUNGEON_RULES.deathLimit) { this.failDungeon('deaths'); return; }
+      this.ui.modal('You have been defeated', `The ${this.dg.def.name} claims another adventurer... ${DUNGEON_RULES.deathLimit - this.dg.deaths + 1} revive${DUNGEON_RULES.deathLimit - this.dg.deaths ? 's' : ''} left before the run fails.`, [
         { label: 'Revive at Entrance', cls: 'blue', fn: () => this.revive(false) },
         { label: 'Revive Here (10 Diamonds)', fn: () => this.revive(true) },
         { label: 'Leave Dungeon', cls: 'gray', fn: () => { this.revive(false); this.leaveDungeon(); return true; } },
@@ -965,14 +997,14 @@ export class Game {
     const S = this.S, it = ITEMS[id];
     const ex = S.bag.find((b) => b.id === id);
     if (ex) ex.qty = Math.min(999, ex.qty + qty);
-    else { if (S.bag.length >= BAG_SIZE) { this.ui.toast('Bag is full!', 'warn'); return false; } S.bag.push({ id, qty }); }
+    else { if (S.bag.length >= this.bagMax()) { this.ui.toast('Bag is full!', 'warn'); return false; } S.bag.push({ id, qty }); }
     if (it.type === 'quest') this.questCollectCheck();
     this.ui.refreshPanel(); this.ui.refreshSkills();
     return true;
   }
   addEquip(eq) {
     const S = this.S;
-    if (S.bag.length >= BAG_SIZE) { this.ui.toast('Bag is full!', 'warn'); return false; }
+    if (S.bag.length >= this.bagMax()) { this.ui.toast('Bag is full!', 'warn'); return false; }
     S.bag.push({ eq }); this.ui.refreshPanel(); this.ui.markMenu('bag');
     if (eq.named) this.registerNamed(eq);
     return true;
@@ -984,21 +1016,27 @@ export class Game {
     S.bag = S.bag.filter((b) => !b.id || b.qty > 0);
     this.ui.refreshPanel(); this.ui.refreshSkills();
   }
-  usePotion(id) {
+  potionKind(id) { return id === 'hp_potion' || id.startsWith('potion_hp') ? 'hp' : 'mp'; }
+  countPotions(id) { return POTION_TIERS[this.potionKind(id)].reduce((a, [pid]) => a + this.countItem(pid), 0); }
+  // Q / E and auto-potions drink the strongest draught you carry; using one from the bag drinks exactly that one.
+  usePotion(id, exact = false) {
     const p = this.player;
     if (p.dead) return;
     if (this.potionCD > this.time) return;
-    if (!this.countItem(id)) { this.ui.toast(`No ${ITEMS[id].name} left`, 'warn'); return; }
-    this.removeItem(id, 1); this.potionCD = this.time + 3;
-    if (id === 'hp_potion') { this.heal(p, p.maxHp * 0.35); this.fx.emit(p.pos.clone().setY(p.pos.y + 1), { count: 20, color: 0xff6a7a, speed: 1, life: 0.8, size: 0.5, up: 2.5, jitter: 1 }); }
-    else { p.mp = Math.min(p.maxMp, p.mp + p.maxMp * 0.35); this.fx.emit(p.pos.clone().setY(p.pos.y + 1), { count: 20, color: 0x5aa8ff, speed: 1, life: 0.8, size: 0.5, up: 2.5, jitter: 1 }); }
+    const kind = this.potionKind(id), tiers = POTION_TIERS[kind];
+    const pick2 = exact ? tiers.find(([pid]) => pid === id) : tiers.find(([pid]) => this.countItem(pid) > 0);
+    if (!pick2 || !this.countItem(pick2[0])) { this.ui.toast(`No ${kind === 'hp' ? 'healing' : 'mana'} draughts left`, 'warn'); return; }
+    this.removeItem(pick2[0], 1); this.potionCD = this.time + 3;
+    if (kind === 'hp') { this.heal(p, p.maxHp * pick2[1]); this.fx.emit(p.pos.clone().setY(p.pos.y + 1), { count: 20, color: 0xff6a7a, speed: 1, life: 0.8, size: 0.5, up: 2.5, jitter: 1 }); }
+    else { p.mp = Math.min(p.maxMp, p.mp + p.maxMp * pick2[1]); this.fx.emit(p.pos.clone().setY(p.pos.y + 1), { count: 20, color: 0x5aa8ff, speed: 1, life: 0.8, size: 0.5, up: 2.5, jitter: 1 }); }
     this.sfx.play('heal');
   }
   useBagItem(i) {
     const S = this.S, b = S.bag[i]; if (!b) return;
     if (b.eq) return this.equip(i);
     const it = ITEMS[b.id];
-    if (b.id === 'hp_potion' || b.id === 'mp_potion') return this.usePotion(b.id);
+    if (b.id === 'hp_potion' || b.id === 'mp_potion' || b.id.startsWith('potion_')) return this.usePotion(b.id, true);
+    if (this.useLifeItem(b.id)) return;
     if (b.id === 'pet_egg') {
       const pool = PETS.filter((pd) => pd.rarity <= 2 && !pd.event && !S.pets[pd.id]);
       this.removeItem('pet_egg', 1);
@@ -1027,7 +1065,7 @@ export class Game {
   unequip(slot) {
     const S = this.S;
     if (!S.equip[slot]) return;
-    if (S.bag.length >= BAG_SIZE) { this.ui.toast('Bag is full!', 'warn'); return; }
+    if (S.bag.length >= this.bagMax()) { this.ui.toast('Bag is full!', 'warn'); return; }
     S.bag.push({ eq: S.equip[slot] }); delete S.equip[slot];
     this.recalc(); this.ui.refreshPanel();
   }
@@ -1073,7 +1111,7 @@ export class Game {
   }
   feedPet(id) {
     const S = this.S, st = S.pets[id]; if (!st) return;
-    if (st.lv >= 20) { this.ui.toast('Max pet level', 'warn'); return; }
+    if (st.lv >= 60) { this.ui.toast('Max pet level', 'warn'); return; }
     const cost = 150 * st.lv * st.lv;
     if (S.gold < cost) { this.ui.toast('Not enough Gold', 'warn'); this.sfx.play('error'); return; }
     S.gold -= cost; st.lv++;
@@ -1129,7 +1167,7 @@ export class Game {
     if (p.dead || this.mounted || this.casting) return;
     const go = () => {
       const md = MOUNTS.find((x) => x.id === S.activeMount);
-      const mm = buildMount(md.model);
+      const mm = MOUNT_BUILD(md.model);
       p.model.remove(p.humanoid); mm.userData.parts.seat.add(p.humanoid); p.humanoid.position.set(0, -0.55, 0); p.humanoid.rotation.set(0, 0, 0);
       p.model.add(mm); p.inner = mm; this.mountModel = mm; this.mounted = true; S.wasMounted = true;
       this.fx.spawnPuff(p.pos, 0xffffff); this.sfx.play('mount');
@@ -1203,6 +1241,7 @@ export class Game {
     }
     const svc = { pets: ['Pet Collection', 'pets'], mounts: ['Mount Stable', 'mounts'], shop: ['Open Shop', 'mall'], enhance: ['Open the Forge', 'forge'], market: ['Open the Market', 'market'], guild: [S.guild ? 'Guild Hall' : 'Find a Guild', 'guild'], event: ['Festival Exchange', 'event'] }[d.service];
     if (svc) btns.push({ label: svc[0], cls: 'blue', fn: () => this.ui.togglePanel(svc[1], true) });
+    btns.push(...this.serviceButtons(d));
     if (d.service === 'guild' && S.guild && S.level >= 10) btns.push({ label: `Guild War (${this.warEntriesLeft()} left)`, cls: 'green', fn: () => { this.ui.closeDialog(); this.startWar(); } });
     if (d.service === 'event' && this.event) text = `${d.greet} ${this.event.desc}`;
     if (d.service === 'teleport') TELEPORTS.forEach((t, i) => btns.push({ label: `${t.name}`, cls: 'blue small', fn: () => this.teleport(i) }));
@@ -1396,7 +1435,7 @@ export class Game {
     const S = this.S, lv = this.skillLevel(id), cost = 120 * lv * lv;
     const sk = this.skillList().find((s) => s.id === id);
     if (S.level < sk.lvl) return;
-    const cap = Math.min(10, Math.floor(S.level / 2) + 1);
+    const cap = Math.min(30, Math.floor(S.level / 2) + 1);
     if (lv >= cap) { this.ui.toast(`Reach Lv ${lv * 2} to upgrade further`, 'warn'); return; }
     if (S.gold < cost) { this.ui.toast('Not enough Gold', 'warn'); this.sfx.play('error'); return; }
     S.gold -= cost; S.skillLv[id] = lv + 1;
@@ -1447,12 +1486,12 @@ export class Game {
   }
   petIcon(id) {
     const pd = PETS.find((x) => x.id === id);
-    const small = EVENT_PET_MODELS.has(pd.model);
-    return this.portraits.snap('pet-' + id, () => PET_BUILD(pd.model), small ? { w: 112, h: 112, look: [0, 0.32, 0], from: [0.32, 0.5, 1.45], fov: 34 } : { w: 112, h: 112, look: [0, 0.6, 0], from: [0.6, 0.95, 2.6], fov: 34 });
+    const small = EVENT_PET_MODELS.has(pd.model), mid = EXTRA_PET_MODELS.has(pd.model);
+    return this.portraits.snap('pet-' + id, () => PET_BUILD(pd.model), small ? { w: 112, h: 112, look: [0, 0.32, 0], from: [0.32, 0.5, 1.45], fov: 34 } : mid ? { w: 112, h: 112, look: [0, 0.45, 0], from: [0.45, 0.68, 1.9], fov: 34 } : { w: 112, h: 112, look: [0, 0.6, 0], from: [0.6, 0.95, 2.6], fov: 34 });
   }
   mountIcon(id) {
     const md = MOUNTS.find((x) => x.id === id);
-    return this.portraits.snap('mount-' + id, () => { const m = buildMount(md.model); m.rotation.y = 0.6; return m; }, { w: 112, h: 112, look: [0, 1.1, 0], from: [1.6, 1.9, 4.6], fov: 34 });
+    return this.portraits.snap('mount-' + id, () => { const m = MOUNT_BUILD(md.model); m.rotation.y = 0.6; return m; }, { w: 112, h: 112, look: [0, 1.1, 0], from: [1.6, 1.9, 4.6], fov: 34 });
   }
   spriteIcon(id) {
     const sd = SPRITES.find((x) => x.id === id);
@@ -1563,8 +1602,8 @@ export class Game {
     const rate = ooc ? (zoneSafe ? 0.06 : 0.025) : 0;
     if (rate) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * rate * dt); }
     p.mp = Math.min(p.maxMp, p.mp + p.maxMp * (ooc ? 0.03 : 0.012) * dt);
-    if (S.settings.autoPotion && p.hp < p.maxHp * 0.35 && this.countItem('hp_potion') && this.potionCD <= this.time) this.usePotion('hp_potion');
-    if (S.settings.autoPotion && p.mp < p.maxMp * 0.15 && this.countItem('mp_potion') && this.potionCD <= this.time) this.usePotion('mp_potion');
+    if (S.settings.autoPotion && p.hp < p.maxHp * 0.35 && this.countPotions('hp_potion') && this.potionCD <= this.time) this.usePotion('hp_potion');
+    if (S.settings.autoPotion && p.mp < p.maxMp * 0.15 && this.countPotions('mp_potion') && this.potionCD <= this.time) this.usePotion('mp_potion');
     // gear effects that tick over time
     const regen = this.stat('regen') + (this.hasFx('worldtree') ? p.maxHp * 0.012 : 0);
     if (regen > 0) p.hp = Math.min(p.maxHp, p.hp + regen * dt);
@@ -1632,6 +1671,7 @@ export class Game {
     const p = this.player;
     e.attackCD -= dt;
     const pd = e.data, lv = this.S.pets[pd.id]?.lv || 1;
+    e.level = p.level;
     e.atk = pd.atk * (1 + 0.15 * (lv - 1)) + p.atk * 0.15; e.crit = 5; e.critDmg = 0.5;
     const t = p.target && p.target.kind === 'monster' && !p.target.dead && this.time - this.lastCombat < 4 ? p.target : null;
     let moving = false;
@@ -1887,7 +1927,7 @@ export class Game {
     });
     this.zone = dung.zone; this.ui.setZone(dung.zone);
     this.ui.banner(def.name, `Dungeon · Lv ${def.lv}+`, 'zone');
-    this.ui.chat('system', `You entered <b>${esc(def.name)}</b>. Clear each chamber to break the seal ahead. Par time ${Math.round((PAR_TIME[def.id] || 300) / 60)} min for an S rating.`);
+    this.ui.chat('system', `You entered <b>${esc(def.name)}</b>. Clear each chamber to break the seal ahead. Par time ${Math.round((def.par || 300) / 60)} min for an S rating. The run fails after ${DUNGEON_RULES.timeLimit / 60} minutes or ${DUNGEON_RULES.deathLimit + 1} deaths, and bosses go berserk after ${DUNGEON_RULES.enrageAfter / 60} minutes.`);
     this.ui.enterDungeon();
   }
   applyAmbience(a) {
@@ -1926,9 +1966,14 @@ export class Game {
       dg.bossSpawned = true;
       const room = rooms[last], type = room.def.boss;
       const b = this.createMonster({ type, x: room.x, z: room.z - room.d * 0.18, r: 1 }, { map, dungeon: true, room: last, exact: true });
-      b.yaw = b.yawT = 0; b.skillT = 5; dg.boss = b;
+      b.yaw = b.yawT = 0; b.skillT = 5; dg.boss = b; dg.bossT = this.time;
       this.fx.pillar(b.pos, 0xc07aff, 4, 16, 1.4); this.fx.spawnPuff(b.pos, 0xc07aff); this.fx.shake(0.6); this.sfx.play('boom');
       this.ui.banner(MONSTERS[type].name, 'Boss Battle', 'boss');
+    }
+    if (!dg.done && this.time - dg.startT > DUNGEON_RULES.timeLimit) { this.failDungeon('time'); return; }
+    if (dg.boss && !dg.boss.dead && !dg.boss.berserk && this.time - dg.bossT > DUNGEON_RULES.enrageAfter) {
+      const b = dg.boss; b.berserk = true; b.atk *= 1.6; b.skillT = Math.min(b.skillT, 2);
+      this.ui.banner('BERSERK!', `${b.def0.name} grows furious`, 'boss'); this.fx.ring(b.pos, 0xff2a2a, 12, 1); this.sfx.play('boom');
     }
     if (dg.exit && dg.exit.userData.update) dg.exit.userData.update(this.time);
     if (dg.chest && !dg.opened && flat(p.pos, dg.chestEnt.pos) < 3) this.openChest();
@@ -1941,7 +1986,7 @@ export class Game {
     const dg = this.dg, def = dg.def, S = this.S, map = dg.map;
     if (dg.done) return;
     dg.done = true; dg.time = this.time - dg.startT;
-    const par = PAR_TIME[def.id] || 300;
+    const par = def.par || 300;
     dg.rating = dg.deaths === 0 && dg.time <= par ? 'S' : dg.deaths <= 1 && dg.time <= par * 1.6 ? 'A' : 'B';
     const order = { S: 3, A: 2, B: 1 };
     if (!S.dgn.best[def.id] || order[dg.rating] > order[S.dgn.best[def.id]]) S.dgn.best[def.id] = dg.rating;
@@ -1982,20 +2027,38 @@ export class Game {
       const nd = q >= 4 && named.length && Math.random() < 0.5 ? pick(named) : null;
       items.push(nd ? genNamed(nd.id, { lvl, cls: S.cls, uid: S.uid++ }) : this.makeEquip(null, lvl, q));
     }
-    const gold = Math.round(150 * dg.def.lv * ({ S: 1.6, A: 1.25, B: 1 }[dg.rating]));
+    const gold = Math.round(150 * dg.def.lv * (1 + dg.def.lv / 40) * ({ S: 1.6, A: 1.25, B: 1 }[dg.rating]));
     const diamonds = { S: 25, A: 15, B: 10 }[dg.rating];
     const exp = Math.round(needExp(S.level) * ({ S: 0.25, A: 0.18, B: 0.12 }[dg.rating]));
     S.gold += gold; S.diamonds += diamonds;
     let ticket = false;
     if (Math.random() < (dg.rating === 'S' ? 0.35 : 0.15)) { this.addItem('dungeon_ticket', 1); ticket = true; }
+    const relicSet = RELIC_SETS[dg.def.id], relics = {};
+    if (relicSet) for (let i = 0; i < (dg.rating === 'S' ? 2 : 1); i++) { const r = pick(relicSet.ids); relics[r] = (relics[r] || 0) + 1; this.addMat(r, 1, true); }
+    if (Math.random() < 0.12 + (dg.rating === 'S' ? 0.08 : 0)) { this.addItem('crimson_core', 1); relics.crimson = 1; }
+    if (Math.random() < 0.06) this.addItem('costume_box', 1);
     for (const eq of items) {
       if (eq.quality >= 2) this.track('lootRare');
       if (!this.addEquip(eq)) this.dropLoot({ eq }, dg.chest.position);
       else if (eq.quality >= 4) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} looted <span class="it" style="color:${RARITY[eq.quality].color}">[${esc(eq.name)}]</span> from ${esc(dg.def.name)}!`);
     }
     this.gainExp(exp); this.ui.refreshWallet(); this.save();
-    this.after(0.6, () => this.ui.lootPopup(items, { gold, diamonds, exp, rating: dg.rating, ticket, title: dg.def.name }));
+    this.after(0.6, () => this.ui.lootPopup(items, { gold, diamonds, exp, rating: dg.rating, ticket, title: dg.def.name, mats: Object.fromEntries(Object.entries(relics).filter(([k]) => k !== 'crimson')), note: relics.crimson ? 'A Crimson Core glows among the treasure!' : '' }));
     if (items.some((x) => x.quality >= 5)) { this.sfx.play('legend'); this.fx.shake(0.5); }
+  }
+  failDungeon(why) {
+    const dg = this.dg; if (!dg || dg.done || dg.failed) return;
+    dg.failed = true;
+    for (const m of this.monsters) if (m.dungeon) { m.target = null; }
+    this.sfx.play('error');
+    this.ui.banner('RUN FAILED', why === 'time' ? 'Time ran out' : 'Too many deaths', 'boss');
+    this.ui.modal('Dungeon failed', why === 'time' ? `You ran out of time in ${dg.def.name}. Grow stronger and try again!` : `You fell too many times in ${dg.def.name}. Grow stronger and try again!`, [{ label: 'Return to Carlyle', fn: () => { const p = this.player; if (p.dead) { p.dead = false; p.state = 'idle'; p.hp = p.maxHp; } this.leaveDungeon(); } }], true);
+  }
+  // Collection relics: chamber monsters 3%, elites 15%; chests always hold at least one.
+  dungeonRelicDrop(m) {
+    const set = RELIC_SETS[this.dg.def.id]; if (!set) return;
+    const ch = m.def0.boss ? 0 : m.def0.elite ? 0.15 : 0.03;
+    if (Math.random() < ch * (1 + ((this.elixirMods && this.elixirMods().luck) || 0))) this.addMat(pick(set.ids), 1);
   }
   leaveDungeon() {
     const dg = this.dg; if (!dg || dg.leaving) return;
@@ -2148,8 +2211,8 @@ export class Game {
   updatePlates() {
     const w = this.renderer.domElement.clientWidth, h = this.renderer.domElement.clientHeight;
     const v = new THREE.Vector3();
-    const range = { npc: 80, portal: 90, loot: 40 };
-    for (const e of [...this.ents, ...this.loots, ...this.portals]) {
+    const range = { npc: 80, portal: 90, loot: 40, node: 42, plot: 45 };
+    for (const e of [...this.ents, ...this.loots, ...this.portals, ...(this.lifeEnts || [])]) {
       if (!e.np) continue;
       let show = !(e.kind === 'monster' && e.dead) && !(e.kind === 'bot' && !this.S.settings.others) && (!e.map || e.map === this.map) && !(e.kind === 'portal' && (this.dg || this.war));
       if (show && e.kind !== 'portal') show = e.model.visible;
@@ -2218,3 +2281,5 @@ export class Game {
 export { fmt, esc, ARENA, TELEPORT_CIRCLE };
 
 installSystems(Game);
+installLife(Game);
+installEconomy(Game);
