@@ -7,7 +7,8 @@ import { FX } from './fx.js';
 import { UI } from './ui.js';
 import { Sfx } from './sfx.js';
 import { Portraits } from './portrait.js';
-import { Game, newSave, SAVE_KEY } from './game.js';
+import { Game, newSave, migrateSave, SAVE_KEY } from './game.js';
+import { ico } from './icons.js';
 import { buildHumanoid, classLook, HAIR_COLORS, EYE_COLORS, animateHumanoid } from './models.js';
 import { magicCircleTexture } from './toon.js';
 
@@ -15,12 +16,12 @@ const $ = (id) => document.getElementById(id);
 const app = $('app');
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
-let renderer, scene, camera, world, fx, ui, sfx, portraits, sun, game = null;
+let renderer, scene, camera, world, fx, ui, sfx, portraits, sun, lights, game = null;
 let mode = 'title', preview = null, previewYaw = 0.4, hotSave = null;
 
 function loadSave() {
   if (hotSave) return hotSave;
-  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return s && s.v === 1 && CLASSES[s.cls] ? s : null; } catch { return null; }
+  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return s && (s.v === 1 || s.v === 2) && CLASSES[s.cls] ? migrateSave(s) : null; } catch { return null; }
 }
 
 async function init() {
@@ -40,8 +41,8 @@ async function init() {
   camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.3, 3200);
   camera.position.set(60, 40, 90);
 
-  scene.add(new THREE.HemisphereLight(0xe8f4ff, 0x6a8a4a, 1.3));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  lights = { hemi: new THREE.HemisphereLight(0xe8f4ff, 0x6a8a4a, 1.3), ambient: new THREE.AmbientLight(0xffffff, 0.45) };
+  scene.add(lights.hemi); scene.add(lights.ambient);
   sun = new THREE.DirectionalLight(0xfff2d8, 2.3);
   sun.position.set(50, 70, 40);
   sun.castShadow = true;
@@ -61,7 +62,7 @@ async function init() {
   $('load-tip').textContent = 'Tip: ' + TIPS[(Math.random() * TIPS.length) | 0];
   world = new World(scene);
   world.spawnAreas = SPAWNS;
-  const steps = ['buildTerrain', 'buildWater', 'buildSky', 'buildTown', 'buildBridges', 'buildRuins', 'buildOverlook', 'buildTrees', 'buildGroundCover', 'buildBoundary', 'buildWorldTree', 'buildIslands', 'finishBatches', 'buildAmbient', 'buildMinimap'];
+  const steps = ['buildTerrain', 'buildWater', 'buildSky', 'buildTown', 'buildDungeonGates', 'buildBridges', 'buildRuins', 'buildOverlook', 'buildTrees', 'buildGroundCover', 'buildBoundary', 'buildWorldTree', 'buildIslands', 'finishBatches', 'buildAmbient', 'buildMinimap'];
   for (let i = 0; i < steps.length; i++) {
     world[steps[i]]();
     $('load-fill').style.width = ((i + 1) / steps.length) * 100 + '%';
@@ -72,7 +73,7 @@ async function init() {
   requestAnimationFrame(loop);
   loading.hidden = true;
   const save = loadSave();
-  if (hotSave) { startGame(hotSave); return; }
+  if (hotSave) { startGame(migrateSave(hotSave)); return; }
   showTitle(save);
 }
 
@@ -131,7 +132,7 @@ function showCreate() {
   for (const [id, C] of Object.entries(CLASSES)) {
     const b = document.createElement('button');
     b.className = 'class-card' + (id === st.cls ? ' sel' : '');
-    b.innerHTML = `<span class="ci">${C.icon}</span><span><b>${C.name}</b><small style="color:${C.elemColor}">${C.element}</small> <small style="color:var(--muted)">· ${C.talents[0].role} / ${C.talents[1].role}</small></span>`;
+    b.innerHTML = `<span class="ci">${ico(C.icon)}</span><span><b>${C.name}</b><small style="color:${C.elemColor}">${C.element}</small> <small style="color:var(--muted)">· ${C.talents[0].role} / ${C.talents[1].role}</small></span>`;
     b.onclick = () => { st.cls = id; cl.querySelectorAll('.class-card').forEach((x) => x.classList.remove('sel')); b.classList.add('sel'); info(); rebuild(); sfx.play('click'); };
     cl.appendChild(b);
   }
@@ -141,6 +142,7 @@ function showCreate() {
     arr.forEach((c, i) => { const b = document.createElement('button'); b.style.background = c; b.className = i === 0 ? 'sel' : ''; b.setAttribute('aria-label', key + ' color ' + (i + 1)); b.onclick = () => { st[key] = c; el.querySelectorAll('button').forEach((x) => x.classList.toggle('sel', x === b)); rebuild(); }; el.appendChild(b); });
   };
   sw($('hair-sw'), HAIR_COLORS, 'hair'); sw($('eye-sw'), EYE_COLORS, 'eye');
+  $('dice').innerHTML = ico('dice');
   $('name-in').value = randName();
   $('dice').onclick = () => { $('name-in').value = randName(); sfx.play('click'); };
   $('btn-create').onclick = () => {
@@ -168,7 +170,7 @@ async function startGame(S) {
   $('load-tip').textContent = 'Tip: ' + TIPS[(Math.random() * TIPS.length) | 0];
   await frame(); await frame();
   renderer.domElement.onpointerdown = null;
-  game = new Game({ renderer, scene, camera, world, fx, portraits, ui, sfx, S, sun });
+  game = new Game({ renderer, scene, camera, world, fx, portraits, ui, sfx, S, sun, lights });
   game.start();
   $('load-fill').style.width = '100%';
   await frame();

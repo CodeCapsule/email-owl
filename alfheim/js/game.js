@@ -1,15 +1,21 @@
-// Core game: entities, input, camera, combat, AI, quests, inventory, pets, mounts and saving.
+// Core game: entities, input, camera, combat, AI, quests, inventory, loot, dungeons, pets, mounts and saving.
 import * as THREE from 'three';
 import {
-  CLASSES, SKILLS, MONSTERS, SPAWNS, ZONES, PETS, SPRITES, CLASS_SPRITE, MOUNTS, ITEMS, SLOTS, QUALITY, QUALITY_PREFIX,
-  WEAPON_NAMES, WEAPON_ICONS, SLOT_BASE, SLOT_INFO, NPCS, TELEPORTS, QUESTS, BOUNTY_TARGETS, SIGNIN, ONLINE_GIFTS, MALL,
+  CLASSES, SKILLS, MONSTERS, SPAWNS, ZONES, PETS, SPRITES, CLASS_SPRITE, MOUNTS, ITEMS, SLOTS,
+  NPCS, TELEPORTS, QUESTS, BOUNTY_TARGETS, SIGNIN, ONLINE_GIFTS, MALL, DUNGEONS,
   BOT_NAMES, GUILDS, TITLES, CHAT_LINES,
 } from './data.js';
 import { ARENA, TELEPORT_CIRCLE } from './world.js';
 import {
   buildHumanoid, classLook, npcLook, buildMonster, buildPet, buildMount, buildSprite, animateHumanoid, animateCreature, blobShadow, HAIR_COLORS, EYE_COLORS,
 } from './models.js';
-import { shadowTexture, textTexture, targetRingTexture } from './toon.js';
+import { buildDungeonMonster } from './models-dungeon.js';
+import { Dungeon } from './dungeon.js';
+import {
+  RARITY, EFFECTS, rollRarity, genEquip, genNamed, namedBySource, normalizeItem, aggregateEquip, itemScore, sellPrice,
+} from './loot.js';
+import { iconCanvas } from './icons.js';
+import { shadowTexture, textTexture, targetRingTexture, beamTexture, ringTexture, glowTexture } from './toon.js';
 
 export const SAVE_KEY = 'alfheim_tales_save_v1';
 const MAX_LEVEL = 30, BAG_SIZE = 48;
@@ -20,42 +26,59 @@ const angLerp = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= Math.PI *
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
+const PAR_TIME = { d1: 240, d2: 300, d3: 360 };
+export const PET_TIER = [1, 2, 3, 5]; // pet rarity (Common, Rare, Special, Legendary) -> item tier colors
 
 export function newSave({ name, cls, gender, hair, eye }) {
-  return {
-    v: 1, name, cls, gender, hair, eye, level: 1, exp: 0, gold: 200, diamonds: 20,
+  return migrateSave({
+    v: 2, name, cls, gender, hair, eye, level: 1, exp: 0, gold: 200, diamonds: 20,
     bag: [{ id: 'hp_potion', qty: 5 }, { id: 'mp_potion', qty: 5 }], equip: {}, pets: {}, activePet: null,
     sprites: [], activeSprite: null, mounts: [], activeMount: null, wings: false,
     quest: { id: 'q1', status: 'available', prog: 0 }, bounty: null, talent: 0, skillLv: {},
     signin: { count: 0, last: '' }, gift: { idx: 0, t: 0 }, pos: null, kills: {}, title: 0, uid: 1,
-    settings: { others: true, autoPotion: true, shadows: true, sound: true },
-  };
+    settings: { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true },
+  });
+}
+// Upgrades saves from older versions in place (v1: 5 item tiers, emoji icons, no dungeons).
+export function migrateSave(S) {
+  if (!S) return S;
+  S.settings = { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true, ...(S.settings || {}) };
+  S.dgn = S.dgn || { date: '', used: {}, best: {}, clears: {} };
+  for (const b of S.bag || []) if (b.eq) normalizeItem(b.eq, S.cls);
+  for (const k of Object.keys(S.equip || {})) if (S.equip[k]) normalizeItem(S.equip[k], S.cls);
+  S.bag = (S.bag || []).filter((b) => b.eq || ITEMS[b.id]);
+  S.v = 2;
+  return S;
 }
 export function needExp(l) { return Math.floor(70 * Math.pow(l, 1.6) + 30); }
 
 export class Game {
   constructor(o) {
-    Object.assign(this, o); // renderer, scene, camera, world, fx, portraits, ui, sfx, S, sun
+    Object.assign(this, o); // renderer, scene, camera, world, fx, portraits, ui, sfx, S, sun, lights
     this.time = 0; this.timers = [];
-    this.monsters = []; this.npcs = []; this.bots = []; this.ents = [];
+    this.monsters = []; this.npcs = []; this.bots = []; this.ents = []; this.loots = []; this.portals = [];
     this.keys = {}; this.cd = {}; this.potionCD = 0;
     this.cam = { yaw: 0.35, pitch: 0.6, dist: 15, target: new THREE.Vector3() };
     this.auto = false; this.autoPathing = false; this.engage = false; this.pendingSkill = null; this.pendingTalk = null;
     this.mounted = false; this.lastCombat = -99; this.zone = null; this.saveT = 0; this.chatT = 6; this.annT = 40;
     this.layer = document.getElementById('world-ui');
     this.ray = new THREE.Raycaster();
+    this.map = this.world; this.dg = null;
+    this.mods = { stats: {}, effects: new Set() }; this.hitCount = 0; this.phoenixCD = 0; this.novaT = 8; this.procCD = {};
   }
 
   // ============================================================== setup
   start() {
     const S = this.S;
     this.createPlayer();
-    const p = S.pos || { x: 0, z: 9 };
+    let p = S.pos || { x: 0, z: 9 };
+    if (Math.abs(p.x) > 200 || Math.abs(p.z) > 200) p = { x: 0, z: 9 };
     this.player.pos.set(p.x, this.world.heightAt(p.x, p.z), p.z);
     this.player.yaw = Math.PI;
     for (const n of NPCS) this.createNPC(n);
     for (const sp of SPAWNS) for (let i = 0; i < sp.count; i++) this.createMonster(sp);
     this.createBots();
+    this.createPortals();
     this.targetRing = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ map: targetRingTexture('#ff4a3a'), transparent: true, depthWrite: false }));
     this.targetRing.rotation.x = -Math.PI / 2; this.targetRing.visible = false; this.targetRing.renderOrder = 2;
     this.scene.add(this.targetRing);
@@ -66,9 +89,20 @@ export class Game {
     this.ui.refreshAll();
     this.ui.chat('system', 'Welcome to <b>Carlyle</b>! Click the quest in the tracker on the right to auto-path to your goal.');
     this.ui.chat('system', 'Controls: click to move or attack · drag to turn the camera · scroll to zoom · 1–6 skills · R mount · T auto battle.');
+    this.ui.chat('system', 'New: <b>Dungeons</b> open at Lv 4+ (Dungeon button, top right). Gear now drops in six tiers up to <span style="color:#ffd84a">Legendary</span>.');
     if (S.level === 1 && S.quest.id === 'q1') setTimeout(() => this.ui.banner('Sylvan Haven', 'Carlyle · Town', 'zone'), 400);
     this.bindInput();
     if (S.mounts.length && S.activeMount && S.wasMounted) this.mount(true);
+  }
+
+  createPortals() {
+    for (const gt of this.world.gates || []) {
+      const e = { kind: 'portal', def: gt.def, gate: gt, pos: new THREE.Vector3(gt.front.x, this.world.heightAt(gt.front.x, gt.front.z), gt.front.z), height: 7, radius: 3.5, model: gt.model, dead: false };
+      e.center = new THREE.Vector3(gt.x, this.world.heightAt(gt.x, gt.z), gt.z);
+      this.nameplate(e, `<div class="t">&lt;Dungeon · Lv ${gt.def.lv}+&gt;</div><div class="n">${esc(gt.def.name)}</div>`, 'npc portal');
+      e.npY = 8.5;
+      this.portals.push(e);
+    }
   }
 
   makeEnt(kind, inner, o = {}) {
@@ -138,43 +172,54 @@ export class Game {
     const d = MONSTERS[type], k = lvl - d.lvl[0];
     return { hp: Math.round(d.hp * (1 + 0.18 * k)), atk: d.atk * (1 + 0.1 * k), def: d.def * (1 + 0.08 * k) };
   }
-  createMonster(sp) {
+  createMonster(sp, o = {}) {
     const d = MONSTERS[sp.type];
-    const variant = (Math.random() * 3) | 0;
-    const inner = buildMonster(d.model, variant);
+    const variant = d.variant ?? ((Math.random() * 3) | 0);
+    const inner = d.dungeon ? buildDungeonMonster(d.model, variant) : buildMonster(d.model, variant);
     const e = this.makeEnt('monster', inner, { radius: d.boss ? 3 : d.elite ? 1.6 : d.height > 3 ? 1.4 : 0.9, shadowR: d.boss ? 4 : d.elite || d.height > 3 ? 1.6 : 0.85, height: d.height });
     e.type = sp.type; e.def0 = d; e.spawn = sp; e.speed = d.speed;
+    e.baseScale = inner.scale.x || 1;
+    if (inner.userData.humanoid) e.humanoid = inner;
+    e.map = o.map || this.world; e.dungeon = !!o.dungeon; e.room = o.room ?? -1; e.summoned = !!o.summoned;
     const cls = 'monster' + (d.aggressive ? ' aggr' : '') + (d.elite ? ' elite' : '') + (d.boss ? ' boss' : '');
     this.nameplate(e, `<div class="n"></div>`, cls, true);
-    this.respawn(e, true);
+    this.respawn(e, true, o.exact);
     this.monsters.push(e);
     return e;
   }
-  respawn(e, first = false) {
-    const sp = e.spawn, d = e.def0;
+  respawn(e, first = false, exact = false) {
+    const sp = e.spawn, d = e.def0, W = e.map || this.world;
     let x = sp.x, z = sp.z;
-    for (let i = 0; i < 20; i++) {
+    if (!exact) for (let i = 0; i < 20; i++) {
       const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * sp.r;
       x = sp.x + Math.cos(a) * r; z = sp.z + Math.sin(a) * r;
-      if (!this.world.isBlocked(x, z)) break;
+      if (!W.isBlocked(x, z)) break;
     }
     e.level = Math.round(rnd(d.lvl[0], d.lvl[1]));
     const st = this.monsterStats(e.type, e.level);
     e.maxHp = e.hp = st.hp; e.atk = st.atk; e.def = st.def; e.crit = d.boss ? 8 : 4;
-    e.pos.set(x, this.world.heightAt(x, z), z);
+    e.pos.set(x, W.heightAt(x, z), z);
     e.home = { x, z };
     e.dead = false; e.state = 'idle'; e.target = null; e.returning = false; e.tagged = false; e.stun = 0; e.dots = [];
-    e.model.visible = true; e.inner.position.y = 0; e.inner.scale.setScalar(1);
+    e.model.visible = true; e.inner.position.y = 0; e.inner.scale.setScalar(e.baseScale || 1);
     e.wanderT = rnd(1, 5); e.attackCD = 1; e.skillT = 6;
-    e.yaw = Math.random() * Math.PI * 2;
+    e.yaw = e.yawT = Math.random() * Math.PI * 2;
     if (e.np) {
       const tag = d.boss ? '[Boss] ' : d.elite ? '[Elite] ' : '';
       e.np.querySelector('.n').textContent = `${tag}Lv${e.level} ${d.name}`;
     }
     if (!first) {
       this.fx.spawnPuff(e.pos, 0xffffff);
-      if (d.boss) this.ui.chat('announce', `<b>[Announcement]</b> ${d.name} has awakened in the Elder Ruins arena!`);
+      if (d.boss && !e.dungeon) this.ui.chat('announce', `<b>[Announcement]</b> ${d.name} has awakened in the Elder Ruins arena!`);
     }
+  }
+  removeEnt(e) {
+    e.dead = true; e.removed = true;
+    this.scene.remove(e.model);
+    e.np?.remove();
+    this.ents = this.ents.filter((x) => x !== e);
+    this.monsters = this.monsters.filter((x) => x !== e);
+    if (this.player.target === e) this.setTarget(null);
   }
 
   createBots() {
@@ -186,7 +231,7 @@ export class Game {
       const look = classLook(cls, gender, pick(HAIR_COLORS), pick(EYE_COLORS), { wings: Math.random() < 0.5, wingColor: pick(['#9fe8ff', '#ffb8e8', '#d8b8ff', '#b8ffd0']) });
       const hum = buildHumanoid(look);
       const e = this.makeEnt('bot', hum, { name: names[i], radius: 0.6 });
-      e.humanoid = hum; e.cls = cls; e.level = role === 'town' ? ((rnd(8, 32)) | 0) : ({ jelly: 3, bunny: 5, shroom: 8, wolf: 10, golem: 15, treant: 16 }[role] + ((Math.random() * 3) | 0));
+      e.humanoid = hum; e.cls = cls; e.look = look; e.level = role === 'town' ? ((rnd(8, 32)) | 0) : ({ jelly: 3, bunny: 5, shroom: 8, wolf: 10, golem: 15, treant: 16 }[role] + ((Math.random() * 3) | 0));
       e.maxHp = e.hp = 200 + e.level * 40; e.atk = 18 + e.level * 4.5; e.def = 6 + e.level * 2.5; e.crit = 10;
       e.speed = CLASSES[cls].speed; e.role = role; e.guild = pick(GUILDS); e.range = CLASSES[cls].range * (CLASSES[cls].ranged ? 0.8 : 1);
       e.skills = SKILLS[cls];
@@ -218,11 +263,8 @@ export class Game {
     const S = this.S, C = CLASSES[S.cls], L = S.level, p = this.player;
     let hp = C.base.hp + C.grow.hp * (L - 1), mp = C.base.mp + C.grow.mp * (L - 1), atk = C.base.atk + C.grow.atk * (L - 1), def = C.base.def + C.grow.def * (L - 1);
     let crit = C.base.crit, critDmg = 0.6, speed = C.speed, heal = 1, cdr = 0;
-    for (const s of SLOTS) {
-      const eq = S.equip[s]; if (!eq) continue;
-      const k = 1 + 0.08 * (eq.enh || 0);
-      hp += (eq.stats.hp || 0) * k; atk += (eq.stats.atk || 0) * k; def += (eq.stats.def || 0) * k; crit += (eq.stats.crit || 0);
-    }
+    const G = aggregateEquip(S.equip || {}), gs = G.stats || {}, fxs = new Set(G.effects || []);
+    hp += gs.hp || 0; atk += gs.atk || 0; def += gs.def || 0; crit += gs.crit || 0; critDmg += (gs.critDmg || 0) / 100;
     const T = C.talents[S.talent].mods;
     hp *= T.hp || 1; mp *= T.mp || 1; atk *= T.atk || 1; def *= T.def || 1; crit += T.crit || 0; critDmg += T.critDmg || 0; heal *= T.heal || 1; cdr += T.cdr || 0;
     let petBR = 0;
@@ -233,14 +275,24 @@ export class Game {
       atk *= m.atk || 1; def *= m.def || 1; speed *= m.speed || 1; crit += m.crit || 0; spBR = 260;
     }
     if (S.wings) { hp *= 1.05; atk *= 1.05; }
+    if (fxs.has('worldtree')) hp *= 1.2;
+    speed *= 1 + (gs.speed || 0) / 100;
+    if (fxs.has('swift')) speed *= 1.12;
+    cdr = Math.min(0.5, cdr + (gs.cdr || 0) / 100);
+    this.mods = { stats: gs, effects: fxs };
     const mountBR = S.mounts.reduce((a, id) => a + (MOUNTS.find((m) => m.id === id)?.br || 0), 0);
     const ratio = p.maxHp > 1 ? p.hp / p.maxHp : 1, mratio = p.maxMp > 1 ? p.mp / p.maxMp : 1;
     p.maxHp = Math.round(hp); p.maxMp = Math.round(mp); p.atk = atk; p.def = def; p.crit = crit; p.critDmg = critDmg; p.baseSpeed = speed; p.level = L;
     p.hp = fill ? p.maxHp : Math.max(1, Math.round(p.maxHp * ratio)); p.mp = fill ? p.maxMp : Math.round(p.maxMp * mratio);
     this.healMod = heal; this.cdr = cdr;
-    this.br = Math.round(p.maxHp * 0.55 + atk * 9 + def * 7 + crit * 14 + petBR + spBR + mountBR + (S.wings ? 300 : 0));
+    const extras = (gs.critDmg || 0) * 4 + (gs.speed || 0) * 10 + (gs.lifesteal || 0) * 25 + (gs.cdr || 0) * 20 + (gs.expGain || 0) * 3 + (gs.goldFind || 0) * 2
+      + (gs.thorns || 0) * 6 + (gs.regen || 0) * 8 + (gs.manaCost || 0) * 6 + [...fxs].reduce((a, id) => a + (EFFECTS[id]?.tier === 'legendary' ? 900 : 350), 0);
+    this.br = Math.round(p.maxHp * 0.55 + atk * 9 + def * 7 + crit * 14 + petBR + spBR + mountBR + (S.wings ? 300 : 0) + extras);
     this.ui.refreshPlayer && this.ui.refreshPlayer();
   }
+  hasFx(id) { return this.mods.effects.has(id); }
+  stat(k) { return this.mods.stats[k] || 0; }
+  mpCost(sk) { let c = sk.mp * (1 - Math.min(60, this.stat('manaCost')) / 100); if (this.hasFx('mana_font')) c *= 0.7; return Math.round(c); }
   buffMod(e, key) { let m = 1; for (const b of e.buffs) if (b.mods && b.mods[key] && key !== 'crit') m *= b.mods[key]; return m; }
   atkOf(e) { return e.atk * this.buffMod(e, 'atk'); }
   defOf(e) { return e.def * this.buffMod(e, 'def'); }
@@ -305,7 +357,7 @@ export class Game {
     this.keys[k] = down;
     if (!down) return;
     if (this.player.dead && k !== 'escape') return;
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { this.player.path = []; this.autoPathing = false; this.pendingTalk = null; this.ui.setAutoPath(false); if (k.startsWith('arrow')) e.preventDefault(); return; }
+    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { this.player.path = []; this.autoPathing = false; this.pendingTalk = null; this.pendingPortal = null; this.ui.setAutoPath(false); if (k.startsWith('arrow')) e.preventDefault(); return; }
     if (k >= '1' && k <= '6') { this.useSkill(+k); return; }
     switch (k) {
       case 'q': this.usePotion('hp_potion'); break;
@@ -338,9 +390,11 @@ export class Game {
     const x = sx - rect.left, y = sy - rect.top;
     let best = null, bd = Infinity;
     const focal = rect.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
-    const cands = [...this.monsters, ...this.npcs, ...(this.S.settings.others ? this.bots : [])];
+    const extra = this.dg ? [this.dg.chestEnt, this.dg.exitEnt].filter(Boolean) : this.portals;
+    const cands = [...this.monsters, ...this.npcs, ...(this.S.settings.others ? this.bots : []), ...this.loots.filter((l) => l.map === this.map), ...extra];
     for (const e of cands) {
       if (e.dead || !e.model.visible) continue;
+      if (e.map && e.map !== this.map) continue;
       const c = e.pos.clone(); c.y += e.height * 0.5;
       const dcam = c.distanceTo(this.camera.position);
       if (dcam > 120) continue;
@@ -359,9 +413,9 @@ export class Game {
     let prev = 0;
     for (let t = 0.5; t < 400; t += t < 40 ? 0.5 : 2) {
       const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
-      if (y <= this.world.heightAt(x, z)) {
+      if (y <= this.map.heightAt(x, z)) {
         let a = prev, b = t;
-        for (let i = 0; i < 12; i++) { const m = (a + b) / 2; const mx = o.x + d.x * m, my = o.y + d.y * m, mz = o.z + d.z * m; if (my <= this.world.heightAt(mx, mz)) b = m; else a = m; }
+        for (let i = 0; i < 12; i++) { const m = (a + b) / 2; const mx = o.x + d.x * m, my = o.y + d.y * m, mz = o.z + d.z * m; if (my <= this.map.heightAt(mx, mz)) b = m; else a = m; }
         return new THREE.Vector3(o.x + d.x * b, o.y + d.y * b, o.z + d.z * b);
       }
       prev = t;
@@ -376,14 +430,16 @@ export class Game {
       if (h.kind === 'monster') { this.setTarget(h); this.engage = true; this.player.path = []; this.pendingTalk = null; this.autoPathing = false; this.ui.setAutoPath(false); return; }
       if (h.kind === 'npc') { this.talkTo(h); return; }
       if (h.kind === 'bot') { this.setTarget(h); return; }
+      if (h.kind === 'loot' || h.kind === 'chest' || h.kind === 'exit') { this.engage = false; this.pendingTalk = null; this.pathTo(h.pos.x, h.pos.z, false); return; }
+      if (h.kind === 'portal') { this.goToPortal(h); return; }
     }
     const g = this.groundPoint(x, y);
-    if (g) { this.engage = false; this.pendingSkill = null; this.pendingTalk = null; this.pathTo(g.x, g.z, false); this.fx.clickMarker(g); }
+    if (g) { this.engage = false; this.pendingSkill = null; this.pendingTalk = null; this.pendingPortal = null; this.pathTo(g.x, g.z, false); this.fx.clickMarker(g); }
   }
 
   pathTo(x, z, auto = true) {
     const p = this.player;
-    p.path = this.world.findPath(p.pos.x, p.pos.z, x, z);
+    p.path = this.map.findPath(p.pos.x, p.pos.z, x, z);
     this.autoPathing = auto && flat(p.pos, { x, z }) > 12;
     this.ui.setAutoPath(this.autoPathing);
     if (auto && this.autoPathing && !this.mounted && this.S.activeMount && !this.casting && flat(p.pos, { x, z }) > 40) this.mount(true);
@@ -404,7 +460,8 @@ export class Game {
     const c = from || this.player.pos;
     let best = null, bd = r;
     for (const m of this.monsters) {
-      if (m.dead || m.returning) continue;
+      if (m.dead || m.returning || (m.map || this.world) !== this.map) continue;
+      if (this.dg && m.dungeon && m.room > this.dg.cleared.size) continue;
       if (type && m.type !== type) continue;
       const d = flat(m.pos, c);
       if (d < bd) { bd = d; best = m; }
@@ -424,7 +481,7 @@ export class Game {
     const sk = this.skillList()[idx]; if (!sk) return;
     if (this.S.level < sk.lvl) { this.ui.toast(`Unlocks at Lv ${sk.lvl}`, 'warn'); this.sfx.play('error'); return; }
     if ((this.cd[sk.id] || 0) > this.time) { this.ui.toast('Skill is cooling down', 'warn'); return; }
-    if (p.mp < sk.mp) { this.ui.toast('Not enough MP', 'warn'); this.sfx.play('error'); return; }
+    if (p.mp < this.mpCost(sk)) { this.ui.toast('Not enough MP', 'warn'); this.sfx.play('error'); return; }
     if (p.stun > 0) return;
     const needsTarget = ['target', 'dash', 'proj', 'aoeTarget'].includes(sk.kind);
     if (needsTarget) {
@@ -445,8 +502,8 @@ export class Game {
     if (this.mounted) this.dismount(true);
     p.path = []; this.pendingSkill = null;
     if (t && ['target', 'dash', 'proj', 'aoeTarget'].includes(sk.kind)) p.yaw = p.yawT = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
-    p.mp -= sk.mp;
-    this.cd[sk.id] = this.time + sk.cd * (sk.basic ? 1 : 1 - this.cdr);
+    p.mp -= this.mpCost(sk);
+    this.cd[sk.id] = this.time + sk.cd * (sk.basic ? (this.hasFx('swift') ? 0.88 : 1) : 1 - this.cdr);
     const ranged = CLASSES[this.S.cls].ranged || ['buff', 'heal', 'zone'].includes(sk.kind);
     p.state = ranged ? 'cast' : 'attack'; p.actDur = p.actT = sk.basic ? 0.42 : 0.5;
     p.attackCD = this.cd[sk.id] - this.time;
@@ -479,8 +536,8 @@ export class Game {
         const from = p.pos.clone();
         const dir = new THREE.Vector3(t.pos.x - p.pos.x, 0, t.pos.z - p.pos.z).normalize();
         const dest = t.pos.clone().addScaledVector(dir, -(t.radius + 1.0));
-        for (let i = 0; i <= 8; i++) this.fx.emit(from.clone().lerp(dest, i / 8).setY(this.world.heightAt(from.x, from.z) + 1), { count: 6, color: 0xa87aff, speed: 1, life: 0.5, size: 0.8 });
-        if (!this.world.isBlocked(dest.x, dest.z)) { p.pos.x = dest.x; p.pos.z = dest.z; }
+        for (let i = 0; i <= 8; i++) this.fx.emit(from.clone().lerp(dest, i / 8).setY(this.map.heightAt(from.x, from.z) + 1), { count: 6, color: 0xa87aff, speed: 1, life: 0.5, size: 0.8 });
+        if (!this.map.isBlocked(dest.x, dest.z)) { p.pos.x = dest.x; p.pos.z = dest.z; }
         this.skillFx('slash2', t.pos, 0); this.damage(p, t, mult);
         break;
       }
@@ -497,7 +554,7 @@ export class Game {
         if (sk.fx === 'meteor') { this.fx.meteor(c, 0xff7a2a, sk.delay || 0.8, () => { this.sfx.play('boom'); this.aoe(c, sk.radius, mult); }); break; }
         for (let i = 0; i < hits; i++) this.after((sk.delay || 0.05) + i * 0.4, () => {
           if (sk.fx === 'inferno') {
-            const o = c.clone().add(new THREE.Vector3(rnd(-3, 3), 0, rnd(-3, 3))); o.y = this.world.heightAt(o.x, o.z);
+            const o = c.clone().add(new THREE.Vector3(rnd(-3, 3), 0, rnd(-3, 3))); o.y = this.map.heightAt(o.x, o.z);
             this.fx.meteor(o, 0xff5a1a, 0.45, () => { this.sfx.play('boom'); this.aoe(c, sk.radius, mult); });
           } else { this.skillFx(sk.fx, c, i, null, null, sk.radius); this.aoe(c, sk.radius, mult, sk.stun); }
         });
@@ -507,7 +564,7 @@ export class Game {
         for (let i = 0; i < hits; i++) this.after(i * 0.16, () => { this.skillFx(sk.fx, p.pos.clone(), i, null, null, sk.radius); this.aoe(p.pos.clone(), sk.radius, mult, sk.stun); });
         break;
       case 'buff': {
-        const b = { id: sk.id, icon: sk.icon, until: this.time + sk.dur, mods: sk.buff || null };
+        const b = { id: sk.id, icon: sk.id, until: this.time + sk.dur, mods: sk.buff || null };
         p.buffs = p.buffs.filter((x) => x.id !== sk.id); p.buffs.push(b);
         if (sk.healPct) this.heal(p, p.maxHp * sk.healPct);
         if (sk.shieldPct) { p.shield = p.maxHp * sk.shieldPct; b.shield = true; }
@@ -532,11 +589,11 @@ export class Game {
     }
   }
 
-  aoe(c, r, mult, stun) {
+  aoe(c, r, mult, stun, proc = false) {
     let n = 0;
-    for (const m of this.monsters) {
-      if (m.dead || flat(m.pos, c) > r + m.radius * 0.5) continue;
-      this.damage(this.player, m, mult); n++;
+    for (const m of [...this.monsters]) {
+      if (m.dead || (m.map || this.world) !== this.map || flat(m.pos, c) > r + m.radius * 0.5) continue;
+      this.damage(this.player, m, mult, { proc }); n++;
       if (stun && !m.dead && !m.def0.boss) m.stun = stun;
     }
     return n;
@@ -576,15 +633,15 @@ export class Game {
 
   damage(src, dst, mult, o = {}) {
     if (dst.dead) return 0;
-    const canCrit = o.canCrit !== false;
+    const canCrit = o.canCrit !== false && o.fixed == null;
     let base = this.atkOf(src) * mult * rnd(0.9, 1.1);
     const crit = canCrit && Math.random() * 100 < this.critOf(src);
     if (crit) base *= 1 + (src.critDmg ?? 0.6);
-    if (src.kind === 'monster' && Math.random() < 0.05) {
+    if (src.kind === 'monster' && o.fixed == null && Math.random() < 0.05) {
       if (dst === this.player) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Miss', 'miss');
       return 0;
     }
-    let dmg = Math.max(1, Math.round(base * 60 / (60 + this.defOf(dst))));
+    let dmg = o.fixed != null ? Math.max(1, Math.round(o.fixed)) : Math.max(1, Math.round(base * 60 / (60 + this.defOf(dst))));
     if (dst.shield > 0) {
       const ab = Math.min(dst.shield, dmg); dst.shield -= ab; dmg -= ab;
       if (dst === this.player && ab > 0) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Absorb', 'miss');
@@ -596,7 +653,7 @@ export class Game {
     if (dst === this.player) { if (dmg) this.fx.text(head, '-' + dmg, 'hurt'); this.sfx.play('hurt'); this.lastCombat = this.time; }
     else if (mine) {
       this.fx.text(head, String(dmg), o.cls || (src.kind === 'pet' ? 'pet' : crit ? 'crit' : 'dmg'));
-      this.sfx.play(crit ? 'crit' : 'hit');
+      if (!o.proc) this.sfx.play(crit ? 'crit' : 'hit');
       this.fx.emit(head, { count: crit ? 16 : 8, color: crit ? 0xffb02a : 0xffffff, speed: 4, life: 0.3, size: 0.4 });
       dst.hitT = 0.15;
       if (crit) this.fx.shake(0.12);
@@ -609,12 +666,61 @@ export class Game {
       if (!dst.target || dst.target.dead || (mine && dst.target.kind === 'bot' && Math.random() < 0.3)) dst.target = src.kind === 'pet' ? this.player : src;
       dst.returning = false;
     }
+    if (src === this.player && !o.proc && dmg > 0) this.onPlayerHit(dst, dmg, crit);
+    if (dst === this.player && src.kind === 'monster' && dmg > 0 && !src.dead) {
+      let back = dmg * Math.min(60, this.stat('thorns')) / 100;
+      if (this.hasFx('thorn_aura')) back += this.defOf(this.player) * 0.4;
+      if (back >= 1) this.after(0.05, () => { if (!src.dead) this.damage(this.player, src, 0, { fixed: back, proc: true, cls: 'pet' }); });
+    }
     if (dst.hp <= 0) {
+      if (dst === this.player && this.hasFx('phoenix') && this.time >= this.phoenixCD) {
+        dst.hp = Math.round(dst.maxHp * 0.5); this.phoenixCD = this.time + 60;
+        this.fx.pillar(dst.pos, 0xff8a2a, 2.2, 12, 1.2); this.fx.circle(dst.pos, '#ffb35a', 3, 1.5, dst.model);
+        this.fx.emit(dst.pos.clone().setY(dst.pos.y + 1), { count: 70, colors: [0xff6a2a, 0xffd04a, 0xffffff], speed: 6, life: 1.2, size: 0.8, up: 4 });
+        this.ui.toast('Phoenix rebirth! You rise again.', 'good'); this.sfx.play('level');
+        return dmg;
+      }
       if (dst.kind === 'monster') this.killMonster(dst);
       else if (dst === this.player) this.playerDied(src);
       else if (dst.kind === 'bot') { dst.hp = dst.maxHp; this.fx.heal(dst); }
     }
     return dmg;
+  }
+
+  // On-hit item effects for the player's own direct hits (procs never trigger procs).
+  onPlayerHit(dst, dmg, crit) {
+    const p = this.player;
+    const ls = Math.min(25, this.stat('lifesteal'));
+    if (ls > 0) p.hp = Math.min(p.maxHp, p.hp + dmg * ls / 100);
+    if (crit && this.hasFx('crit_heal') && (this.procCD.critHeal || 0) <= this.time) { this.procCD.critHeal = this.time + 0.4; this.heal(p, p.maxHp * 0.04); }
+    if (this.hasFx('chain') && Math.random() < 0.18) this.chainLightning(dst);
+    if (this.hasFx('stun_chance') && !dst.dead && !dst.def0?.boss && Math.random() < 0.1) { dst.stun = 1.5; this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height + 0.4), 'Stunned', 'miss'); }
+    if (this.hasFx('meteor_proc') && ++this.hitCount % 6 === 0) {
+      const c = dst.pos.clone();
+      this.fx.meteor(c, 0xffb02a, 0.6, () => { this.sfx.play('boom'); this.aoe(c, 5, 2.6, 0, true); });
+    }
+    if (crit && this.hasFx('starfall') && !dst.dead) {
+      const from = dst.pos.clone().add(new THREE.Vector3(rnd(-3, 3), 16, rnd(-3, 3)));
+      this.fx.projectile(from, dst, { color: 0xfff08a, size: 0.55, speed: 34, onHit: () => this.damage(p, dst, 1.2, { proc: true }) });
+    }
+  }
+  chainLightning(from) {
+    const W = from.map || this.world;
+    const near = this.monsters.filter((m) => m !== from && !m.dead && (m.map || this.world) === W && flat(m.pos, from.pos) < 9)
+      .sort((a, b) => flat(a.pos, from.pos) - flat(b.pos, from.pos)).slice(0, 2);
+    let prev = from;
+    for (const m of near) {
+      const a = prev.pos.clone().setY(prev.pos.y + prev.height * 0.6), b = m.pos.clone().setY(m.pos.y + m.height * 0.6);
+      this.fx.bolt(a, b, 0x9ad8ff);
+      this.damage(this.player, m, 0.8, { proc: true });
+      prev = m;
+    }
+  }
+  addFrenzy() {
+    const p = this.player;
+    let b = p.buffs.find((x) => x.id === 'frenzy');
+    if (!b) { b = { id: 'frenzy', icon: 'a5', stacks: 0, mods: { atk: 1 } }; p.buffs.push(b); }
+    b.stacks = Math.min(3, b.stacks + 1); b.mods.atk = 1 + 0.12 * b.stacks; b.until = this.time + 8;
   }
 
   heal(e, amt) {
@@ -625,40 +731,121 @@ export class Game {
 
   killMonster(m) {
     const d = m.def0, p = this.player;
-    m.hp = 0; m.dead = true; m.state = 'dead'; m.deadT = 0; m.respawnT = d.boss ? 90 : rnd(9, 15);
+    m.hp = 0; m.dead = true; m.state = 'dead'; m.deadT = 0; m.respawnT = m.dungeon ? Infinity : d.boss ? 90 : rnd(9, 15);
     m.dots = [];
     if (p.target === m) { this.setTarget(null); }
     if (this.pet && this.pet.target === m) this.pet.target = null;
+    if (m.dungeon && this.dg && m === this.dg.boss) this.completeDungeon();
     if (!m.tagged) return;
     m.tagged = false;
     // exp
     let exp = d.exp * (1 + 0.15 * (m.level - d.lvl[0]));
     if (this.S.level - m.level > 4) exp *= 0.4;
-    exp = Math.round(exp);
+    exp = Math.round(exp * (1 + this.stat('expGain') / 100));
     this.after(0.3, () => { this.fx.text(p.pos.clone().setY(p.pos.y + p.height + 0.3), `+${exp} EXP`, 'exp'); this.gainExp(exp); });
     // gold
-    const gold = Math.round(rnd(d.gold[0], d.gold[1]) * (1 + 0.1 * (m.level - d.lvl[0])));
+    const gold = Math.round(rnd(d.gold[0], d.gold[1]) * (1 + 0.1 * (m.level - d.lvl[0])) * (1 + this.stat('goldFind') / 100));
     this.fx.coins(m.pos, p, Math.min(8, 2 + (gold / 15) | 0), () => { this.S.gold += gold; this.sfx.play('coin'); this.ui.refreshWallet(); this.fx.text(p.pos.clone().setY(p.pos.y + p.height), `+${gold} Gold`, 'gold', 0.5); });
     this.S.kills[m.type] = (this.S.kills[m.type] || 0) + 1;
-    // drops
-    if (Math.random() < (d.boss ? 1 : d.elite ? 0.4 : 0.1)) {
-      const q = d.boss ? 4 : this.rollQuality(d.elite ? 1 : 0);
-      const eq = this.genEquip(pick(SLOTS), Math.max(1, m.level), q);
-      if (this.addEquip(eq)) this.lootMsg(eq.name, QUALITY[q].color);
+    if (this.hasFx('frenzy')) this.addFrenzy();
+    this.rollDrops(m);
+    this.questKill(m);
+  }
+
+  rollDrops(m) {
+    const d = m.def0, S = this.S;
+    const ctx = { elite: !!d.elite, boss: !!d.boss, dungeon: !!m.dungeon, luck: Math.min(0.5, this.stat('goldFind') / 200) };
+    const rolls = d.boss ? (m.dungeon ? 1 : 2) : 1;
+    const chance = d.boss ? 1 : d.elite ? 0.55 : m.dungeon ? 0.24 : 0.12;
+    for (let i = 0; i < rolls; i++) {
+      if (Math.random() > chance) continue;
+      this.dropLoot({ eq: this.makeEquip(null, Math.max(1, m.level), rollRarity(ctx)) }, m.pos);
     }
-    if (Math.random() < 0.08) { this.addItem('hp_potion', 1); this.lootMsg(ITEMS.hp_potion.name, QUALITY[0].color); }
-    if (Math.random() < 0.05) { this.addItem('mp_potion', 1); this.lootMsg(ITEMS.mp_potion.name, QUALITY[0].color); }
+    if (!m.dungeon) for (const nd of namedBySource(m.type)) if (Math.random() < 0.15) this.dropLoot({ eq: genNamed(nd.id, { lvl: m.level, cls: S.cls, uid: S.uid++ }) }, m.pos);
+    if (Math.random() < 0.08) this.dropLoot({ id: 'hp_potion', qty: 1 }, m.pos);
+    if (Math.random() < 0.05) this.dropLoot({ id: 'mp_potion', qty: 1 }, m.pos);
     for (const dr of d.drops || []) {
       if (Math.random() > dr.chance) continue;
       if (dr.id.startsWith('pet_') && dr.id !== 'pet_egg') {
-        if (this.S.pets[dr.id]) continue;
+        if (S.pets[dr.id]) continue;
         this.gainPet(dr.id, true);
       } else if (dr.id.startsWith('mount_')) {
-        if (this.S.mounts.includes(dr.id)) continue;
+        if (S.mounts.includes(dr.id)) continue;
         this.gainMount(dr.id, true);
-      } else { this.addItem(dr.id, 1); this.lootMsg(ITEMS[dr.id].name, QUALITY[ITEMS[dr.id].quality].color); }
+      } else if (ITEMS[dr.id]) this.dropLoot({ id: dr.id, qty: 1 }, m.pos);
     }
-    this.questKill(m);
+  }
+
+  // ---------------------------------------------------------------- ground loot
+  dropLoot(item, from) {
+    const W = this.map, it = item.eq ? null : ITEMS[item.id];
+    const q = item.eq ? item.eq.quality : (it.quality || 0), R = RARITY[q];
+    const name = item.eq ? item.eq.name : it.name + (item.qty > 1 ? ` x${item.qty}` : '');
+    const a = Math.random() * Math.PI * 2, r = 0.9 + Math.random() * 1.8;
+    let x = from.x + Math.cos(a) * r, z = from.z + Math.sin(a) * r;
+    if (W.isBlocked(x, z)) { x = from.x; z = from.z; }
+    const g = new THREE.Group(); g.position.set(x, W.heightAt(x, z), z);
+    const mat = new THREE.SpriteMaterial({ transparent: true, depthWrite: false });
+    const spr = new THREE.Sprite(mat); spr.scale.setScalar(1.05); spr.position.y = 0.95; spr.renderOrder = 4; g.add(spr);
+    iconCanvas(item.eq ? item.eq.icon : item.id).then((c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; mat.map = t; mat.needsUpdate = true; });
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: R.color, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.75 }));
+    halo.scale.setScalar(1.6 + q * 0.25); halo.position.y = 0.95; g.add(halo);
+    if (!this.lootDisc) this.lootDisc = new THREE.CircleGeometry(1, 32);
+    const ring = new THREE.Mesh(this.lootDisc, new THREE.MeshBasicMaterial({ map: ringTexture(R.color, 0.7), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.1; ring.scale.setScalar(1.0 + q * 0.18); g.add(ring);
+    let beam = null;
+    if (R.beam > 0) {
+      const hgt = 3 + 9 * R.beam;
+      beam = new THREE.Mesh(this.fx.geo.cyl, new THREE.MeshBasicMaterial({ color: R.color, map: beamTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.85 }));
+      beam.scale.set(0.28 + q * 0.07, hgt, 0.28 + q * 0.07); beam.position.y = hgt / 2; g.add(beam);
+    }
+    this.scene.add(g);
+    const L = { kind: 'loot', item, q, name, model: g, pos: g.position, spr, ring, beam, t: 0, height: 1.3, radius: 1, map: W, dead: false, from: new THREE.Vector3(from.x, from.y + 1.4, from.z), ground: g.position.clone() };
+    g.position.copy(L.from);
+    this.nameplate(L, `<div class="n" style="color:${R.color}">${esc(name)}</div>`, 'loot');
+    this.loots.push(L);
+    if (q >= 3) this.sfx.play(q >= 5 ? 'legend' : 'rare');
+    if (item.eq && q >= 4) {
+      const label = q === 5 ? 'LEGENDARY!' : 'UNIQUE!';
+      this.ui.banner(label, item.eq.name, 'loot' + q);
+      this.ui.chat('announce', `<b>[Announcement]</b> ${esc(this.S.name)} found <span class="it" style="color:${R.color}">[${esc(item.eq.name)}]</span>!`);
+      this.fx.shake(q === 5 ? 0.5 : 0.25);
+    }
+    return L;
+  }
+  updateLoot(dt) {
+    const p = this.player, S = this.S;
+    for (const L of [...this.loots]) {
+      L.t += dt;
+      if (L.t < 0.55) { const k = L.t / 0.55; L.pos.lerpVectors(L.from, L.ground, k); L.pos.y += Math.sin(k * Math.PI) * 1.6; continue; }
+      L.spr.position.y = 0.95 + Math.sin(L.t * 3 + L.q) * 0.12;
+      L.ring.rotation.z += dt * 1.2;
+      if (L.q >= 4 && Math.random() < dt * 10) this.fx.emit(L.pos.clone().setY(L.pos.y + 0.6), { count: 1, color: RARITY[L.q].color, speed: 0.6, life: 1, size: 0.4, up: 2.5, jitter: 1 });
+      if (L.map !== this.map || p.dead) continue;
+      const d = flat(p.pos, L.pos);
+      if (!L.flying && d < 2.2) { this.pickupLoot(L); continue; }
+      if (!L.flying && S.settings.autoLoot && L.t > 1.1 && d < 16 && this.time - (L.failT ?? -99) > 4) L.flying = true;
+      if (L.flying) {
+        const to = p.pos.clone().setY(p.pos.y + 1);
+        const dir = to.sub(L.pos); const len = dir.length();
+        if (len < 0.8) { this.pickupLoot(L); continue; }
+        L.pos.addScaledVector(dir.normalize(), Math.min(len, (14 + L.t * 4) * dt));
+      }
+      if (L.t > 180) this.removeLoot(L);
+    }
+  }
+  pickupLoot(L, quiet = false) {
+    const it = L.item;
+    const ok = it.eq ? this.addEquip(it.eq) : this.addItem(it.id, it.qty || 1);
+    if (!ok) { L.flying = false; L.failT = this.time; L.ground.copy(L.pos); L.pos.y = (L.map || this.world).heightAt(L.pos.x, L.pos.z); return false; }
+    this.removeLoot(L);
+    if (!quiet) { this.sfx.play('pickup'); this.lootMsg(L.name, RARITY[L.q].color); }
+    return true;
+  }
+  removeLoot(L) {
+    this.scene.remove(L.model); L.np?.remove();
+    L.model.traverse((o) => { if (o.material) { o.material.map && o.material.map.isCanvasTexture && o.material.map.dispose(); o.material.dispose(); } });
+    this.loots = this.loots.filter((x) => x !== L);
   }
 
   lootMsg(name, color) {
@@ -678,7 +865,7 @@ export class Game {
       this.ui.banner('LEVEL UP!', `You reached Level ${S.level}`);
       this.ui.chat('system', `Congratulations! You reached <b>Level ${S.level}</b>.`);
       const unlocked = this.skillList().filter((s) => s.lvl === S.level && !s.basic);
-      for (const s of unlocked) { this.ui.toast(`New skill unlocked: ${s.name}`, 'good'); this.ui.chat('system', `New skill unlocked: <b>${s.icon} ${esc(s.name)}</b>`); }
+      for (const s of unlocked) { this.ui.toast(`New skill unlocked: ${s.name}`, 'good'); this.ui.chat('system', `New skill unlocked: <b>${esc(s.name)}</b>`); }
       if (S.level >= 10 && S.title < 3) { S.title = 3; this.refreshPlayerPlate(); }
       this.ui.refreshSkills();
       this.save();
@@ -693,39 +880,36 @@ export class Game {
     if (this.mounted) this.dismount(true);
     for (const m of this.monsters) if (m.target === p) { m.target = null; m.returning = true; }
     this.ui.chat('system', `You were defeated by ${esc(src?.def0?.name || src?.name || 'a monster')}.`);
+    if (this.dg) {
+      this.dg.deaths++;
+      this.ui.modal('You have been defeated', `The ${this.dg.def.name} claims another adventurer... Deaths lower your clear rating.`, [
+        { label: 'Revive at Entrance', cls: 'blue', fn: () => this.revive(false) },
+        { label: 'Revive Here (10 Diamonds)', fn: () => this.revive(true) },
+        { label: 'Leave Dungeon', cls: 'gray', fn: () => { this.revive(false); this.leaveDungeon(); return true; } },
+      ], true);
+      return;
+    }
     this.ui.modal('You have been defeated', 'Your spirit drifts back toward the World Tree... Choose how to return.', [
       { label: 'Revive in Town', cls: 'blue', fn: () => this.revive(false) },
-      { label: 'Revive Here (10 💎)', fn: () => this.revive(true) },
+      { label: 'Revive Here (10 Diamonds)', fn: () => this.revive(true) },
     ], true);
   }
   revive(here) {
     const p = this.player, S = this.S;
     if (here && S.diamonds < 10) { this.ui.toast('Not enough diamonds', 'warn'); return false; }
     if (here) S.diamonds -= 10;
+    else if (this.dg) { const st = this.dg.map.start; p.pos.set(st.x, this.map.heightAt(st.x, st.z), st.z); p.yaw = p.yawT = st.yaw; this.cam.target.copy(p.pos); }
     else { p.pos.set(0, this.world.heightAt(0, 9), 9); this.cam.target.copy(p.pos); }
+    if (this.pet) this.pet.pos.set(p.pos.x - 1.2, p.pos.y, p.pos.z + 1);
     p.dead = false; p.state = 'idle'; p.hp = p.maxHp; p.mp = p.maxMp;
     this.fx.levelUp(p); this.ui.refreshWallet();
     return true;
   }
 
   // ============================================================== items
-  rollQuality(bonus = 0) {
-    const r = Math.random();
-    let q = r < 0.55 ? 0 : r < 0.84 ? 1 : r < 0.97 ? 2 : 3;
-    return Math.min(4, q + bonus);
-  }
-  genEquip(slot, lvl, q) {
-    const S = this.S, qm = QUALITY[q].mult;
-    const st = {};
-    if (slot === 'weapon') st.atk = (8 + lvl * 2.4) * qm;
-    if (slot === 'helm') { st.hp = (24 + lvl * 10) * qm; st.def = (2 + lvl * 0.6) * qm; }
-    if (slot === 'armor') { st.def = (4 + lvl * 1.2) * qm; st.hp = (20 + lvl * 8) * qm; }
-    if (slot === 'boots') { st.def = (2 + lvl * 0.7) * qm; st.hp = (10 + lvl * 4) * qm; }
-    if (slot === 'necklace') { st.hp = (30 + lvl * 12) * qm; st.atk = (2 + lvl * 0.5) * qm; }
-    if (slot === 'ring') { st.atk = (3 + lvl * 1.0) * qm; st.crit = 1 + q * 1.5; }
-    for (const k in st) st[k] = Math.round(st[k] * 10) / 10;
-    const base = slot === 'weapon' ? WEAPON_NAMES[S.cls] : SLOT_BASE[slot];
-    return { uid: S.uid++, slot, name: `${QUALITY_PREFIX[q]} ${base}`, quality: q, lvl, stats: st, enh: 0, icon: slot === 'weapon' ? WEAPON_ICONS[S.cls] : SLOT_INFO[slot].icon };
+  makeEquip(slot, lvl, quality, named = null) {
+    const S = this.S;
+    return genEquip({ slot, lvl, quality, cls: S.cls, uid: S.uid++, named });
   }
   addItem(id, qty = 1) {
     const S = this.S, it = ITEMS[id];
@@ -774,6 +958,7 @@ export class Game {
       this.ui.modal('The egg hatched!', `A ${pd.species} named ${pd.name} wriggles out of the shell and looks up at you adoringly.`, [{ label: 'Summon it', fn: () => this.setPet(pd.id) }, { label: 'Later', cls: 'gray' }], false, this.petIcon(pd.id));
       return;
     }
+    if (b.id === 'dungeon_ticket') { this.ui.toast('Tickets are used automatically when your free dungeon entries run out', 'good'); return; }
     if (b.id === 'exp_scroll') { this.removeItem('exp_scroll', 1); this.gainExp(Math.round(needExp(S.level) * 0.25)); this.fx.buff(this.player, '#c8ff6a'); return; }
     if (it.type === 'quest') this.ui.toast('Quest item — bring it to the right person', 'warn');
   }
@@ -797,7 +982,7 @@ export class Game {
   sell(i) {
     const S = this.S, b = S.bag[i]; if (!b) return;
     let g = 0;
-    if (b.eq) g = Math.round(12 * b.eq.lvl * (b.eq.quality + 1) * (1 + (b.eq.enh || 0) * 0.3));
+    if (b.eq) g = sellPrice(b.eq);
     else { const it = ITEMS[b.id]; if (it.type === 'quest') { this.ui.toast('Quest items cannot be sold', 'warn'); return; } g = Math.round((it.price || 10) * 0.3) * b.qty; }
     S.bag.splice(i, 1); S.gold += g; this.sfx.play('coin');
     this.ui.toast(`Sold for ${fmt(g)} Gold`, 'good'); this.ui.refreshWallet(); this.ui.refreshPanel();
@@ -813,7 +998,7 @@ export class Game {
     if (Math.random() < chance) {
       eq.enh++; this.recalc(); this.sfx.play('level'); this.fx.buff(this.player, '#ffe07a');
       this.ui.toast(`Enhance succeeded! ${eq.name} +${eq.enh}`, 'good');
-      if (eq.enh >= 7) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} enhanced <span style="color:${QUALITY[eq.quality].color}">[${esc(eq.name)}]</span> to +${eq.enh}!`);
+      if (eq.enh >= 7) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} enhanced <span style="color:${RARITY[eq.quality].color}">[${esc(eq.name)}]</span> to +${eq.enh}!`);
     } else { this.sfx.play('error'); this.ui.toast('Enhance failed... the gear is unharmed.', 'warn'); }
     this.ui.refreshWallet(); this.ui.refreshPanel();
   }
@@ -823,7 +1008,7 @@ export class Game {
     const S = this.S, pd = PETS.find((x) => x.id === id);
     if (S.pets[id]) return;
     S.pets[id] = { lv: 1 };
-    this.ui.chat('system', `New pet: <span class="it" style="color:${QUALITY[pd.rarity + 1].color}">[${esc(pd.name)}]</span> joined your collection!`);
+    this.ui.chat('system', `New pet: <span class="it" style="color:${RARITY[PET_TIER[pd.rarity]].color}">[${esc(pd.name)}]</span> joined your collection!`);
     if (announce || pd.rarity >= 2) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} obtained the pet <b>[${esc(pd.name)}]</b>!`);
     this.ui.toast(`New pet: ${pd.name}!`, 'good');
     this.ui.markMenu('pets');
@@ -926,8 +1111,15 @@ export class Game {
   npcById(id) { return this.npcs.find((n) => n.id === id); }
   npcName(id) { return NPCS.find((n) => n.id === id)?.name || id; }
 
+  goToPortal(h) {
+    const p = this.player;
+    this.engage = false; this.pendingTalk = null;
+    if (flat(p.pos, h.pos) < 4) { p.path = []; this.pendingPortal = null; this.ui.togglePanel('dungeons', true, h.def.id); return; }
+    this.pendingPortal = h; this.pathTo(h.pos.x, h.pos.z, flat(p.pos, h.pos) > 12);
+  }
   talkTo(n) {
     const p = this.player;
+    if (this.dg) { this.ui.toast('Leave the dungeon first', 'warn'); return; }
     if (flat(p.pos, n.pos) > 4.5) { this.pendingTalk = n; this.pathTo(n.pos.x, n.pos.z, flat(p.pos, n.pos) > 12); return; }
     this.pendingTalk = null; p.path = []; this.autoPathing = false; this.ui.setAutoPath(false);
     n.yaw = Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z);
@@ -941,10 +1133,10 @@ export class Game {
     let text = d.greet, qname = null, rewards = null;
     if (q && q.def) {
       if (q.status === 'available' && q.def.giver === n.id) {
-        qname = q.def.name; text = q.def.text; rewards = q.def.type === 'end' ? null : q.def.rewards;
+        qname = q.def.name; text = q.def.text; rewards = q.def.type === 'end' ? null : { ...q.def.rewards, equipQ: q.def.id === 'q10' ? 4 : q.def.id === 'q9' ? 3 : 2 };
         btns.push({ label: q.def.type === 'end' ? 'Farewell' : 'Accept', fn: () => this.acceptQuest() });
       } else if (q.status === 'complete' && q.def.turnin === n.id) {
-        qname = q.def.name; text = q.def.done; rewards = q.def.rewards;
+        qname = q.def.name; text = q.def.done; rewards = { ...q.def.rewards, equipQ: q.def.id === 'q10' ? 4 : q.def.id === 'q9' ? 3 : 2 };
         btns.push({ label: 'Complete', cls: 'green', fn: () => this.completeQuest(n) });
       } else if (q.status === 'active' && q.def.turnin === n.id) {
         qname = q.def.name; text = `Still working on it? ${this.questObjective()}.`;
@@ -1000,7 +1192,7 @@ export class Game {
     if (r.gold) { S.gold += r.gold; }
     if (r.diamonds) { S.diamonds += r.diamonds; }
     if (r.items) for (const [id, qty] of r.items) this.addItem(id, qty);
-    if (r.equip) { const eq = this.genEquip(r.equip, Math.max(S.level, 2), d.id === 'q10' ? 4 : 2); if (this.addEquip(eq)) this.lootMsg(eq.name, QUALITY[eq.quality].color); }
+    if (r.equip) { const eq = this.makeEquip(r.equip, Math.max(S.level, 2), d.id === 'q10' ? 4 : d.id === 'q9' ? 3 : 2); if (this.addEquip(eq)) this.lootMsg(eq.name, RARITY[eq.quality].color); }
     if (r.pet) this.gainPet(r.pet, d.id === 'q10');
     if (r.mount) { this.gainMount(r.mount); }
     if (r.sprite) { const sid = CLASS_SPRITE[S.cls]; if (!S.sprites.includes(sid)) S.sprites.push(sid); this.setSprite(sid); this.ui.chat('system', `The Sprite <b>${SPRITES.find((x) => x.id === sid).name}</b> now flies at your side.`); }
@@ -1026,7 +1218,7 @@ export class Game {
         if (S.quest.prog >= d.count) this.questReady(d);
       }
       if (d.type === 'collect' && d.target === m.type && Math.random() < d.chance && this.countItem(d.item) < d.count) {
-        this.addItem(d.item, 1); this.lootMsg(ITEMS[d.item].name, QUALITY[1].color);
+        this.addItem(d.item, 1); this.lootMsg(ITEMS[d.item].name, RARITY[1].color);
       }
     }
     const B = S.bounty;
@@ -1191,7 +1383,10 @@ export class Game {
   }
   monsterIcon(type) {
     const d = MONSTERS[type], h = d.height;
-    return this.portraits.snap('mon-' + type, () => buildMonster(d.model, 0), { w: 96, h: 96, look: [0, h * 0.62, 0], from: [h * 0.35, h * 0.72, h * 1.25], fov: 34 });
+    return this.portraits.snap('mon-' + type, () => (d.dungeon ? buildDungeonMonster(d.model, d.variant ?? 0) : buildMonster(d.model, 0)), { w: 96, h: 96, look: [0, h * 0.62, 0], from: [h * 0.35, h * 0.72, h * 1.25], fov: 34 });
+  }
+  botIcon(b) {
+    return this.portraits.snap('bot-' + b.name, () => buildHumanoid(b.look), { w: 96, h: 96, look: [0, 1.5, 0], from: [0.45, 1.62, 2.3], fov: 32 });
   }
   petIcon(id) {
     const pd = PETS.find((x) => x.id === id);
@@ -1219,6 +1414,8 @@ export class Game {
     for (const m of this.monsters) this.updateMonster(m, dt);
     for (const b of this.bots) this.updateBot(b, dt);
     for (const n of this.npcs) this.updateNPC(n, dt);
+    this.updateLoot(dt);
+    this.updateDungeon(dt);
     this.animateAll(dt);
     this.updateCamera(dt);
     this.updatePlates();
@@ -1251,7 +1448,7 @@ export class Game {
       const fx = -Math.sin(y), fz = -Math.cos(y), rx = Math.cos(y), rz = -Math.sin(y);
       let dx = fx * -kz + rx * kx, dz = fz * -kz + rz * kx; const L = Math.hypot(dx, dz); dx /= L; dz /= L;
       this.moveEnt(p, p.pos.x + dx * 3, p.pos.z + dz * 3, speed, dt);
-      moving = true; this.pendingSkill = null; this.pendingTalk = null; this.engage = this.auto ? this.engage : false;
+      moving = true; this.pendingSkill = null; this.pendingTalk = null; this.pendingPortal = null; this.engage = this.auto ? this.engage : false;
     }
     // pending skill: approach
     const t = p.target;
@@ -1271,8 +1468,8 @@ export class Game {
       const basic = this.skillList()[0];
       const d = flat(p.pos, t.pos) - t.radius;
       if (d > basic.range) {
-        if (this.world.lineClear(p.pos.x, p.pos.z, t.pos.x, t.pos.z)) { this.moveEnt(p, t.pos.x, t.pos.z, speed, dt); moving = true; }
-        else if (!p.path.length) p.path = this.world.findPath(p.pos.x, p.pos.z, t.pos.x, t.pos.z);
+        if (this.map.lineClear(p.pos.x, p.pos.z, t.pos.x, t.pos.z)) { this.moveEnt(p, t.pos.x, t.pos.z, speed, dt); moving = true; }
+        else if (!p.path.length) p.path = this.map.findPath(p.pos.x, p.pos.z, t.pos.x, t.pos.z);
       } else if (p.actT <= 0 && (this.cd[basic.id] || 0) <= this.time) {
         p.path = []; this.castSkill(basic);
       } else p.yawT = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
@@ -1286,7 +1483,7 @@ export class Game {
       if (r === 'blocked' && p.path.length) {
         p.blockedN = (p.blockedN || 0) + 1;
         const end = p.path[p.path.length - 1];
-        p.path = p.blockedN > 3 ? [] : this.world.findPath(p.pos.x, p.pos.z, end.x, end.z);
+        p.path = p.blockedN > 3 ? [] : this.map.findPath(p.pos.x, p.pos.z, end.x, end.z);
       } else if (r !== 'blocked') p.blockedN = 0;
       if (!p.path.length) {
         this.autoPathing = false; this.ui.setAutoPath(false);
@@ -1294,9 +1491,10 @@ export class Game {
       }
     }
     if (this.pendingTalk && flat(p.pos, this.pendingTalk.pos) < 4.5) { const n = this.pendingTalk; this.talkTo(n); }
+    if (this.pendingPortal && flat(p.pos, this.pendingPortal.pos) < 4) this.goToPortal(this.pendingPortal);
     // jump physics
     if (p.vy !== 0 || p.jumpY > 0) { p.vy -= 24 * dt; p.jumpY = Math.max(0, p.jumpY + p.vy * dt); if (p.jumpY === 0) p.vy = 0; }
-    p.pos.y = this.world.heightAt(p.pos.x, p.pos.z);
+    p.pos.y = this.map.heightAt(p.pos.x, p.pos.z);
     p.inner.position.y = p.jumpY;
     p.moving = moving;
     if (p.actT <= 0) p.state = moving ? 'run' : 'idle';
@@ -1308,6 +1506,23 @@ export class Game {
     p.mp = Math.min(p.maxMp, p.mp + p.maxMp * (ooc ? 0.03 : 0.012) * dt);
     if (S.settings.autoPotion && p.hp < p.maxHp * 0.35 && this.countItem('hp_potion') && this.potionCD <= this.time) this.usePotion('hp_potion');
     if (S.settings.autoPotion && p.mp < p.maxMp * 0.15 && this.countItem('mp_potion') && this.potionCD <= this.time) this.usePotion('mp_potion');
+    // gear effects that tick over time
+    const regen = this.stat('regen') + (this.hasFx('worldtree') ? p.maxHp * 0.012 : 0);
+    if (regen > 0) p.hp = Math.min(p.maxHp, p.hp + regen * dt);
+    if (this.hasFx('holy_nova') && !ooc) {
+      this.novaT -= dt;
+      if (this.novaT <= 0) {
+        this.novaT = 8;
+        this.fx.ring(p.pos, 0xfff0a0, 6, 0.6); this.fx.pillar(p.pos, 0xfff0a0, 1.4, 6, 0.6);
+        this.aoe(p.pos.clone(), 6, 1.5, 0, true); this.heal(p, p.maxHp * 0.05); this.sfx.play('heal');
+      }
+    }
+    // legendary / unique weapons shimmer
+    const wq = S.equip.weapon?.quality ?? 0;
+    if (wq >= 4 && p.humanoid && Math.random() < dt * (wq === 5 ? 16 : 8)) {
+      const hp = new THREE.Vector3(); p.humanoid.userData.parts.handR.getWorldPosition(hp);
+      this.fx.emit(hp, { count: 1, color: RARITY[wq].color, speed: 0.5, life: 0.7, size: 0.45, up: 1.2, jitter: 0.6 });
+    }
   }
 
   autoBattle() {
@@ -1317,7 +1532,7 @@ export class Game {
       const anchor = this.autoAnchor || p.pos;
       t = this.nearestEnemy(14, this.autoPref, p.pos) || this.nearestEnemy(40, this.autoPref, anchor) || (this.autoPref ? null : this.nearestEnemy(40, null, anchor));
       if (t) { this.setTarget(t); this.engage = true; }
-      else if (this.autoAnchor && flat(p.pos, this.autoAnchor) > 6 && !p.path.length) p.path = this.world.findPath(p.pos.x, p.pos.z, this.autoAnchor.x, this.autoAnchor.z);
+      else if (this.autoAnchor && flat(p.pos, this.autoAnchor) > 6 && !p.path.length) p.path = this.map.findPath(p.pos.x, p.pos.z, this.autoAnchor.x, this.autoAnchor.z);
       return;
     }
     this.engage = true;
@@ -1326,7 +1541,7 @@ export class Game {
     // heal / buffs first
     for (let i = list.length - 1; i >= 1; i--) {
       const sk = list[i];
-      if (this.S.level < sk.lvl || (this.cd[sk.id] || 0) > this.time || p.mp < sk.mp) continue;
+      if (this.S.level < sk.lvl || (this.cd[sk.id] || 0) > this.time || p.mp < this.mpCost(sk)) continue;
       if (sk.kind === 'heal' && p.hp > p.maxHp * 0.6) continue;
       if (sk.kind === 'buff' && p.buffs.some((b) => b.id === sk.id)) continue;
       if (sk.kind === 'zone' && p.hp > p.maxHp * 0.8 && flat(p.pos, t.pos) > sk.radius) continue;
@@ -1343,7 +1558,7 @@ export class Game {
     if (d < 0.05) return true;
     const step = Math.min(d, speed * dt);
     const nx = e.pos.x + (dx / d) * step, nz = e.pos.z + (dz / d) * step;
-    const W = this.world;
+    const W = e.map || this.world;
     const inside = W.isBlocked(e.pos.x, e.pos.z);
     e.yawT = Math.atan2(dx, dz);
     if (inside || !W.isBlocked(nx, nz)) { e.pos.x = nx; e.pos.z = nz; }
@@ -1381,7 +1596,7 @@ export class Game {
     e.actT = Math.max(0, e.actT - dt);
     if (e.actT <= 0) e.state = 'idle';
     e.moving = moving;
-    e.pos.y = this.world.heightAt(e.pos.x, e.pos.z);
+    e.pos.y = this.map.heightAt(e.pos.x, e.pos.z);
   }
 
   updateSprite(dt) {
@@ -1399,7 +1614,7 @@ export class Game {
   }
 
   updateMonster(m, dt) {
-    const d = m.def0, W = this.world;
+    const d = m.def0, W = m.map || this.world;
     if (m.dead) {
       m.deadT += dt; m.respawnT -= dt;
       if (m.deadT > 1.4) { m.inner.position.y = -Math.min(2, (m.deadT - 1.4) * 2); if (m.deadT > 2.4) m.model.visible = false; }
@@ -1432,6 +1647,7 @@ export class Game {
             this.after(0.3, () => {
               if (m.dead || t.dead || m.stun > 0) return;
               if (flat(m.pos, t.pos) - t.radius <= d.range + 1) {
+                if (d.ranged) { this.fx.projectile(m.pos.clone().setY(m.pos.y + m.height * 0.6), t, { color: 0xb07aff, size: 0.4, speed: 18, onHit: () => { if (!m.dead) this.damage(m, t, 1); } }); return; }
                 this.damage(m, t, 1);
                 this.fx.emit(t.pos.clone().setY(t.pos.y + 1), { count: 8, color: d.boss ? 0xc07aff : 0xff8a6a, speed: 3, life: 0.3, size: 0.45 });
               }
@@ -1458,32 +1674,263 @@ export class Game {
     m.pos.y = W.heightAt(m.pos.x, m.pos.z);
   }
 
+  bossTargets(m) {
+    const W = m.map || this.world, out = [];
+    if (!this.player.dead && (this.player.map || this.world) === W) out.push(this.player);
+    if (W === this.world) for (const b of this.bots) if (!b.dead) out.push(b);
+    return out;
+  }
   bossSkills(m, t, dt) {
     m.skillT -= dt;
     if (m.skillT > 0) return;
-    const enraged = m.hp < m.maxHp * 0.5;
-    m.skillT = enraged ? 6 : 9;
-    if (Math.random() < 0.5) {
-      const c = m.pos.clone().add(new THREE.Vector3(Math.sin(m.yaw) * 3, 0, Math.cos(m.yaw) * 3)); c.y = this.world.heightAt(c.x, c.z) + 0.55;
-      this.ui.toast('Yggr raises his arms — get out of the red circle!', 'warn');
+    const d = m.def0, W = m.map || this.world;
+    const enraged = m.hp < m.maxHp * 0.4;
+    m.skillT = (enraged ? 5.5 : 8.5) + Math.random() * 1.5;
+    if (enraged && !m.enraged) { m.enraged = true; this.ui.toast(`${d.name} is enraged!`, 'warn'); this.fx.ring(m.pos, 0xff3a3a, 9, 0.8); }
+    const skills = d.skills || ['slam', 'roots'];
+    let sk = pick(skills);
+    if (sk === 'summon' && (!m.dungeon || this.monsters.filter((x) => x.summoned && !x.dead).length >= 4)) sk = 'slam';
+    const gy = (x, z) => W.heightAt(x, z) + 0.05;
+    const hitIn = (c, r, mult) => { for (const e of this.bossTargets(m)) if (flat(e.pos, c) < r) this.damage(m, e, mult, { canCrit: false }); };
+    if (sk === 'slam') {
+      const c = m.pos.clone().add(new THREE.Vector3(Math.sin(m.yaw) * 3, 0, Math.cos(m.yaw) * 3)); c.y = gy(c.x, c.z);
+      this.ui.toast(`${d.name} raises up — get out of the red circle!`, 'warn');
       m.state = 'attack'; m.actT = m.actDur = 1.6;
-      this.fx.telegraph(c, 7, 1.6, () => {
-        if (m.dead) return;
-        this.fx.quake(c, 7); this.sfx.play('boom');
-        for (const e of [this.player, ...this.bots]) if (!e.dead && flat(e.pos, c) < 7) this.damage(m, e, 2.4, { canCrit: false });
-      });
-    } else {
-      this.ui.toast('Thorned roots burst from the ground!', 'warn');
+      this.fx.telegraph(c, 7, 1.6, () => { if (m.dead) return; this.fx.quake(c, 7); this.sfx.play('boom'); hitIn(c, 7, 2.4); });
+    } else if (sk === 'roots') {
+      this.ui.toast('The ground splits beneath you!', 'warn');
       for (let i = 0; i < (enraged ? 4 : 3); i++) {
-        const c = t.pos.clone().add(new THREE.Vector3(rnd(-4, 4), 0, rnd(-4, 4))); c.y = this.world.heightAt(c.x, c.z) + 0.55;
+        const c = t.pos.clone().add(new THREE.Vector3(rnd(-4, 4), 0, rnd(-4, 4))); c.y = gy(c.x, c.z);
         this.fx.telegraph(c, 3.2, 1.4 + i * 0.15, () => {
           if (m.dead) return;
           this.fx.emit(c.clone().setY(c.y + 0.5), { count: 30, colors: [0x7a3aa8, 0x5ac84a, 0x3a2a1a], speed: 6, life: 0.6, size: 0.8, up: 6, gravity: -14 });
           this.fx.pillar(c, 0x8a4ac8, 1.6, 4, 0.5);
-          for (const e of [this.player, ...this.bots]) if (!e.dead && flat(e.pos, c) < 3.2) this.damage(m, e, 1.6, { canCrit: false });
+          hitIn(c, 3.2, 1.6);
         });
       }
+    } else if (sk === 'nova') {
+      const c = m.pos.clone(); c.y = gy(c.x, c.z);
+      this.ui.toast(`${d.name} gathers power — run away!`, 'warn');
+      m.state = 'cast'; m.actT = m.actDur = 2.2;
+      this.fx.circle(c, '#ff6aa8', 4, 2.3);
+      this.fx.telegraph(c, 10, 2.2, () => {
+        if (m.dead) return;
+        this.fx.ring(c, 0xff6aa8, 11, 0.6); this.fx.ring(c, 0xffffff, 8, 0.45);
+        this.fx.emit(c.clone().setY(c.y + 1), { count: 80, colors: [0xff6aa8, 0xffffff, 0xb07aff], speed: 14, life: 0.7, size: 0.9, spread: 1 });
+        this.sfx.play('boom'); this.fx.shake(0.5); hitIn(c, 10, 2.0);
+      });
+    } else if (sk === 'breath') {
+      m.yaw = m.yawT = Math.atan2(t.pos.x - m.pos.x, t.pos.z - m.pos.z);
+      const dir = new THREE.Vector3(Math.sin(m.yaw), 0, Math.cos(m.yaw));
+      this.ui.toast(`${d.name} inhales deeply — dodge the breath!`, 'warn');
+      m.state = 'attack'; m.actT = m.actDur = 1.8;
+      const zones = [[4.5, 3], [8.5, 3.8], [12.5, 4.6]].map(([dist, r]) => { const c = m.pos.clone().addScaledVector(dir, dist); c.y = gy(c.x, c.z); return [c, r]; });
+      zones.forEach(([c, r]) => this.fx.telegraph(c, r, 1.6));
+      this.after(1.6, () => {
+        if (m.dead) return;
+        for (let i = 0; i < 14; i++) this.after(i * 0.04, () => {
+          const c = m.pos.clone().addScaledVector(dir, 2 + i); c.y = gy(c.x, c.z) + 1.4;
+          this.fx.emit(c, { count: 8, colors: [0xb07aff, 0x6af0d0, 0xffffff], speed: 4, life: 0.6, size: 1.2, up: 1 });
+        });
+        this.sfx.play('boom');
+        const hit = new Set();
+        for (const [c, r] of zones) for (const e of this.bossTargets(m)) if (!hit.has(e) && flat(e.pos, c) < r) { hit.add(e); this.damage(m, e, 2.6, { canCrit: false }); }
+      });
+    } else if (sk === 'summon') {
+      this.ui.toast(`${d.name} calls for help!`, 'warn');
+      m.state = 'cast'; m.actT = m.actDur = 1.2;
+      const n = enraged ? 3 : 2;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.random();
+        let x = m.pos.x + Math.cos(a) * 5, z = m.pos.z + Math.sin(a) * 5;
+        [x, z] = W.nearestFree(x, z);
+        const add = this.createMonster({ type: d.summon, x, z, r: 2 }, { map: W, dungeon: true, room: m.room, summoned: true, exact: true });
+        add.target = t; this.fx.spawnPuff(add.pos, 0xc07aff); this.fx.circle(add.pos, '#c07aff', 1.6, 0.8);
+      }
     }
+  }
+
+  // ============================================================== dungeons
+  dungeonGo() {
+    const dg = this.dg; if (!dg) return;
+    const P = this.dungeonProgress(), rooms = dg.map.rooms;
+    if (P.done) { const t = dg.opened ? dg.exitEnt.pos : dg.chestEnt.pos; this.engage = false; this.pathTo(t.x, t.z, true); return; }
+    const room = rooms[P.cur];
+    if (this.nearestEnemy(30)) { this.autoPref = null; this.auto = false; this.toggleAuto(true); this.autoAnchor = new THREE.Vector3(room.x, 0, room.z); return; }
+    this.pathTo(room.x, room.z, true);
+    this.arriveAuto = { type: null, x: room.x, z: room.z };
+  }
+  dungeonEntries(def) {
+    const D = this.S.dgn;
+    if (D.date !== today()) { D.date = today(); D.used = {}; }
+    return Math.max(0, def.entries - (D.used[def.id] || 0));
+  }
+  enterDungeon(id) {
+    const def = DUNGEONS.find((d) => d.id === id), S = this.S, p = this.player;
+    if (!def || this.dg || p.dead) return false;
+    if (S.level < def.lv - 2) { this.ui.toast(`Requires Lv ${def.lv - 2}`, 'warn'); this.sfx.play('error'); return false; }
+    if (this.dungeonEntries(def) > 0) S.dgn.used[def.id] = (S.dgn.used[def.id] || 0) + 1;
+    else if (this.countItem('dungeon_ticket') > 0) this.removeItem('dungeon_ticket', 1);
+    else if (S.diamonds >= 30) { S.diamonds -= 30; this.ui.refreshWallet(); }
+    else { this.ui.toast('No entries left today. Use a Dungeon Ticket or 30 Diamonds.', 'warn'); this.sfx.play('error'); return false; }
+    this.ui.closeDialog(); this.ui.closePanels();
+    this.auto = false; this.ui.setAutoBattle(false); this.engage = false; this.setTarget(null);
+    p.path = []; this.pendingTalk = null; this.pendingPortal = null; this.pendingSkill = null;
+    if (this.casting) { this.casting = null; this.ui.cancelCast(); }
+    if (this.mounted) this.dismount(true);
+    for (const m of this.monsters) if (m.target === p) { m.target = null; m.returning = true; }
+    this.sfx.play('cast');
+    this.ui.fade(() => this.switchToDungeon(def));
+    return true;
+  }
+  switchToDungeon(def) {
+    const p = this.player;
+    const dung = new Dungeon(this.scene, def); dung.build();
+    const gate = (this.world.gates || []).find((g) => g.def.id === def.id);
+    this.overworldReturn = gate ? { x: gate.front.x, z: gate.front.z, yaw: gate.yaw } : { x: 0, z: 9 };
+    this.dg = { def, map: dung, startT: this.time, deaths: 0, cleared: new Set(), bossSpawned: false, boss: null, done: false, opened: false };
+    this.world.root.visible = false;
+    this.applyAmbience(dung.ambience);
+    this.map = dung; p.map = dung;
+    p.pos.set(dung.start.x, dung.heightAt(dung.start.x, dung.start.z), dung.start.z);
+    p.yaw = p.yawT = dung.start.yaw; this.cam.yaw = 0; this.cam.target.copy(p.pos);
+    if (this.pet) { this.pet.map = dung; this.pet.pos.set(p.pos.x - 1.2, p.pos.y, p.pos.z + 1.2); }
+    dung.rooms.forEach((room, i) => {
+      const list = [];
+      for (const [type, n] of room.def.spawns || []) for (let k = 0; k < n; k++) list.push(type);
+      const pts = room.spawnPoints(list.length);
+      list.forEach((type, k) => {
+        const pt = pts[k] || { x: room.x, z: room.z };
+        this.createMonster({ type, x: pt.x, z: pt.z, r: 3 }, { map: dung, dungeon: true, room: i, exact: true });
+      });
+    });
+    this.zone = dung.zone; this.ui.setZone(dung.zone);
+    this.ui.banner(def.name, `Dungeon · Lv ${def.lv}+`, 'zone');
+    this.ui.chat('system', `You entered <b>${esc(def.name)}</b>. Clear each chamber to break the seal ahead. Par time ${Math.round((PAR_TIME[def.id] || 300) / 60)} min for an S rating.`);
+    this.ui.enterDungeon();
+  }
+  applyAmbience(a) {
+    const L = this.lights, sc = this.scene;
+    if (!this.amb0) this.amb0 = { bg: sc.background, fog: [sc.fog.near, sc.fog.far, sc.fog.color.getHex()], hemi: [L.hemi.color.getHex(), L.hemi.groundColor.getHex(), L.hemi.intensity], ambient: L.ambient.intensity, sun: [this.sun.color.getHex(), this.sun.intensity] };
+    const o = this.amb0;
+    if (!a) {
+      sc.background = o.bg; sc.fog.near = o.fog[0]; sc.fog.far = o.fog[1]; sc.fog.color.setHex(o.fog[2]);
+      L.hemi.color.setHex(o.hemi[0]); L.hemi.groundColor.setHex(o.hemi[1]); L.hemi.intensity = o.hemi[2];
+      L.ambient.intensity = o.ambient; this.sun.color.setHex(o.sun[0]); this.sun.intensity = o.sun[1];
+      return;
+    }
+    sc.background = new THREE.Color(a.background);
+    sc.fog.near = a.fog[0]; sc.fog.far = a.fog[1]; sc.fog.color.setHex(a.fog[2]);
+    L.hemi.color.setHex(a.hemi[0]); L.hemi.groundColor.setHex(a.hemi[1]); L.hemi.intensity = a.hemi[2];
+    L.ambient.intensity = a.ambient; this.sun.color.setHex(a.sun[0]); this.sun.intensity = a.sun[1];
+  }
+  dungeonProgress() {
+    const dg = this.dg; if (!dg) return null;
+    const rooms = dg.map.rooms, p = this.player;
+    const cur = dg.done ? rooms.length - 1 : Math.min(rooms.length - 1, dg.cleared.size);
+    const inRoom = this.monsters.filter((m) => m.dungeon && m.room === cur && !m.summoned);
+    return { cur, total: rooms.length, alive: inRoom.filter((m) => !m.dead).length, count: inRoom.length, time: (dg.done ? dg.time : this.time - dg.startT), boss: dg.boss, done: dg.done, opened: dg.opened, rating: dg.rating, here: dg.map.roomAt(p.pos.x, p.pos.z) };
+  }
+  updateDungeon(dt) {
+    const dg = this.dg; if (!dg) return;
+    const map = dg.map, p = this.player, rooms = map.rooms, last = rooms.length - 1;
+    map.update(dt, this.time);
+    for (let i = 0; i < last; i++) {
+      if (dg.cleared.has(i)) continue;
+      if (this.monsters.some((m) => m.dungeon && m.room === i && !m.dead)) break;
+      dg.cleared.add(i); map.openBarrier(i);
+      this.ui.toast(i + 1 < last ? `Chamber ${i + 1} cleared — the seal fades!` : 'The way to the boss is open!', 'good'); this.sfx.play('door');
+    }
+    if (!dg.bossSpawned && dg.cleared.size >= last && map.roomAt(p.pos.x, p.pos.z) === last) {
+      dg.bossSpawned = true;
+      const room = rooms[last], type = room.def.boss;
+      const b = this.createMonster({ type, x: room.x, z: room.z - room.d * 0.18, r: 1 }, { map, dungeon: true, room: last, exact: true });
+      b.yaw = b.yawT = 0; b.skillT = 5; dg.boss = b;
+      this.fx.pillar(b.pos, 0xc07aff, 4, 16, 1.4); this.fx.spawnPuff(b.pos, 0xc07aff); this.fx.shake(0.6); this.sfx.play('boom');
+      this.ui.banner(MONSTERS[type].name, 'Boss Battle', 'boss');
+    }
+    if (dg.exit && dg.exit.userData.update) dg.exit.userData.update(this.time);
+    if (dg.chest && !dg.opened && flat(p.pos, dg.chestEnt.pos) < 3) this.openChest();
+    if (dg.exit && flat(p.pos, dg.exitEnt.pos) < 2.6 && !p.dead) {
+      if (!dg.opened) { if (this.time - (dg.nagT || -9) > 4) { dg.nagT = this.time; this.ui.toast('Open the treasure chest first!', 'warn'); } }
+      else this.leaveDungeon();
+    }
+  }
+  completeDungeon() {
+    const dg = this.dg, def = dg.def, S = this.S, map = dg.map;
+    if (dg.done) return;
+    dg.done = true; dg.time = this.time - dg.startT;
+    const par = PAR_TIME[def.id] || 300;
+    dg.rating = dg.deaths === 0 && dg.time <= par ? 'S' : dg.deaths <= 1 && dg.time <= par * 1.6 ? 'A' : 'B';
+    const order = { S: 3, A: 2, B: 1 };
+    if (!S.dgn.best[def.id] || order[dg.rating] > order[S.dgn.best[def.id]]) S.dgn.best[def.id] = dg.rating;
+    dg.firstClear = !S.dgn.clears[def.id];
+    S.dgn.clears[def.id] = (S.dgn.clears[def.id] || 0) + 1;
+    for (const m of [...this.monsters]) if (m.dungeon && m.summoned && !m.dead) { m.tagged = false; this.killMonster(m); }
+    const chest = map.buildChest(); chest.position.set(map.chestPos.x, map.heightAt(map.chestPos.x, map.chestPos.z), map.chestPos.z); map.root.add(chest);
+    const exit = map.buildExitPortal(); exit.position.set(map.exitPos.x, map.heightAt(map.exitPos.x, map.exitPos.z), map.exitPos.z); map.root.add(exit);
+    dg.chest = chest; dg.exit = exit;
+    dg.chestEnt = { kind: 'chest', pos: chest.position, height: 1.6, radius: 1.4, model: chest, dead: false, map };
+    dg.exitEnt = { kind: 'exit', pos: exit.position, height: 3, radius: 1.6, model: exit, dead: false, map };
+    this.fx.pillar(chest.position, 0xffd84a, 2, 12, 1.4); this.fx.spawnPuff(chest.position, 0xffe07a);
+    this.after(1.2, () => { this.ui.banner('DUNGEON CLEARED', `Rating ${dg.rating} · ${Math.floor(dg.time / 60)}:${String(Math.floor(dg.time % 60)).padStart(2, '0')}`, 'clear'); this.sfx.play('level'); });
+    this.ui.chat('system', `<b>${esc(def.name)}</b> cleared in ${Math.floor(dg.time / 60)}m ${Math.floor(dg.time % 60)}s · Rating <b>${dg.rating}</b>${dg.firstClear ? ' · First clear bonus!' : ''}`);
+    this.save();
+  }
+  openChest() {
+    const dg = this.dg; if (!dg || dg.opened) return;
+    dg.opened = true;
+    const S = this.S, lid = dg.chest.userData.lid;
+    if (lid) this.fx.add(null, 0.7, (k) => { lid.rotation.x = -1.9 * (1 - k); });
+    this.sfx.play('chest');
+    this.fx.emit(dg.chest.position.clone().setY(dg.chest.position.y + 1), { count: 90, colors: [0xffe07a, 0xffffff, 0xffb84a], speed: 5, life: 1.4, size: 0.7, up: 5, gravity: -6 });
+    const bossType = dg.boss ? dg.boss.type : dg.def.rooms[dg.def.rooms.length - 1].boss;
+    const lvl = MONSTERS[bossType].lvl[0];
+    const named = namedBySource(bossType);
+    const n = { S: 4, A: 3, B: 2 }[dg.rating];
+    const luck = { S: 0.35, A: 0.18, B: 0 }[dg.rating];
+    const items = [];
+    for (let i = 0; i < n; i++) {
+      let q = rollRarity({ boss: true, dungeon: true, luck });
+      if (i === 0) q = Math.max(q, 3);
+      if (i === 0 && dg.firstClear) q = Math.max(q, 4);
+      const nd = q >= 4 && named.length && Math.random() < 0.5 ? pick(named) : null;
+      items.push(nd ? genNamed(nd.id, { lvl, cls: S.cls, uid: S.uid++ }) : this.makeEquip(null, lvl, q));
+    }
+    const gold = Math.round(150 * dg.def.lv * ({ S: 1.6, A: 1.25, B: 1 }[dg.rating]));
+    const diamonds = { S: 25, A: 15, B: 10 }[dg.rating];
+    const exp = Math.round(needExp(S.level) * ({ S: 0.25, A: 0.18, B: 0.12 }[dg.rating]));
+    S.gold += gold; S.diamonds += diamonds;
+    let ticket = false;
+    if (Math.random() < (dg.rating === 'S' ? 0.35 : 0.15)) { this.addItem('dungeon_ticket', 1); ticket = true; }
+    for (const eq of items) {
+      if (!this.addEquip(eq)) this.dropLoot({ eq }, dg.chest.position);
+      else if (eq.quality >= 4) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} looted <span class="it" style="color:${RARITY[eq.quality].color}">[${esc(eq.name)}]</span> from ${esc(dg.def.name)}!`);
+    }
+    this.gainExp(exp); this.ui.refreshWallet(); this.save();
+    this.after(0.6, () => this.ui.lootPopup(items, { gold, diamonds, exp, rating: dg.rating, ticket, title: dg.def.name }));
+    if (items.some((x) => x.quality >= 5)) { this.sfx.play('legend'); this.fx.shake(0.5); }
+  }
+  leaveDungeon() {
+    const dg = this.dg; if (!dg || dg.leaving) return;
+    dg.leaving = true;
+    for (const L of [...this.loots]) if (L.map === dg.map) this.pickupLoot(L, true);
+    this.ui.fade(() => {
+      const p = this.player;
+      for (const m of [...this.monsters]) if (m.dungeon) this.removeEnt(m);
+      for (const L of [...this.loots]) if (L.map === dg.map) this.removeLoot(L);
+      dg.map.dispose();
+      this.dg = null; this.map = this.world; p.map = this.world;
+      if (this.pet) this.pet.map = this.world;
+      this.world.root.visible = true; this.applyAmbience(null);
+      const r = this.overworldReturn || { x: 0, z: 9 };
+      p.pos.set(r.x, this.world.heightAt(r.x, r.z), r.z); this.cam.target.copy(p.pos);
+      if (r.yaw !== undefined) { this.cam.yaw = r.yaw; p.yaw = p.yawT = r.yaw; }
+      if (this.pet) this.pet.pos.set(r.x - 1.2, p.pos.y, r.z + 1.2);
+      if (p.dead) { p.dead = false; p.state = 'idle'; p.hp = p.maxHp; }
+      this.setTarget(null); this.auto = false; this.ui.setAutoBattle(false); p.path = [];
+      this.zone = null; this.ui.leaveDungeon(); this.save();
+    });
   }
 
   updateBot(b, dt) {
@@ -1587,7 +2034,7 @@ export class Game {
         if (riding) animateCreature(e.inner, e.moving ? 'run' : 'idle', t, 0, e.moving);
       } else {
         animateCreature(e.inner, e.state, t, e.state === 'dead' ? Math.min(1, e.deadT || 0) : a, e.moving);
-        if (e.hitT > 0) { const s = 1 + e.hitT * 0.6; e.inner.scale.set(s, 1 / s, s); } else if (e.kind === 'monster') e.inner.scale.setScalar(1);
+        const bs = e.baseScale || 1; if (e.hitT > 0) { const s = 1 + e.hitT * 0.6; e.inner.scale.set(bs * s, bs / s, bs * s); } else if (e.kind === 'monster') e.inner.scale.setScalar(bs);
       }
     }
     if (!this.S.settings.others) return;
@@ -1600,7 +2047,7 @@ export class Game {
     c.target.lerp(tgt, 1 - Math.exp(-dt * 10));
     const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
     const pos = new THREE.Vector3(c.target.x + Math.sin(c.yaw) * cp * c.dist, c.target.y + sp * c.dist, c.target.z + Math.cos(c.yaw) * cp * c.dist);
-    const gh = this.world.heightAt(pos.x, pos.z) + 1.2;
+    const gh = this.map.heightAt(pos.x, pos.z) + 1.2;
     if (pos.y < gh) pos.y = gh;
     if (this.fx.shakeAmt > 0) pos.add(new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(this.fx.shakeAmt * 0.6));
     this.camera.position.copy(pos);
@@ -1613,13 +2060,15 @@ export class Game {
   updatePlates() {
     const w = this.renderer.domElement.clientWidth, h = this.renderer.domElement.clientHeight;
     const v = new THREE.Vector3();
-    for (const e of this.ents) {
+    const range = { npc: 80, portal: 90, loot: 40 };
+    for (const e of [...this.ents, ...this.loots, ...this.portals]) {
       if (!e.np) continue;
-      let show = e.model.visible && !(e.kind === 'monster' && e.dead) && !(e.kind === 'bot' && !this.S.settings.others);
+      let show = !(e.kind === 'monster' && e.dead) && !(e.kind === 'bot' && !this.S.settings.others) && (!e.map || e.map === this.map) && !(e.kind === 'portal' && this.dg);
+      if (show && e.kind !== 'portal') show = e.model.visible;
       if (show) {
-        v.copy(e.pos); v.y += e.height + (e.kind === 'npc' && e.data.look === 'brom' ? 0.25 : 0.25);
+        v.copy(e.pos); v.y += e.npY ?? (e.height + 0.25);
         const dist = v.distanceTo(this.camera.position);
-        if (dist > (e.kind === 'npc' ? 80 : e.kind === 'monster' && e.def0.boss ? 120 : 55)) show = false;
+        if (dist > (range[e.kind] || (e.kind === 'monster' && e.def0.boss ? 120 : 55))) show = false;
         else {
           v.project(this.camera);
           if (v.z > 1 || v.x < -1.2 || v.x > 1.2 || v.y < -1.2 || v.y > 1.2) show = false;
@@ -1647,7 +2096,7 @@ export class Game {
     const S = this.S, p = this.player;
     S.gift.t += dt;
     // zone
-    const z = this.world.zoneAt(p.pos.x, p.pos.z, ZONES) || { name: 'Wilds of Carlyle', lv: '', x: 0, z: 0 };
+    const z = this.map.isDungeon ? this.map.zone : (this.world.zoneAt(p.pos.x, p.pos.z, ZONES) || { name: 'Wilds of Carlyle', lv: '', x: 0, z: 0 });
     if (!this.zone || z.name !== this.zone.name) {
       const first = !this.zone; this.zone = z; this.ui.setZone(z);
       if (!first) { this.ui.banner(z.name, z.lv ? `Carlyle · ${z.lv}` : 'Carlyle', 'zone'); }
@@ -1674,7 +2123,8 @@ export class Game {
 
   save() {
     const S = this.S, p = this.player;
-    if (p && !p.dead) S.pos = { x: Math.round(p.pos.x * 10) / 10, z: Math.round(p.pos.z * 10) / 10 };
+    if (this.dg) { const r = this.overworldReturn || { x: 0, z: 9 }; S.pos = { x: r.x, z: r.z }; }
+    else if (p && !p.dead) S.pos = { x: Math.round(p.pos.x * 10) / 10, z: Math.round(p.pos.z * 10) / 10 };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch { /* storage unavailable */ }
   }
 }

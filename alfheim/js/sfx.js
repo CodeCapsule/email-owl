@@ -43,6 +43,11 @@ export class Sfx {
       case 'heal': [660, 880, 1100].forEach((f, i) => this.tone(f, 0.3, { type: 'sine', vol: 0.1, delay: i * 0.06 })); break;
       case 'mount': this.tone(400, 0.3, { type: 'triangle', vol: 0.12, slide: 400 }); break;
       case 'error': this.tone(200, 0.15, { type: 'square', vol: 0.06 }); break;
+      case 'pickup': this.tone(990, 0.06, { type: 'triangle', vol: 0.1 }); this.tone(1320, 0.08, { type: 'triangle', vol: 0.08, delay: 0.05 }); break;
+      case 'rare': [880, 1175, 1568].forEach((f, i) => this.tone(f, 0.22, { type: 'triangle', vol: 0.1, delay: i * 0.06 })); break;
+      case 'legend': [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.5, { type: 'triangle', vol: 0.16, delay: i * 0.09 })); this.tone(262, 1.2, { type: 'sine', vol: 0.12, attack: 0.05 }); break;
+      case 'door': this.tone(300, 0.6, { type: 'sine', vol: 0.15, slide: 600 }); this.noise(0.5, { vol: 0.08, hp: 2000 }); break;
+      case 'chest': this.noise(0.2, { vol: 0.12, hp: 600 }); [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.3, { type: 'triangle', vol: 0.12, delay: 0.15 + i * 0.07 })); break;
       case 'open': this.tone(700, 0.08, { type: 'triangle', vol: 0.1 }); this.tone(1050, 0.1, { type: 'triangle', vol: 0.08, delay: 0.05 }); break;
     }
   }

@@ -13,7 +13,7 @@
   --panel: rgba(14, 22, 50, 0.93); --panel-2: rgba(30, 46, 92, 0.94); --panel-edge: #0a0f22;
   --ink: #fff6e0; --muted: #b6c2dc; --dim: #7d8aa8;
   --hp: #ff4a5a; --mp: #3aa0ff; --exp: #b8ec4a; --cyan: #6fe0ff; --green: #6cf06a; --red: #ff5a4a;
-  --q0: #e8e8e8; --q1: #5ee05a; --q2: #4aa8ff; --q3: #c46bff; --q4: #ff9a2e;
+  --q0: #e8e8e8; --q1: #5ee05a; --q2: #4aa8ff; --q3: #c46bff; --q4: #ff9a2e; --q5: #ffd84a;
   --f-logo: 'Cinzel Decorative', 'Cinzel', Georgia, serif;
   --f-title: 'Cinzel', Georgia, serif;
   --f-ui: 'Nunito', 'Trebuchet MS', system-ui, sans-serif;
@@ -212,7 +212,6 @@ button { font-family: inherit; }
 .act .al { font-size: 10px; margin-top: 2px; white-space: nowrap; }
 .act.glow .ai { animation: actglow 1.4s infinite; }
 @keyframes actglow { 0%, 100% { box-shadow: 0 0 0 2px #3a2008, 0 0 4px 2px rgba(255, 220, 100, .4); } 50% { box-shadow: 0 0 0 2px #3a2008, 0 0 14px 6px rgba(255, 220, 100, .9); } }
-.act .badge { position: absolute; top: -2px; right: 4px; min-width: 16px; height: 16px; border-radius: 8px; background: #ff3a3a; border: 1px solid #fff; font-size: 10px; line-height: 14px; text-align: center; padding: 0 3px; }
 
 #hud-quest { position: absolute; top: 228px; right: 10px; width: 250px; border-radius: 8px; background: linear-gradient(90deg, rgba(8, 12, 28, 0), rgba(8, 12, 28, .78) 18%); padding: 4px 6px 8px 22px; }
 .qt-head { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; }
@@ -278,7 +277,6 @@ button { font-family: inherit; }
   background: linear-gradient(180deg, #2a3a6a, #121a3a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), 0 3px 8px rgba(0, 0, 0, .5); display: grid; place-items: center; }
 .mbtn:hover { border-color: var(--gold); filter: brightness(1.2); }
 .mbtn .k { position: absolute; bottom: 0; right: 3px; font-size: 9px; font-family: var(--f-num); font-weight: 400; color: var(--gold-l); }
-.mbtn .dotn { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; background: #ff3a3a; border: 1px solid #fff; }
 
 #hud-cast { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: 260px; }
 #hud-cast .bar { width: 260px; height: 14px; }
@@ -302,7 +300,7 @@ button { font-family: inherit; }
 .panel { position: absolute; pointer-events: auto; padding: 44px 16px 16px; max-height: calc(100% - 40px); display: flex; flex-direction: column; }
 .panel .ptitle { position: absolute; top: 0; left: 0; right: 0; height: 38px; display: flex; align-items: center; justify-content: center; font-family: var(--f-title); font-size: 18px; color: var(--gold-l); letter-spacing: .1em; cursor: move;
   background: linear-gradient(180deg, rgba(120, 80, 20, .55), rgba(60, 40, 10, .2)); border-bottom: 1px solid rgba(243, 199, 91, .4); border-radius: 8px 8px 0 0; text-shadow: 0 2px 0 #3a2008; }
-.panel .ptitle::before, .panel .ptitle::after { content: '❖'; color: var(--gold); margin: 0 10px; font-size: 12px; }
+.panel .ptitle::before, .panel .ptitle::after { content: ''; width: 8px; height: 8px; margin: 0 12px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 6px rgba(243, 199, 91, .8); }
 .pbody { overflow-y: auto; min-height: 0; scrollbar-width: thin; }
 .tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
 .tabs button { border: 1px solid rgba(243, 199, 91, .4); background: rgba(255, 255, 255, .06); color: var(--muted); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-weight: 900; font-size: 13px; }
@@ -315,7 +313,9 @@ button { font-family: inherit; }
 .cell.q1 { border-color: var(--q1); box-shadow: inset 0 0 10px rgba(94, 224, 90, .35); }
 .cell.q2 { border-color: var(--q2); box-shadow: inset 0 0 10px rgba(74, 168, 255, .4); }
 .cell.q3 { border-color: var(--q3); box-shadow: inset 0 0 12px rgba(196, 107, 255, .5); }
-.cell.q4 { border-color: var(--q4); box-shadow: inset 0 0 14px rgba(255, 154, 46, .6); }
+.cell.q4 { border-color: var(--q4); box-shadow: inset 0 0 14px rgba(255, 154, 46, .6), 0 0 8px rgba(255, 154, 46, .45); }
+.cell.q5 { border-color: var(--q5); box-shadow: inset 0 0 16px rgba(255, 216, 74, .7), 0 0 12px rgba(255, 216, 74, .7); animation: legendGlow 1.6s ease-in-out infinite; }
+@keyframes legendGlow { 50% { box-shadow: inset 0 0 22px rgba(255, 236, 140, .95), 0 0 20px rgba(255, 216, 74, .95); } }
 .cell.empty { cursor: default; opacity: .65; }
 .cell img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
 .char-wrap { display: grid; grid-template-columns: 56px 190px 56px 1fr; gap: 10px; align-items: start; }
@@ -356,7 +356,8 @@ button { font-family: inherit; }
 .sday { border-radius: 8px; padding: 6px 4px; text-align: center; font-size: 11px; background: rgba(255, 255, 255, .06); border: 2px solid rgba(255, 255, 255, .12); position: relative; }
 .sday .si { font-size: 24px; margin: 4px 0; }
 .sday.today { border-color: var(--gold); box-shadow: 0 0 12px rgba(243, 199, 91, .6); }
-.sday.claimed::after { content: '✔'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; color: #7aff7a; background: rgba(0, 0, 0, .55); border-radius: 6px; }
+.sday.claimed::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, .55); border-radius: 6px; }
+.sday.claimed::before { content: ''; position: absolute; left: 50%; top: 46%; width: 12px; height: 24px; border: solid #7aff7a; border-width: 0 5px 5px 0; transform: translate(-50%, -50%) rotate(45deg); z-index: 2; }
 .rank-row { display: grid; grid-template-columns: 40px 1fr 90px 90px; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; align-items: center; }
 .rank-row:nth-child(odd) { background: rgba(255, 255, 255, .04); }
 .rank-row.me { background: rgba(122, 255, 122, .15); border: 1px solid rgba(122, 255, 122, .5); }
@@ -393,6 +394,77 @@ button { font-family: inherit; }
 #tooltip { position: absolute; z-index: 30; pointer-events: none; max-width: 260px; padding: 10px 12px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 #tooltip b { font-size: 14px; display: block; }
 #tooltip .ts { color: #7aff7a; }
+
+/* ---------- icons (SVG images, identical on every device) ---------- */
+.ico { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; -webkit-user-drag: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .55)); }
+.ico.inl { display: inline-block; width: 18px; height: 18px; vertical-align: -4px; margin-right: 4px; filter: none; }
+.slot .ic { position: absolute; inset: 4px; display: block; }
+.slot.potion .ico, .cell .ico, .row .ic .ico, .mall-item .mi .ico { width: 82%; height: 82%; }
+.mbtn .ico { width: 76%; height: 76%; }
+.act .ai .ico { width: 72%; height: 72%; }
+.rbtn .ico { width: 72%; height: 72%; }
+.buff .ico { width: 94%; height: 94%; }
+.cell .ghost { display: block; width: 84%; height: 84%; opacity: .28; filter: grayscale(.6); }
+.cell .ghost .ico { width: 100%; height: 100%; }
+.sday .si .ico { width: 40px; height: 40px; margin: 0 auto; }
+.class-card .ci .ico { width: 80%; height: 80%; }
+.dice .ico { width: 26px; height: 26px; margin: auto; }
+.big-rbtn .ico { width: 30px; height: 30px; }
+.big-rbtn .ico.mnt { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; filter: none; margin-top: -4px; }
+#hud-autobattle .ico.inl { width: 24px; height: 24px; vertical-align: -6px; }
+.x-close { font-size: 0; }
+.x-close::before, .x-close::after { content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 3px; background: #fff; border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); box-shadow: 0 1px 0 rgba(0, 0, 0, .4); }
+.x-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
+#dialog .dq::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 8px; background: #ffb04a; transform: rotate(45deg); vertical-align: 1px; }
+.act .badge, .mbtn .dotn { position: absolute; width: 22px; height: 22px; border: 0; background: none; padding: 0; animation: sparkle 1.3s ease-in-out infinite; pointer-events: none; }
+.act .badge { top: -6px; right: 0; }
+.mbtn .dotn { top: -9px; right: -9px; }
+@keyframes sparkle { 0%, 100% { transform: scale(.85) rotate(0deg); } 50% { transform: scale(1.15) rotate(20deg); } }
+.rw { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 12px; background: rgba(255, 255, 255, .08); color: var(--ink); font-size: 12px; }
+
+/* ---------- loot ---------- */
+.np.loot .n { font-size: 12px; }
+#banner.loot4 .b1 { background: linear-gradient(180deg, #fff3d8, #ffb35a 50%, #e0601a); -webkit-background-clip: text; background-clip: text; }
+#banner.loot5 .b1 { background: linear-gradient(180deg, #ffffff, #fff08a 40%, #ffc020 70%, #ff8a10); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 0 14px rgba(255, 216, 74, .9)); }
+#banner.boss .b1 { background: linear-gradient(180deg, #ffe0f0, #ff6aa8 50%, #a02a6a); -webkit-background-clip: text; background-clip: text; -webkit-text-stroke: 2px #3a0a20; }
+#banner.clear .b1 { background: linear-gradient(180deg, #ffffff, #bfffd0 45%, #3ad07a); -webkit-background-clip: text; background-clip: text; -webkit-text-stroke: 2px #0a3a1a; }
+#modal .frame.loot-pop { max-width: 640px; }
+.lcards { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 10px 0 14px; perspective: 600px; }
+.lcard { width: 122px; padding: 10px 8px; border-radius: 10px; border: 2px solid var(--q0); background: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(0, 0, 0, .3)); animation: cardIn .55s both cubic-bezier(.2, 1.4, .4, 1); }
+.lcard.q1 { border-color: var(--q1); } .lcard.q2 { border-color: var(--q2); } .lcard.q3 { border-color: var(--q3); box-shadow: 0 0 10px rgba(196, 107, 255, .5); }
+.lcard.q4 { border-color: var(--q4); box-shadow: 0 0 14px rgba(255, 154, 46, .7); }
+.lcard.q5 { border-color: var(--q5); box-shadow: 0 0 18px rgba(255, 216, 74, .9); }
+.lc-ic { width: 64px; height: 64px; margin: 0 auto 6px; }
+.lc-n { font-size: 13px; line-height: 1.25; }
+.lc-r { font-size: 11px; color: var(--muted); margin-top: 3px; }
+@keyframes cardIn { from { transform: rotateY(90deg) scale(.6); opacity: 0; } }
+.rating { font-family: var(--f-logo); font-weight: 900; font-size: 64px; line-height: 1; margin-bottom: 4px; -webkit-text-stroke: 2px #3a2008; paint-order: stroke fill; }
+.rating.rS { color: #ffd84a; text-shadow: 0 0 18px rgba(255, 216, 74, .9); }
+.rating.rA { color: #9ad8ff; text-shadow: 0 0 14px rgba(120, 200, 255, .8); }
+.rating.rB { color: #e8a060; }
+.lp-rw { justify-content: center; display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+#fade { position: absolute; inset: 0; background: #05060c; opacity: 0; pointer-events: none; z-index: 45; transition: opacity .35s; }
+#fade.on { opacity: 1; pointer-events: auto; }
+
+/* ---------- dungeons ---------- */
+.dg-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.dg-tab { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 8px; border: 2px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: var(--ink); cursor: pointer; text-align: left; min-width: 0; }
+.dg-tab img { width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle at 40% 30%, #6a4a8a, #1a1030); flex: none; }
+.dg-tab b { display: block; font-size: 13px; }
+.dg-tab small { color: var(--muted); font-size: 11px; }
+.dg-tab.sel { border-color: var(--gold); box-shadow: 0 0 10px rgba(243, 199, 91, .45); }
+.dg-tab.locked { opacity: .55; }
+.dg-hero { display: flex; gap: 14px; align-items: center; }
+.dg-hero img { width: 110px; height: 110px; border-radius: 12px; background: radial-gradient(circle at 50% 40%, #6a3a9a, #140a28); border: 2px solid #8a5ac8; flex: none; }
+.dg-name { font-family: var(--f-title); font-size: 22px; color: var(--gold-l); }
+.dg-sub { color: #ff9ad0; font-size: 13px; }
+.dg-hero p { font-size: 13px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+.dg-stats { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 13px; margin: 12px 0; }
+.dg-stats span:nth-child(odd) { color: var(--muted); }
+.dg-loot { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.dg-note { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.qtag.dungeon { background: #8a3ac8; }
+.dg-meta { display: flex; gap: 10px; font-size: 11px; color: var(--muted); margin-top: 2px; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
@@ -440,6 +512,10 @@ button { font-family: inherit; }
   .signin { grid-template-columns: repeat(4, 1fr); }
   .rank-row { grid-template-columns: 30px 1fr 70px; }
   .rank-row .cls { display: none; }
+  .dg-tabs { grid-template-columns: 1fr; }
+  .dg-hero img { width: 76px; height: 76px; }
+  .dg-stats { grid-template-columns: 96px 1fr; }
+  .lcard { width: 100px; }
   #scr-create { grid-template-rows: auto minmax(200px, 1fr) auto auto; padding-top: 48px; gap: 10px; }
   .create-title { font-size: 20px; top: 12px; }
   .class-info p, .rating { display: none; }
@@ -481,10 +557,10 @@ button { font-family: inherit; }
     <div></div>
     <div class="class-info frame" id="class-info"></div>
     <div class="create-bottom frame">
-      <div><div class="lbl">Gender</div><div class="seg" id="gender-seg"><button data-g="f" class="sel">♀ Female</button><button data-g="m">♂ Male</button></div></div>
+      <div><div class="lbl">Gender</div><div class="seg" id="gender-seg"><button data-g="f" class="sel">Female</button><button data-g="m">Male</button></div></div>
       <div><div class="lbl">Hair</div><div class="swatches" id="hair-sw"></div></div>
       <div><div class="lbl">Eyes</div><div class="swatches" id="eye-sw"></div></div>
-      <div><div class="lbl"><label for="name-in">Name</label></div><div class="name-field"><input id="name-in" maxlength="14" autocomplete="off"><button class="dice" id="dice" title="Random name" aria-label="Random name">🎲</button></div></div>
+      <div><div class="lbl"><label for="name-in">Name</label></div><div class="name-field"><input id="name-in" maxlength="14" autocomplete="off"><button class="dice" id="dice" title="Random name" aria-label="Random name"></button></div></div>
       <button class="btn big" id="btn-create">Create</button>
     </div>
   </section>
@@ -514,22 +590,22 @@ button { font-family: inherit; }
       <div><div class="tn stroke" id="tg-name"></div><div class="bar hp"><i id="tg-hp"></i><span id="tg-hp-t"></span></div></div>
     </div>
     <div id="hud-autopath" class="stroke" hidden>Auto-pathing…</div>
-    <div id="hud-autobattle" class="stroke" hidden>⚔ Auto Battle ⚔</div>
+    <div id="hud-autobattle" class="stroke" hidden>Auto Battle</div>
 
     <div id="hud-acts"></div>
     <div id="hud-map">
       <div class="zone-name stroke" id="zone-name">Sylvan Haven</div>
       <div class="minimap" id="minimap" title="World Map (M)"><canvas id="mm" width="150" height="150"></canvas><span class="compass stroke">N</span></div>
       <div class="map-meta stroke"><span id="coords">0, 0</span><span>Line 1</span></div>
-      <div class="map-btns"><button class="rbtn" id="btn-wmap" title="World Map (M)" aria-label="World map">🗺</button><button class="rbtn" id="btn-sound" title="Sound" aria-label="Toggle sound">🔊</button></div>
+      <div class="map-btns"><button class="rbtn" id="btn-wmap" title="World Map (M)" aria-label="World map"></button><button class="rbtn" id="btn-sound" title="Sound" aria-label="Toggle sound"></button></div>
     </div>
 
     <div id="hud-quest">
-      <div class="qt-head"><button class="sel">Quests</button><button id="qt-team">Team</button><button class="tog" id="qt-tog" aria-label="Collapse quest tracker">▾</button></div>
+      <div class="qt-head"><button class="sel">Quests</button><button id="qt-team">Team</button><button class="tog" id="qt-tog" aria-label="Collapse quest tracker">−</button></div>
       <div id="qt-list"></div>
     </div>
 
-    <button class="rbtn" id="chat-toggle" aria-label="Chat">💬</button>
+    <button class="rbtn" id="chat-toggle" aria-label="Chat"></button>
     <div id="hud-chat">
       <div class="chat-tabs" id="chat-tabs"><button class="sel" data-c="all">All</button><button data-c="world">World</button><button data-c="guild">Guild</button><button data-c="team">Team</button><button data-c="system">System</button></div>
       <div class="chat-log" id="chat-log"></div>
@@ -540,8 +616,8 @@ button { font-family: inherit; }
     <div id="hud-bar">
       <div class="skillbar" id="skillbar"></div>
       <div class="side-btns">
-        <button class="big-rbtn" id="btn-mount" title="Mount (R)">🐤<small>Mount</small></button>
-        <button class="big-rbtn" id="btn-auto" title="Auto Battle (T)">⚔<small>Auto</small></button>
+        <button class="big-rbtn" id="btn-mount" title="Mount (R)"><small>Mount</small></button>
+        <button class="big-rbtn" id="btn-auto" title="Auto Battle (T)"><small>Auto</small></button>
       </div>
     </div>
     <div id="hud-menu"></div>

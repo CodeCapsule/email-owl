@@ -223,6 +223,33 @@ export class FX {
     this.add(m, 0.55, (k) => { m.scale.setScalar(0.4 + k * 1.0); m.material.opacity = k; m.rotation.z += 0.1; }, () => m.material.dispose());
   }
 
+  // Jagged lightning arc between two points.
+  bolt(a, b, color = 0x9ad8ff, dur = 0.28) {
+    const g = new THREE.Group();
+    const mat = this.basic(color, { opacity: 1 });
+    const core = this.basic(0xffffff, { opacity: 1 });
+    const n = 7, pts = [a.clone()];
+    for (let i = 1; i < n; i++) {
+      const p = a.clone().lerp(b, i / n);
+      p.x += (Math.random() - 0.5) * 1.1; p.y += (Math.random() - 0.5) * 0.9; p.z += (Math.random() - 0.5) * 1.1;
+      pts.push(p);
+    }
+    pts.push(b.clone());
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i], p1 = pts[i + 1], len = p0.distanceTo(p1);
+      for (const [m, r] of [[mat, 0.12], [core, 0.045]]) {
+        const seg = new THREE.Mesh(this.geo.cyl, m);
+        seg.scale.set(r, len, r);
+        seg.position.copy(p0).lerp(p1, 0.5);
+        seg.quaternion.setFromUnitVectors(up, p1.clone().sub(p0).normalize());
+        g.add(seg);
+      }
+    }
+    this.emit(b, { count: 14, color, speed: 4, life: 0.35, size: 0.5 });
+    this.add(g, dur, (k) => { mat.opacity = k; core.opacity = k; }, () => { mat.dispose(); core.dispose(); });
+  }
+
   shake(a) { this.shakeAmt = Math.max(this.shakeAmt, a); }
 
   // ------------------------------------------------------------ floating text

@@ -10,7 +10,7 @@ export const QUALITY = [
 
 export const CLASSES = {
   knight: {
-    name: 'Knight', element: 'Earth', elemColor: '#d9a441', icon: '⚔️',
+    name: 'Knight', element: 'Earth', elemColor: '#d9a441', icon: 'cls_knight',
     desc: 'A stalwart warrior blessed by the Earth Spirit. Knights stand at the front line, shielding allies and crushing foes with heavy blows.',
     talents: [
       { name: 'Guardian', role: 'Tank', desc: '+30% Max HP, +25% Defense', mods: { hp: 1.3, def: 1.25 } },
@@ -24,7 +24,7 @@ export const CLASSES = {
     weapon: 'sword', hat: 'none',
   },
   assassin: {
-    name: 'Assassin', element: 'Wind', elemColor: '#59e0a4', icon: '🗡️',
+    name: 'Assassin', element: 'Wind', elemColor: '#59e0a4', icon: 'cls_assassin',
     desc: 'A swift shadow guided by the Wind Spirit. Assassins dart between enemies, striking weak points with twin blades.',
     talents: [
       { name: 'Shadow', role: 'Burst', desc: '+12% Critical, +20% Crit Damage', mods: { crit: 12, critDmg: 0.2 } },
@@ -38,7 +38,7 @@ export const CLASSES = {
     weapon: 'daggers', hat: 'none',
   },
   mage: {
-    name: 'Mage', element: 'Fire', elemColor: '#ff7a3d', icon: '🔥',
+    name: 'Mage', element: 'Fire', elemColor: '#ff7a3d', icon: 'cls_mage',
     desc: 'A scholar of the Fire Spirit who calls down flame and meteor from afar. Fragile, but devastating against groups.',
     talents: [
       { name: 'Pyromancer', role: 'Damage', desc: '+20% Attack', mods: { atk: 1.2 } },
@@ -52,7 +52,7 @@ export const CLASSES = {
     weapon: 'staff', hat: 'witch',
   },
   priest: {
-    name: 'Priest', element: 'Water', elemColor: '#4fb8ff', icon: '✨',
+    name: 'Priest', element: 'Water', elemColor: '#4fb8ff', icon: 'cls_priest',
     desc: 'A gentle servant of the Water Spirit. Priests mend wounds, bless allies and wash foes away with tidal magic.',
     talents: [
       { name: 'Oracle', role: 'Healer', desc: '+30% Healing, +20% Max MP', mods: { heal: 1.3, mp: 1.2 } },
@@ -70,40 +70,40 @@ export const CLASSES = {
 // kind: target | aoeTarget | aoeSelf | dash | proj | buff | heal | zone
 export const SKILLS = {
   knight: [
-    { id: 'k0', name: 'Slash', icon: '⚔️', lvl: 1, cd: 1.0, mp: 0, kind: 'target', range: 2.8, mult: 1.0, fx: 'slash', basic: true, desc: 'Basic attack.' },
-    { id: 'k1', name: 'Heavy Strike', icon: '🪓', lvl: 1, cd: 5, mp: 10, kind: 'target', range: 3, mult: 2.3, fx: 'bigslash', desc: 'A crushing blow that deals 230% Attack damage.' },
-    { id: 'k2', name: 'Whirlwind', icon: '🌀', lvl: 3, cd: 8, mp: 18, kind: 'aoeSelf', radius: 5, mult: 1.7, fx: 'spin', desc: 'Spin your blade, hitting all nearby enemies for 170%.' },
-    { id: 'k3', name: 'Shield Bash', icon: '🛡️', lvl: 6, cd: 10, mp: 15, kind: 'target', range: 3, mult: 1.5, stun: 2, fx: 'bash', desc: 'Bash the target for 150% and stun it for 2s.' },
-    { id: 'k4', name: 'Earthshatter', icon: '⛰️', lvl: 10, cd: 14, mp: 30, kind: 'aoeTarget', range: 4, radius: 6, mult: 2.7, fx: 'quake', desc: 'Slam the ground, erupting rocks that deal 270% in an area.' },
-    { id: 'k5', name: 'Iron Bastion', icon: '🏰', lvl: 14, cd: 25, mp: 25, kind: 'buff', buff: { def: 1.5 }, dur: 10, healPct: 0.15, fx: 'buffEarth', desc: 'Restore 15% HP and raise Defense by 50% for 10s.' },
-    { id: 'k6', name: "Titan's Wrath", icon: '💥', lvl: 18, cd: 30, mp: 45, kind: 'aoeSelf', radius: 8, mult: 4.0, fx: 'titan', desc: 'Call the might of the earth: 400% to all enemies around you.' },
+    { id: 'k0', name: 'Slash', icon: 'k0', lvl: 1, cd: 1.0, mp: 0, kind: 'target', range: 2.8, mult: 1.0, fx: 'slash', basic: true, desc: 'Basic attack.' },
+    { id: 'k1', name: 'Heavy Strike', icon: 'k1', lvl: 1, cd: 5, mp: 10, kind: 'target', range: 3, mult: 2.3, fx: 'bigslash', desc: 'A crushing blow that deals 230% Attack damage.' },
+    { id: 'k2', name: 'Whirlwind', icon: 'k2', lvl: 3, cd: 8, mp: 18, kind: 'aoeSelf', radius: 5, mult: 1.7, fx: 'spin', desc: 'Spin your blade, hitting all nearby enemies for 170%.' },
+    { id: 'k3', name: 'Shield Bash', icon: 'k3', lvl: 6, cd: 10, mp: 15, kind: 'target', range: 3, mult: 1.5, stun: 2, fx: 'bash', desc: 'Bash the target for 150% and stun it for 2s.' },
+    { id: 'k4', name: 'Earthshatter', icon: 'k4', lvl: 10, cd: 14, mp: 30, kind: 'aoeTarget', range: 4, radius: 6, mult: 2.7, fx: 'quake', desc: 'Slam the ground, erupting rocks that deal 270% in an area.' },
+    { id: 'k5', name: 'Iron Bastion', icon: 'k5', lvl: 14, cd: 25, mp: 25, kind: 'buff', buff: { def: 1.5 }, dur: 10, healPct: 0.15, fx: 'buffEarth', desc: 'Restore 15% HP and raise Defense by 50% for 10s.' },
+    { id: 'k6', name: "Titan's Wrath", icon: 'k6', lvl: 18, cd: 30, mp: 45, kind: 'aoeSelf', radius: 8, mult: 4.0, fx: 'titan', desc: 'Call the might of the earth: 400% to all enemies around you.' },
   ],
   assassin: [
-    { id: 'a0', name: 'Stab', icon: '🗡️', lvl: 1, cd: 0.8, mp: 0, kind: 'target', range: 2.5, mult: 0.9, fx: 'slash2', basic: true, desc: 'Basic attack.' },
-    { id: 'a1', name: 'Shadow Strike', icon: '🌑', lvl: 1, cd: 5, mp: 10, kind: 'dash', range: 12, mult: 2.1, fx: 'dash', desc: 'Dash to the target and strike for 210%.' },
-    { id: 'a2', name: 'Twin Fangs', icon: '✖️', lvl: 3, cd: 7, mp: 14, kind: 'target', range: 2.8, mult: 0.95, hits: 3, fx: 'slash2', desc: 'Three rapid slashes, each dealing 95%.' },
-    { id: 'a3', name: 'Venom Edge', icon: '🧪', lvl: 6, cd: 10, mp: 15, kind: 'target', range: 2.8, mult: 1.2, dot: { ticks: 5, mult: 0.6 }, fx: 'venom', desc: 'Strike for 120% and poison: 60% every second for 5s.' },
-    { id: 'a4', name: 'Gale Fan', icon: '🍃', lvl: 10, cd: 12, mp: 25, kind: 'aoeTarget', range: 10, radius: 5, mult: 2.3, fx: 'gale', desc: 'Hurl a storm of wind blades: 230% in an area.' },
-    { id: 'a5', name: 'Phantom Veil', icon: '👤', lvl: 14, cd: 25, mp: 20, kind: 'buff', buff: { crit: 40, speed: 1.3 }, dur: 8, fx: 'buffWind', desc: '+40% Critical and +30% speed for 8s.' },
-    { id: 'a6', name: 'Tempest Dance', icon: '🌪️', lvl: 18, cd: 30, mp: 40, kind: 'aoeSelf', radius: 7, mult: 0.95, hits: 6, fx: 'tempest', desc: 'Dance through foes: 6 hits of 95% around you.' },
+    { id: 'a0', name: 'Stab', icon: 'a0', lvl: 1, cd: 0.8, mp: 0, kind: 'target', range: 2.5, mult: 0.9, fx: 'slash2', basic: true, desc: 'Basic attack.' },
+    { id: 'a1', name: 'Shadow Strike', icon: 'a1', lvl: 1, cd: 5, mp: 10, kind: 'dash', range: 12, mult: 2.1, fx: 'dash', desc: 'Dash to the target and strike for 210%.' },
+    { id: 'a2', name: 'Twin Fangs', icon: 'a2', lvl: 3, cd: 7, mp: 14, kind: 'target', range: 2.8, mult: 0.95, hits: 3, fx: 'slash2', desc: 'Three rapid slashes, each dealing 95%.' },
+    { id: 'a3', name: 'Venom Edge', icon: 'a3', lvl: 6, cd: 10, mp: 15, kind: 'target', range: 2.8, mult: 1.2, dot: { ticks: 5, mult: 0.6 }, fx: 'venom', desc: 'Strike for 120% and poison: 60% every second for 5s.' },
+    { id: 'a4', name: 'Gale Fan', icon: 'a4', lvl: 10, cd: 12, mp: 25, kind: 'aoeTarget', range: 10, radius: 5, mult: 2.3, fx: 'gale', desc: 'Hurl a storm of wind blades: 230% in an area.' },
+    { id: 'a5', name: 'Phantom Veil', icon: 'a5', lvl: 14, cd: 25, mp: 20, kind: 'buff', buff: { crit: 40, speed: 1.3 }, dur: 8, fx: 'buffWind', desc: '+40% Critical and +30% speed for 8s.' },
+    { id: 'a6', name: 'Tempest Dance', icon: 'a6', lvl: 18, cd: 30, mp: 40, kind: 'aoeSelf', radius: 7, mult: 0.95, hits: 6, fx: 'tempest', desc: 'Dance through foes: 6 hits of 95% around you.' },
   ],
   mage: [
-    { id: 'm0', name: 'Firebolt', icon: '🔥', lvl: 1, cd: 1.1, mp: 0, kind: 'proj', range: 15, mult: 1.0, fx: 'firebolt', basic: true, desc: 'Basic attack.' },
-    { id: 'm1', name: 'Fireball', icon: '☄️', lvl: 1, cd: 3, mp: 10, kind: 'proj', range: 15, mult: 2.1, fx: 'fireball', desc: 'Launch a fireball dealing 210%.' },
-    { id: 'm2', name: 'Flame Pillar', icon: '🕯️', lvl: 3, cd: 8, mp: 20, kind: 'aoeTarget', range: 15, radius: 4, mult: 2.2, fx: 'pillar', desc: 'Erupt a column of fire under the target: 220% in an area.' },
-    { id: 'm3', name: 'Blazing Ring', icon: '⭕', lvl: 6, cd: 10, mp: 22, kind: 'aoeSelf', radius: 6, mult: 1.7, stun: 1, fx: 'ring', desc: 'A ring of fire bursts outward: 170% and stuns for 1s.' },
-    { id: 'm4', name: 'Meteor', icon: '🌠', lvl: 10, cd: 15, mp: 35, kind: 'aoeTarget', range: 15, radius: 6, mult: 3.3, delay: 0.8, fx: 'meteor', desc: 'Call down a meteor: 330% in a large area.' },
-    { id: 'm5', name: 'Arcane Barrier', icon: '🔮', lvl: 14, cd: 25, mp: 25, kind: 'buff', shieldPct: 0.3, dur: 10, fx: 'buffFire', desc: 'Absorb damage equal to 30% Max HP for 10s.' },
-    { id: 'm6', name: 'Inferno', icon: '🌋', lvl: 18, cd: 30, mp: 50, kind: 'aoeTarget', range: 15, radius: 8, mult: 1.3, hits: 5, fx: 'inferno', desc: 'Rain fire on an area: 5 waves of 130%.' },
+    { id: 'm0', name: 'Firebolt', icon: 'm0', lvl: 1, cd: 1.1, mp: 0, kind: 'proj', range: 15, mult: 1.0, fx: 'firebolt', basic: true, desc: 'Basic attack.' },
+    { id: 'm1', name: 'Fireball', icon: 'm1', lvl: 1, cd: 3, mp: 10, kind: 'proj', range: 15, mult: 2.1, fx: 'fireball', desc: 'Launch a fireball dealing 210%.' },
+    { id: 'm2', name: 'Flame Pillar', icon: 'm2', lvl: 3, cd: 8, mp: 20, kind: 'aoeTarget', range: 15, radius: 4, mult: 2.2, fx: 'pillar', desc: 'Erupt a column of fire under the target: 220% in an area.' },
+    { id: 'm3', name: 'Blazing Ring', icon: 'm3', lvl: 6, cd: 10, mp: 22, kind: 'aoeSelf', radius: 6, mult: 1.7, stun: 1, fx: 'ring', desc: 'A ring of fire bursts outward: 170% and stuns for 1s.' },
+    { id: 'm4', name: 'Meteor', icon: 'm4', lvl: 10, cd: 15, mp: 35, kind: 'aoeTarget', range: 15, radius: 6, mult: 3.3, delay: 0.8, fx: 'meteor', desc: 'Call down a meteor: 330% in a large area.' },
+    { id: 'm5', name: 'Arcane Barrier', icon: 'm5', lvl: 14, cd: 25, mp: 25, kind: 'buff', shieldPct: 0.3, dur: 10, fx: 'buffFire', desc: 'Absorb damage equal to 30% Max HP for 10s.' },
+    { id: 'm6', name: 'Inferno', icon: 'm6', lvl: 18, cd: 30, mp: 50, kind: 'aoeTarget', range: 15, radius: 8, mult: 1.3, hits: 5, fx: 'inferno', desc: 'Rain fire on an area: 5 waves of 130%.' },
   ],
   priest: [
-    { id: 'p0', name: 'Water Bolt', icon: '💧', lvl: 1, cd: 1.1, mp: 0, kind: 'proj', range: 14, mult: 0.95, fx: 'waterbolt', basic: true, desc: 'Basic attack.' },
-    { id: 'p1', name: 'Aqua Orb', icon: '🔵', lvl: 1, cd: 3, mp: 8, kind: 'proj', range: 14, mult: 1.9, fx: 'aquaorb', desc: 'Fire a pressurised orb of water: 190%.' },
-    { id: 'p2', name: 'Healing Light', icon: '💚', lvl: 3, cd: 8, mp: 20, kind: 'heal', healPct: 0.32, fx: 'heal', desc: 'Restore 32% of your Max HP.' },
-    { id: 'p3', name: 'Tidal Wave', icon: '🌊', lvl: 6, cd: 10, mp: 22, kind: 'aoeTarget', range: 14, radius: 5, mult: 2.0, fx: 'tidal', desc: 'A crashing wave deals 200% in an area.' },
-    { id: 'p4', name: 'Aqua Prison', icon: '🫧', lvl: 10, cd: 12, mp: 20, kind: 'proj', range: 14, mult: 1.5, stun: 3, fx: 'prison', desc: 'Trap the target in a bubble: 150% and stun for 3s.' },
-    { id: 'p5', name: 'Divine Blessing', icon: '👼', lvl: 14, cd: 25, mp: 25, kind: 'buff', buff: { atk: 1.3, def: 1.3 }, dur: 12, fx: 'buffWater', desc: '+30% Attack and Defense for 12s.' },
-    { id: 'p6', name: 'Sanctuary', icon: '⛲', lvl: 18, cd: 30, mp: 45, kind: 'zone', radius: 7, mult: 0.9, ticks: 6, healPct: 0.05, fx: 'sanctuary', desc: 'Holy ground: heals 5%/s and deals 90%/s to foes for 6s.' },
+    { id: 'p0', name: 'Water Bolt', icon: 'p0', lvl: 1, cd: 1.1, mp: 0, kind: 'proj', range: 14, mult: 0.95, fx: 'waterbolt', basic: true, desc: 'Basic attack.' },
+    { id: 'p1', name: 'Aqua Orb', icon: 'p1', lvl: 1, cd: 3, mp: 8, kind: 'proj', range: 14, mult: 1.9, fx: 'aquaorb', desc: 'Fire a pressurised orb of water: 190%.' },
+    { id: 'p2', name: 'Healing Light', icon: 'p2', lvl: 3, cd: 8, mp: 20, kind: 'heal', healPct: 0.32, fx: 'heal', desc: 'Restore 32% of your Max HP.' },
+    { id: 'p3', name: 'Tidal Wave', icon: 'p3', lvl: 6, cd: 10, mp: 22, kind: 'aoeTarget', range: 14, radius: 5, mult: 2.0, fx: 'tidal', desc: 'A crashing wave deals 200% in an area.' },
+    { id: 'p4', name: 'Aqua Prison', icon: 'p4', lvl: 10, cd: 12, mp: 20, kind: 'proj', range: 14, mult: 1.5, stun: 3, fx: 'prison', desc: 'Trap the target in a bubble: 150% and stun for 3s.' },
+    { id: 'p5', name: 'Divine Blessing', icon: 'p5', lvl: 14, cd: 25, mp: 25, kind: 'buff', buff: { atk: 1.3, def: 1.3 }, dur: 12, fx: 'buffWater', desc: '+30% Attack and Defense for 12s.' },
+    { id: 'p6', name: 'Sanctuary', icon: 'p6', lvl: 18, cd: 30, mp: 45, kind: 'zone', radius: 7, mult: 0.9, ticks: 6, healPct: 0.05, fx: 'sanctuary', desc: 'Holy ground: heals 5%/s and deals 90%/s to foes for 6s.' },
   ],
 };
 
@@ -115,7 +115,21 @@ export const MONSTERS = {
   golem: { name: 'Ruin Golem', lvl: [11, 13], hp: 900, atk: 58, def: 24, exp: 220, gold: [30, 55], model: 'golem', aggressive: false, speed: 3.2, range: 2.8, height: 3.3, drops: [{ id: 'pet_ghost', chance: 0.03 }] },
   treant: { name: 'Bramble Treant', lvl: [10, 12], hp: 1150, atk: 52, def: 18, exp: 280, gold: [30, 60], model: 'treant', aggressive: true, elite: true, speed: 3.6, range: 3, height: 3.8, drops: [{ id: 'pet_egg', chance: 0.15 }] },
   boss: { name: 'Treant King Yggr', lvl: [15, 15], hp: 9500, atk: 80, def: 26, exp: 2600, gold: [400, 600], model: 'boss', aggressive: true, boss: true, speed: 3.4, range: 4.5, height: 8, drops: [{ id: 'pet_dragon', chance: 0.25 }, { id: 'mount_unicorn', chance: 0.15 }] },
+  // ---- dungeon monsters (never in overworld SPAWNS) ----
+  cavejelly: { name: 'Cave Jelly', lvl: [6, 7], hp: 260, atk: 26, def: 8, exp: 70, gold: [12, 22], model: 'cavejelly', aggressive: true, speed: 3.4, range: 1.9, height: 1.5, dungeon: true },
+  sporeling: { name: 'Sporeling', lvl: [7, 8], hp: 300, atk: 30, def: 9, exp: 80, gold: [12, 24], model: 'sporeling', aggressive: true, speed: 3.6, range: 2, height: 1.9, dungeon: true },
+  mossbeast: { name: 'Mossback Brute', lvl: [8, 8], hp: 1300, atk: 42, def: 14, exp: 300, gold: [40, 70], model: 'mossbeast', aggressive: true, elite: true, speed: 4.2, range: 2.6, height: 2.4, dungeon: true },
+  queenjelly: { name: 'Queen Jellissa', lvl: [9, 9], hp: 5200, atk: 52, def: 16, exp: 1800, gold: [300, 420], model: 'queenjelly', aggressive: true, boss: true, speed: 3, range: 4.2, height: 5.5, dungeon: true, skills: ['slam', 'summon', 'nova'], summon: 'cavejelly' },
+  boneknight: { name: 'Restless Knight', lvl: [11, 12], hp: 700, atk: 52, def: 20, exp: 180, gold: [20, 36], model: 'boneknight', aggressive: true, speed: 4, range: 2.4, height: 2.3, dungeon: true },
+  wisp: { name: 'Wailing Wisp', lvl: [11, 12], hp: 480, atk: 60, def: 12, exp: 160, gold: [18, 34], model: 'wisp', aggressive: true, ranged: true, speed: 3.8, range: 9, height: 2.2, dungeon: true },
+  cryptgolem: { name: 'Crypt Guardian', lvl: [13, 13], hp: 2600, atk: 70, def: 30, exp: 600, gold: [70, 110], model: 'cryptgolem', aggressive: true, elite: true, speed: 3.2, range: 3, height: 3.6, dungeon: true },
+  gravelord: { name: 'Gravelord Colossus', lvl: [14, 14], hp: 12000, atk: 88, def: 32, exp: 4200, gold: [600, 800], model: 'gravelord', aggressive: true, boss: true, speed: 3, range: 5, height: 8, dungeon: true, skills: ['slam', 'roots', 'summon'], summon: 'boneknight' },
+  rootwolf: { name: 'Blightfang', lvl: [16, 17], hp: 1100, atk: 78, def: 26, exp: 300, gold: [30, 50], model: 'rootwolf', aggressive: true, speed: 6, range: 2.3, height: 1.8, dungeon: true },
+  blightspore: { name: 'Blightspore', lvl: [16, 17], hp: 1000, atk: 82, def: 24, exp: 290, gold: [30, 50], model: 'sporeling', variant: 2, aggressive: true, speed: 3.6, range: 2, height: 1.9, dungeon: true },
+  rottreant: { name: 'Rotwood Treant', lvl: [17, 18], hp: 3200, atk: 92, def: 32, exp: 800, gold: [80, 130], model: 'rottreant', aggressive: true, elite: true, speed: 3.6, range: 3, height: 4, dungeon: true },
+  nidhogg: { name: 'Nidhogg Hatchling', lvl: [20, 20], hp: 26000, atk: 120, def: 40, exp: 9000, gold: [1200, 1600], model: 'nidhogg', aggressive: true, boss: true, speed: 3.4, range: 5.5, height: 7, dungeon: true, skills: ['breath', 'slam', 'nova', 'summon'], summon: 'rootwolf' },
 };
+
 
 export const SPAWNS = [
   { type: 'jelly', x: 108, z: -12, r: 24, count: 10 },
@@ -125,6 +139,44 @@ export const SPAWNS = [
   { type: 'treant', x: -86, z: -58, r: 20, count: 5 },
   { type: 'golem', x: -122, z: 52, r: 20, count: 6 },
   { type: 'boss', x: -150, z: -112, r: 4, count: 1 },
+];
+
+
+// Instanced dungeons. Room coordinates are local to `origin` (+z is south; rooms run north toward the boss).
+export const DUNGEONS = [
+  {
+    id: 'd1', name: 'Mossy Hollow', theme: 'grotto', lv: 6, recBR: 1400, entries: 3, origin: { x: 3000, z: 0 },
+    portal: { x: -48, z: 146 }, zone: 'Mossveil Forest',
+    desc: 'A glowing cave beneath Mossveil where cave jellies swarm around their queen.',
+    rooms: [
+      { x: 0, z: 0, w: 26, d: 24, spawns: [['cavejelly', 3]] },
+      { x: -14, z: -44, w: 32, d: 28, spawns: [['cavejelly', 3], ['sporeling', 2]] },
+      { x: 12, z: -90, w: 34, d: 30, spawns: [['sporeling', 3], ['mossbeast', 1]] },
+      { x: 0, z: -142, w: 44, d: 40, boss: 'queenjelly' },
+    ],
+  },
+  {
+    id: 'd2', name: 'Elder Catacombs', theme: 'crypt', lv: 11, recBR: 2600, entries: 3, origin: { x: 3000, z: 700 },
+    portal: { x: -142, z: 14 }, zone: 'Elder Ruins',
+    desc: 'Sealed tombs under the Elder Ruins, guarded by restless knights and a colossus of bone and stone.',
+    rooms: [
+      { x: 0, z: 0, w: 24, d: 24, spawns: [['boneknight', 3]] },
+      { x: 16, z: -42, w: 30, d: 30, spawns: [['boneknight', 2], ['wisp', 3]] },
+      { x: -12, z: -88, w: 34, d: 30, spawns: [['wisp', 2], ['boneknight', 2], ['cryptgolem', 1]] },
+      { x: 0, z: -140, w: 46, d: 42, boss: 'gravelord' },
+    ],
+  },
+  {
+    id: 'd3', name: 'Yggdrasil Roots', theme: 'roots', lv: 16, recBR: 4200, entries: 3, origin: { x: 3000, z: 1400 },
+    portal: { x: 34, z: -146 }, zone: 'World Tree Overlook',
+    desc: 'The blighted roots of the World Tree, where a hatchling of Nidhogg gnaws at the realm itself.',
+    rooms: [
+      { x: 0, z: 0, w: 26, d: 24, spawns: [['rootwolf', 3]] },
+      { x: -16, z: -44, w: 32, d: 30, spawns: [['rootwolf', 2], ['blightspore', 3]] },
+      { x: 14, z: -92, w: 36, d: 32, spawns: [['blightspore', 2], ['rootwolf', 2], ['rottreant', 1]] },
+      { x: 0, z: -146, w: 50, d: 44, boss: 'nidhogg' },
+    ],
+  },
 ];
 
 export const ZONES = [
@@ -167,24 +219,25 @@ export const MOUNTS = [
 ];
 
 export const ITEMS = {
-  hp_potion: { name: 'Healing Draught', icon: '🧪', type: 'consumable', quality: 0, stack: 99, price: 40, desc: 'Restores 35% Max HP.', tint: '#ff5a6a' },
-  mp_potion: { name: 'Mana Draught', icon: '🧴', type: 'consumable', quality: 0, stack: 99, price: 40, desc: 'Restores 35% Max MP.', tint: '#4aa8ff' },
-  pet_egg: { name: 'Mystery Pet Egg', icon: '🥚', type: 'egg', quality: 2, stack: 99, price: 900, desc: 'Hatch to receive a random pet you do not own yet.' },
-  glowcap: { name: 'Glowcap', icon: '🍄', type: 'quest', quality: 1, stack: 99, desc: 'A luminous mushroom from Mossveil Forest.' },
-  exp_scroll: { name: 'Scroll of Wisdom', icon: '📜', type: 'consumable', quality: 2, stack: 99, price: 600, desc: 'Grants experience equal to 25% of your current level.' },
+  hp_potion: { name: 'Healing Draught', icon: 'hp_potion', type: 'consumable', quality: 0, stack: 99, price: 40, desc: 'Restores 35% Max HP.', tint: '#ff5a6a' },
+  mp_potion: { name: 'Mana Draught', icon: 'mp_potion', type: 'consumable', quality: 0, stack: 99, price: 40, desc: 'Restores 35% Max MP.', tint: '#4aa8ff' },
+  pet_egg: { name: 'Mystery Pet Egg', icon: 'pet_egg', type: 'egg', quality: 2, stack: 99, price: 900, desc: 'Hatch to receive a random pet you do not own yet.' },
+  glowcap: { name: 'Glowcap', icon: 'glowcap', type: 'quest', quality: 1, stack: 99, desc: 'A luminous mushroom from Mossveil Forest.' },
+  dungeon_ticket: { name: 'Dungeon Ticket', icon: 'dungeon_ticket', type: 'ticket', quality: 3, stack: 99, price: 0, desc: 'Grants one extra dungeon run after your free daily entries are used up.' },
+  exp_scroll: { name: 'Scroll of Wisdom', icon: 'exp_scroll', type: 'consumable', quality: 2, stack: 99, price: 600, desc: 'Grants experience equal to 25% of your current level.' },
 };
 
 export const SLOTS = ['weapon', 'helm', 'armor', 'boots', 'necklace', 'ring'];
 export const SLOT_INFO = {
-  weapon: { label: 'Weapon', icon: '⚔️' },
-  helm: { label: 'Helm', icon: '⛑️' },
-  armor: { label: 'Armor', icon: '🥋' },
-  boots: { label: 'Boots', icon: '👢' },
-  necklace: { label: 'Necklace', icon: '📿' },
-  ring: { label: 'Ring', icon: '💍' },
+  weapon: { label: 'Weapon', icon: 'w_sword' },
+  helm: { label: 'Helm', icon: 'helm' },
+  armor: { label: 'Armor', icon: 'armor' },
+  boots: { label: 'Boots', icon: 'boots' },
+  necklace: { label: 'Necklace', icon: 'necklace' },
+  ring: { label: 'Ring', icon: 'ring' },
 };
 export const WEAPON_NAMES = { knight: 'Longsword', assassin: 'Twin Daggers', mage: 'Ember Staff', priest: 'Tidal Scepter' };
-export const WEAPON_ICONS = { knight: '⚔️', assassin: '🗡️', mage: '🪄', priest: '🔱' };
+export const WEAPON_ICONS = { knight: 'w_sword', assassin: 'w_daggers', mage: 'w_staff', priest: 'w_scepter' };
 export const QUALITY_PREFIX = ['Worn', 'Sturdy', 'Sylvan', 'Elven', 'Yggdrasil'];
 export const SLOT_BASE = { helm: 'Helm', armor: 'Tunic', boots: 'Boots', necklace: 'Amulet', ring: 'Ring' };
 
@@ -277,6 +330,7 @@ export const MALL = [
   { kind: 'item', id: 'mp_potion', qty: 10, cost: { gold: 380 } },
   { kind: 'item', id: 'pet_egg', qty: 1, cost: { gold: 900 } },
   { kind: 'item', id: 'exp_scroll', qty: 1, cost: { gold: 600 } },
+  { kind: 'item', id: 'dungeon_ticket', qty: 1, cost: { diamonds: 25 } },
   { kind: 'pet', id: 'pet_cupcake', cost: { gold: 1800 } },
   { kind: 'pet', id: 'pet_puppet', cost: { gold: 4500 } },
   { kind: 'pet', id: 'pet_star', cost: { diamonds: 300 } },
