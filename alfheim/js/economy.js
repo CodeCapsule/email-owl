@@ -2,7 +2,7 @@
 // buyout and rival bidders) and direct trade windows with other adventurers. installEconomy(Game) adds the methods.
 import { ITEMS, PETS, MOUNTS, BOT_NAMES, DUNGEONS } from './data.js';
 import { BAG_BASE, BAG_MAX, BAG_STEP, SHOPS, AUCTION, COSTUMES, RELIC_SETS, MAX_LEVEL, GATHER } from './data-world.js';
-import { MATERIALS, EXTRA_NAMES, GEMS, gemId } from './systems-data.js';
+import { MATERIALS, EXTRA_NAMES, GEMS, gemId, SOULS, soulId } from './systems-data.js';
 import { RARITY, sellPrice } from './loot.js';
 
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
@@ -154,12 +154,15 @@ const E = {
       L = { kind: 'gear', eq: this.makeEquip(null, clamp(lv + Math.round(rnd(-3, 3)), 1, MAX_LEVEL), q), qty: 1 };
     } else if (r < 0.6) L = { kind: 'mat', id: pick([GATHER.ore, GATHER.herb, GATHER.tree]).mats[clamp(t + (Math.random() < 0.3 ? 1 : 0), 0, 4)], qty: Math.round(rnd(5, 20)) };
     else if (r < 0.7) L = { kind: 'mat', id: pick(['star_essence', 'spirit_shard', 'spirit_shard']), qty: Math.round(rnd(1, 5)) };
-    else if (r < 0.77) L = { kind: 'mat', id: gemId(pick(Object.keys(GEMS)), Math.random() < 0.25 ? 3 : 2), qty: 1 };
+    else if (r < 0.77) L = { kind: 'mat', id: gemId(pick(Object.keys(GEMS)), Math.random() < 0.1 ? 4 : Math.random() < 0.3 ? 3 : 2), qty: 1 };
     else if (r < 0.85) {
       const sets = Object.entries(RELIC_SETS).filter(([dg]) => dgLv(dg) <= lv + 10);
       const [, set] = pick(sets.length ? sets : Object.entries(RELIC_SETS).slice(0, 1));
       L = { kind: 'mat', id: pick(set.ids), qty: 1 };
     } else if (r < 0.89) L = { kind: 'item', id: 'crimson_core', qty: 1 };
+    else if (r < 0.91) L = { kind: 'mat', id: soulId(pick(Object.keys(SOULS))), qty: 1 };
+    else if (r < 0.94) L = { kind: 'mat', id: lv >= 130 ? 'enh_stone3' : lv >= 60 ? 'enh_stone2' : 'enh_stone', qty: Math.round(rnd(2, 6)) };
+    else if (r < 0.95) L = { kind: 'item', id: pick(['socket_drill', 'enh_protect', 'enh_luck']), qty: 1 };
     else L = { kind: 'item', id: pick(['costume_box', 'bag_scroll', 'elixir_wisdom', 'elixir_fortune', 'elixir_might', 'pet_egg', 'phoenix_draught']), qty: 1 };
     const fair = this.goodValue(L);
     Object.assign(L, {

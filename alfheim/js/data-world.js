@@ -287,6 +287,10 @@ export const NEW_ITEMS = {
   teleport_scroll: { name: 'Homeward Scroll', icon: 'teleport_scroll', type: 'consumable', quality: 1, stack: 99, price: 200, desc: 'Teleport to Sylvan Haven.' },
   pet_treat: { name: 'Pet Treat', icon: 'pet_treat', type: 'consumable', quality: 1, stack: 99, price: 500, desc: 'Raises your active pet by one level (max 60).' },
   crimson_core: { name: 'Crimson Core', icon: 'crimson_core', type: 'material', quality: 6, stack: 99, price: 12000, desc: 'The heart of every Red item. Craft at the Forge with a full relic set.' },
+  socket_drill: { name: 'Socket Drill', icon: 'socket_drill', type: 'consumable', quality: 4, stack: 99, price: 8000, desc: 'Adds a gem socket to a piece of gear at the Forge (up to 5 sockets).' },
+  enh_luck: { name: 'Lucky Charm', icon: 'enh_luck', type: 'consumable', quality: 3, stack: 99, price: 3000, desc: '+15% success chance on one enhancement attempt.' },
+  enh_protect: { name: 'Protection Charm', icon: 'enh_protect', type: 'consumable', quality: 4, stack: 99, price: 9000, desc: 'Keeps your enhancement level when an attempt at +7 or higher fails.' },
+  soul_cache: { name: 'Soulstone Chest', icon: 'soul_cache', type: 'consumable', quality: 5, stack: 99, price: 40000, desc: 'Open for a random Soulstone with a named power.' },
   costume_box: { name: 'Wardrobe Box', icon: 'wardrobe', type: 'consumable', quality: 3, stack: 99, price: 5000, desc: 'Unlocks a random costume you do not own yet.' },
 };
 for (const [k, c] of Object.entries(CROPS)) NEW_ITEMS['seed_' + k] = { name: `${c.name} Seeds`, icon: 'seed_' + k, type: 'seed', quality: c.lv >= 50 ? 2 : c.lv >= 20 ? 1 : 0, stack: 999, price: c.seedPrice, desc: `Plant on a farm plot. Ripe in ${c.mins >= 60 ? c.mins / 60 + ' h' : c.mins + ' min'}. Farming Lv ${c.lv}.` };
@@ -353,10 +357,14 @@ export const COSTUMES = [
 // ---------------------------------------------------------------- NPCs with shops, outposts, teleports
 const tier = (L) => (L < 30 ? 'potion_hp2' : 'potion_hp3');
 export const SHOPS = {
-  general: { name: "Hilda's Supplies", items: [['hp_potion', 10, { gold: 380 }], ['mp_potion', 10, { gold: 380 }], ['potion_hp2', 10, { gold: 1100 }, 20], ['potion_mp2', 10, { gold: 1100 }, 20], ['potion_hp3', 10, { gold: 3600 }, 60], ['potion_mp3', 10, { gold: 3600 }, 60], ['teleport_scroll', 5, { gold: 900 }], ['bag_scroll', 1, { gold: 20000 }], ['bag_scroll', 1, { diamonds: 120 }], ['exp_scroll', 1, { gold: 600 }]] },
+  general: { name: "Hilda's Supplies", items: [['hp_potion', 10, { gold: 380 }], ['mp_potion', 10, { gold: 380 }], ['potion_hp2', 10, { gold: 1100 }, 20], ['potion_mp2', 10, { gold: 1100 }, 20], ['potion_hp3', 10, { gold: 3600 }, 60], ['potion_mp3', 10, { gold: 3600 }, 60], ['teleport_scroll', 5, { gold: 900 }], ['bag_scroll', 1, { gold: 20000 }], ['bag_scroll', 1, { diamonds: 120 }], ['exp_scroll', 1, { gold: 600 }],
+    ['m:enh_stone', 5, { gold: 6000 }], ['m:enh_stone2', 3, { gold: 15000 }, 40], ['m:enh_stone3', 1, { diamonds: 60 }, 90], ['enh_luck', 1, { diamonds: 40 }], ['enh_protect', 1, { diamonds: 120 }]] },
   farm: { name: "Tilly's Seeds", items: [...Object.entries(CROPS).map(([k, c]) => ['seed_' + k, 5, { gold: c.seedPrice * 5 }, 1, c.lv]), ['fertilizer', 3, { gold: 420 }]] },
   alchemy: { name: "Vera's Apothecary", items: [['empty_vial', 10, { gold: 100 }], ['potion_hp2', 5, { gold: 600 }], ['elixir_swift', 1, { gold: 700 }], ['elixir_might', 1, { gold: 1400 }, 20], ['elixir_iron', 1, { gold: 1400 }, 30], ['elixir_wisdom', 1, { diamonds: 60 }], ['elixir_fortune', 1, { diamonds: 60 }]] },
-  gems: { name: "Opal's Gems", items: [['gem_pouch', 1, { gold: 1500 }], ['m:gem_ruby_1', 1, { gold: 900 }], ['m:gem_sapphire_1', 1, { gold: 900 }], ['m:gem_emerald_1', 1, { gold: 900 }], ['m:gem_topaz_1', 1, { gold: 900 }], ['m:gem_ruby_2', 1, { diamonds: 90 }], ['m:gem_emerald_2', 1, { diamonds: 90 }], ['m:gem_sapphire_2', 1, { diamonds: 90 }], ['m:gem_topaz_2', 1, { diamonds: 90 }]] },
+  gems: { name: "Opal's Gems", items: [['gem_pouch', 1, { gold: 1500 }], ['m:gem_ruby_1', 1, { gold: 900 }], ['m:gem_sapphire_1', 1, { gold: 900 }], ['m:gem_emerald_1', 1, { gold: 900 }], ['m:gem_topaz_1', 1, { gold: 900 }], ['m:gem_ruby_2', 1, { diamonds: 90 }], ['m:gem_emerald_2', 1, { diamonds: 90 }], ['m:gem_sapphire_2', 1, { diamonds: 90 }], ['m:gem_topaz_2', 1, { diamonds: 90 }],
+    ['m:gem_amethyst_1', 1, { gold: 2500 }, 20], ['m:gem_onyx_1', 1, { gold: 2500 }, 20], ['m:gem_opal_1', 1, { gold: 2500 }, 20], ['m:gem_aquamarine_1', 1, { gold: 2500 }, 20],
+    ['m:gem_garnet_1', 1, { gold: 2500 }, 20], ['m:gem_jade_1', 1, { gold: 2500 }, 20], ['m:gem_moonstone_1', 1, { gold: 2500 }, 20], ['m:gem_citrine_1', 1, { gold: 2500 }, 20],
+    ['socket_drill', 1, { diamonds: 200 }], ['soul_cache', 1, { diamonds: 1500 }]] },
   pets: { name: "Mimi's Pet Corner", items: [['pet_treat', 1, { gold: 500 }], ['pet_egg', 1, { gold: 900 }], ['p:pet_panda', 1, { gold: 8000 }], ['p:pet_cupcake', 1, { gold: 1800 }], ['p:pet_kitsune', 1, { diamonds: 800 }], ['p:pet_star', 1, { diamonds: 300 }]] },
   stable: { name: "Brom's Stable", items: [['r:mount_wolf', 1, { gold: 6000 }], ['r:mount_lion', 1, { gold: 30000 }], ['r:mount_cloud', 1, { diamonds: 900 }], ['r:mount_panther', 1, { diamonds: 1200 }], ['r:mount_griffin', 1, { diamonds: 1600 }], ['r:mount_pegasus', 1, { diamonds: 500 }]] },
   tailor: { name: "Coco's Boutique", items: COSTUMES.filter((c) => !c.src).map((c) => ['c:' + c.id, 1, c.price]).concat([['costume_box', 1, { diamonds: 150 }]]) },
@@ -382,7 +390,7 @@ OUTPOSTS.forEach((o, i) => {
   NEW_NPCS.push({ id: 'outpost' + i, name: ['Bram', 'Lotte', 'Kael', 'Freya', 'Iris', 'Moro', 'Stella', 'Eldrin'][i], title: 'Outpost Trader', x: o.x, z: o.z, look: 'trader', face: o.face, service: 'shop:outpost', greet: `Welcome to the ${o.zone} outpost. Stock up before you head out!` });
 });
 export const NEW_TELEPORTS = OUTPOSTS.map((o) => ({ name: o.zone, x: o.x + Math.sin(o.face) * 5, z: o.z + Math.cos(o.face) * 5, lv: NEW_ZONES.find((z) => z.name === o.zone).lv }));
-export const NEW_TITLES = ['Master Gatherer', 'Green Thumb', 'Grand Alchemist', 'Crimson Smith', 'Relic Hunter', 'Fashionista', 'World Devourer Slayer', 'Legend of Alfheim'];
+export const NEW_TITLES = ['Peerless Smith', 'Master Gatherer', 'Green Thumb', 'Grand Alchemist', 'Crimson Smith', 'Relic Hunter', 'Fashionista', 'World Devourer Slayer', 'Legend of Alfheim'];
 
 // ---------------------------------------------------------------- auction
 export const AUCTION = { fee: 0.05, minStep: 0.05, durations: [5, 15, 30, 60], active: 12, maxMine: 6 };

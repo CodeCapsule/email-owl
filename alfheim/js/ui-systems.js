@@ -2,12 +2,13 @@
 // festival and leaderboards). installSystemsUI(UI) mixes these into UI.prototype.
 import { CLASSES, MONSTERS, ITEMS, SLOTS, SLOT_INFO, PETS, TITLES, DUNGEONS } from './data.js';
 import {
-  MATERIALS, GEMS, GEM_LV, gemId, parseGem, RECIPES, SOCKETS, GEM_COMBINE, ASCEND, reforgeCost, retemperCost, salvageYield, CODEX_MILESTONES,
+  MATERIALS, GEMS, GEM_LV, GEM_MAX, gemId, parseGem, parseSoul, SOULS, soulId, SOUL_FORGE, SOCKET_MAX, DRILL_MAX, drillCost, ENH_MAX, ENH_RATE, ENH_LUCK, enhCost, enhRisk, REFINE,
+  RECIPES, SOCKETS, GEM_COMBINE, ASCEND, reforgeCost, retemperCost, salvageYield, CODEX_MILESTONES,
   DAILY_CHESTS, WEEKLY_CHESTS, GUILD_LIST, GUILD_EXP, GUILD_MAX, GUILD_CREATE, GUILD_JOIN_LV, guildBuff, GUILD_DONATE, GUILD_SHOP, GUILD_EMBLEMS,
   WAR, WORLD_BOSS, WB_RANK_REWARDS, MARKET, EVENTS, nextEvent, eventEnds, seasonInfo, PASS, passReward, SEASON_RANK_REWARDS,
   secsToDayEnd, secsToWeekEnd, fmtDur,
 } from './systems-data.js';
-import { RARITY, NAMED_LIST, EFFECTS, iconKey, itemScore } from './loot.js';
+import { RARITY, NAMED_LIST, EFFECTS, iconKey, itemScore, enhMult, enhAffixMult } from './loot.js';
 import { missionDef, matName } from './systems.js';
 import { fmt, esc } from './game.js';
 import { ico } from './icons.js';
@@ -400,8 +401,9 @@ const P = {
   },
   panel_forge(body) {
     const g = this.g, S = g.S;
-    const tab = this.tabs(body, 'fgTab', [['craft', 'Craft'], ['upgrade', 'Upgrade'], ['gems', 'Gems'], ['salvage', 'Salvage']]);
-    if (tab === 'craft') {
+    const tab = this.tabs(body, 'fgTab', [['enhance', 'Enhance'], ['craft', 'Craft'], ['upgrade', 'Upgrade'], ['gems', 'Gems'], ['salvage', 'Salvage']]);
+    if (tab === 'enhance') this.forgeEnhance(body);
+    else if (tab === 'craft') {
       const L = h('div', 'list');
       for (const r of RECIPES) {
         const locked = S.level < r.lv;
@@ -427,50 +429,13 @@ const P = {
         const r = h('div', 'row slim', `<div class="ic">${ico(icon)}</div><div class="tx"><b>${title}</b>${desc}${cost ? `<div class="cost">${costChips(g, cost)}</div>` : ''}</div>`);
         const b = h('button', 'btn small', label); b.disabled = disabled || (cost && !g.canAfford(cost)); b.onclick = fn; r.appendChild(b); L.appendChild(r);
       };
-      if (ref.where === 'equip') action('star', `Enhance +${eq.enh + 1}`, `${Math.round(Math.max(0.35, 1 - eq.enh * 0.07) * 100)}% success · +8% base stats per level (max +15)`, { gold: g.enhanceCost(eq) }, 'Enhance', () => g.enhance(ref.slot), eq.enh >= 15);
       action('reforge', 'Reforge', RARITY[eq.quality].affixes ? `Reroll all ${RARITY[eq.quality].affixes} bonus affixes${eq.effect ? ' (the named power stays)' : ''}` : 'Common and Uncommon gear has no affixes', reforgeCost(eq), 'Reforge', () => g.reforge(ref), !RARITY[eq.quality].affixes);
       action('levelup', `Re-temper to Lv ${S.level}`, eq.lvl >= S.level ? 'Already at your level' : `Raise item level ${eq.lvl} → ${S.level}; stats and affixes grow with it`, eq.lvl < S.level ? retemperCost(eq, S.level) : null, 'Re-temper', () => g.retemper(ref), eq.lvl >= S.level);
       const A = ASCEND[eq.quality];
       action('ascend', A ? `Ascend to ${RARITY[A.to].name}` : 'Ascend', A ? (A.to >= 4 ? `Awaken into a named ${RARITY[A.to].name} ${SLOT_INFO[eq.slot].label.toLowerCase()} with a special power. Level, enhancement and gems are kept.` : `Raise rarity: stronger base stats, +1 affix, more gem sockets (${SOCKETS[A.to]}).`) : 'Legendary is the highest tier', A ? { gold: A.gold, mats: A.mats } : null, 'Ascend', () => g.ascend(ref), !A);
       body.appendChild(L);
     } else if (tab === 'gems') {
-      const eq = this.forgePicker(body, (e) => SOCKETS[e.quality] > 0);
-      if (eq) {
-        const ref = this.sel.forgeRef;
-        const sk = h('div', 'sockets');
-        eq.gems.forEach((gid, i) => {
-          const gm = parseGem(gid);
-          const s = h('button', 'socket' + (gm ? ' full' : ''), gm ? `${ico('gem_' + gm.type)}<small>${GEM_LV[gm.lv - 1]}</small>` : ico('socket'));
-          s.style.setProperty('--gc', gm ? GEMS[gm.type].color : '#8a94b0');
-          if (gm) { s.title = 'Remove gem'; s.onclick = () => this.modal('Remove gem?', `Costs ${fmt(150 * gm.lv)} Gold. The gem returns to your pouch.`, [{ label: 'Remove', fn: () => g.unsocketGem(ref, i) }, { label: 'Cancel', cls: 'gray' }]); }
-          else s.onclick = () => { this.sel.socketIdx = i; this.renderPanel(); };
-          if (this.sel.socketIdx === i && !gm) s.classList.add('picked');
-          sk.appendChild(s);
-        });
-        body.appendChild(h('div', 'lbl', `${esc(eq.name)}: ${eq.gems.length} socket${eq.gems.length > 1 ? 's' : ''}`));
-        body.appendChild(sk);
-        const si = this.sel.socketIdx;
-        if (si != null && si < eq.gems.length && !eq.gems[si]) {
-          const owned = Object.keys(S.mats).filter((id) => parseGem(id));
-          const pick = h('div', 'chips');
-          if (!owned.length) pick.appendChild(h('span', 'muted', 'You have no gems. Elites, bosses, salvage, Gem Pouches and the Market have them.'));
-          for (const id of owned) { const gm = parseGem(id); const b = h('button', 'chip gemchip', `${ico('gem_' + gm.type, 'ico inl')}${esc(matName(id))} x${S.mats[id]} · ${GEMS[gm.type].label(GEMS[gm.type].vals[gm.lv - 1])}`); b.onclick = () => { this.sel.socketIdx = null; g.socketGem(ref, si, id); }; pick.appendChild(b); }
-          body.appendChild(pick);
-        } else body.appendChild(h('div', 'note', 'Click an empty socket to insert a gem.'));
-      } else body.appendChild(h('div', 'note', 'Pick Uncommon or better gear to socket gems (Uncommon/Rare 1, Special/Unique 2, Legendary 3 sockets).'));
-      body.appendChild(h('div', 'lbl', '<br>Gem pouch · combine 3 into 1 of the next level'));
-      const t = h('div', 'gem-table');
-      for (const [type, gd] of Object.entries(GEMS)) {
-        const r = h('div', 'gem-row', `<span class="gn" style="color:${gd.color}">${ico('gem_' + type, 'ico inl')}${gd.name}</span>`);
-        for (let lv = 1; lv <= 3; lv++) {
-          const n = g.matCount(gemId(type, lv));
-          const c = h('span', 'gc', `<b>${n}</b><small>${GEM_LV[lv - 1]}</small>`);
-          if (lv < 3) { const b = h('button', 'btn small', `${ico('combine', 'ico inl')}${fmt(GEM_COMBINE[lv].gold)}`); b.disabled = n < 3 || S.gold < GEM_COMBINE[lv].gold; b.title = `Combine 3 ${GEM_LV[lv - 1]} into 1 ${GEM_LV[lv]}`; b.onclick = () => g.combineGems(type, lv); c.appendChild(b); }
-          r.appendChild(c);
-        }
-        t.appendChild(r);
-      }
-      body.appendChild(t);
+      this.forgeGems(body);
     } else {
       const sel = this.sel.salv || (this.sel.salv = new Set());
       for (const i of [...sel]) if (!S.bag[i]?.eq) sel.delete(i);
@@ -491,6 +456,121 @@ const P = {
       for (const [lbl, q] of [['All Common', 0], ['Uncommon & below', 1], ['Rare & below', 2]]) { const b = h('button', 'btn small gray', lbl); b.onclick = () => { sel.clear(); g.salvageBelow(q); }; acts.appendChild(b); }
       body.appendChild(acts);
     }
+  },
+
+  // ------------------------------------------------------------ forge: enhancement +1 to +15
+  forgeEnhance(body) {
+    const g = this.g, S = g.S;
+    const eq = this.forgePicker(body);
+    if (!eq) { body.appendChild(h('div', 'note', 'Pick any piece of gear (equipped items are marked E). Enhancement raises base stats up to +15, with bonus steps at +5, +10 and +15. Stones drop from monsters and dungeons and are sold by Hilda.')); this.refinery(body); return; }
+    const ref = this.sel.forgeRef, e = eq.enh || 0, maxed = e >= ENH_MAX;
+    const o = this.sel.enhOpt = this.sel.enhOpt || { luck: false, protect: true };
+    const R = this.enhResult && this.enhResult.uid === eq.uid && performance.now() - this.enhResult.t < 2500 ? this.enhResult : null;
+    const box = h('div', 'enh-box' + (R ? (R.ok ? ' ok' : ' fail') : ''));
+    const pips = Array.from({ length: ENH_MAX }, (_, i) => `<i class="${i < e ? 'on' : ''}${i + 1 === 5 || i + 1 === 10 || i + 1 === 15 ? ' ms' : ''}" title="+${i + 1}: ${Math.round(ENH_RATE[i] * 100)}%"></i>`).join('');
+    const cur = enhMult(e), nxt = enhMult(Math.min(ENH_MAX, e + 1));
+    box.innerHTML = `<div class="enh-item cell q${eq.quality}">${ico(eq.icon)}${e ? `<span class="enh">+${e}</span>` : ''}</div>
+      <div class="enh-main"><b style="color:${RARITY[eq.quality].color}">${esc(eq.name)}</b>
+      <div class="enh-lv"><span class="big">+${e}</span>${maxed ? '<span class="mx">MAX</span>' : `<span class="arrow">➜</span><span class="big nx">+${e + 1}</span>`}</div>
+      <div class="enh-pips">${pips}</div>
+      <div class="muted">Base stats x${cur.toFixed(2)}${maxed ? '' : ` ➜ x${nxt.toFixed(2)}`}${enhAffixMult(e) > 1 ? ` · affixes x${enhAffixMult(e).toFixed(2)}` : ''}</div>
+      ${R ? `<div class="enh-res">${R.ok ? `SUCCESS! +${R.to}` : R.lost ? `FAILED · dropped to +${R.to}` : 'FAILED · level kept'}</div>` : ''}</div>`;
+    body.appendChild(box);
+    if (!maxed) {
+      const cost = enhCost(eq), target = e + 1, risk = enhRisk(target);
+      const chance = g.enhChance(eq, o.luck && g.countItem('enh_luck') > 0);
+      const info = h('div', 'detail enh-ctl');
+      info.innerHTML = `<div class="dtx"><b>${Math.round(chance * 100)}% success</b>${eq.fs ? ` <span class="muted">(includes +${Math.round(eq.fs * 100)}% from failed tries)</span>` : ''}<br>
+        ${risk ? (o.protect && g.countItem('enh_protect') ? '<span style="color:#7aff7a">On failure: the Protection Charm breaks, your level is kept</span>' : '<span style="color:#ff8a7a">On failure: drops to +' + (e ? e - 1 : 0) + '</span>') : '<span style="color:#7aff7a">On failure: nothing but the materials is lost</span>'}
+        <div class="cost">${costChips(g, cost)}</div>
+        <label class="ck"><input type="checkbox" id="en-luck"${o.luck ? ' checked' : ''}> ${ico('enh_luck', 'ico inl')} Lucky Charm +${Math.round(ENH_LUCK * 100)}% (have ${g.countItem('enh_luck')})</label>
+        ${risk ? `<label class="ck"><input type="checkbox" id="en-prot"${o.protect ? ' checked' : ''}> ${ico('enh_protect', 'ico inl')} Protection Charm (have ${g.countItem('enh_protect')})</label>` : ''}</div>`;
+      const acts = h('div', 'acts');
+      const go = h('button', 'btn big-ish' + (target >= 10 ? ' red' : ' green'), `Enhance +${target}`); go.disabled = !g.canAfford(cost);
+      go.onclick = () => g.enhanceItem(ref, { luck: o.luck, protect: o.protect });
+      acts.appendChild(go); info.appendChild(acts); body.appendChild(info);
+      info.querySelector('#en-luck').onchange = (ev) => { o.luck = ev.target.checked; this.renderPanel(); };
+      const pr = info.querySelector('#en-prot'); if (pr) pr.onchange = (ev) => { o.protect = ev.target.checked; this.renderPanel(); };
+    }
+    this.refinery(body);
+  },
+  refinery(body) {
+    const g = this.g;
+    const row = h('div', 'refinery');
+    row.innerHTML = `<span class="muted">Stones:</span>${['enh_stone', 'enh_stone2', 'enh_stone3'].map((id) => `<span class="need" title="${esc(MATERIALS[id].name)}: ${esc(MATERIALS[id].desc)}">${ico(id, 'ico inl')}${fmt(g.matCount(id))}</span>`).join('')}`;
+    REFINE.forEach((r, i) => { const b = h('button', 'btn small', `Refine ${r.n} ➜ 1 ${ico(r.to, 'ico inl')} · ${fmt(r.gold)}`); b.disabled = !g.canAfford({ gold: r.gold, mats: { [r.from]: r.n } }); b.onclick = () => g.refineStones(i); row.appendChild(b); });
+    body.appendChild(row);
+  },
+
+  // ------------------------------------------------------------ forge: gems, arcane gems, soulstones, socket drill
+  forgeGems(body) {
+    const g = this.g, S = g.S;
+    const eq = this.forgePicker(body);
+    if (eq) {
+      const ref = this.sel.forgeRef;
+      const sk = h('div', 'sockets');
+      eq.gems.forEach((gid, i) => {
+        const gm = parseGem(gid), fx = parseSoul(gid);
+        const s = h('button', 'socket' + (gm || fx ? ' full' : '') + (fx ? ' soul' : ''), gm ? `${ico('gem_' + gm.type)}<small>${GEM_LV[gm.lv - 1]}</small>` : fx ? `${ico(gid)}<small>Soul</small>` : ico('socket'));
+        s.style.setProperty('--gc', gm ? GEMS[gm.type].color : fx ? '#ff9ae8' : '#8a94b0');
+        if (gm || fx) { s.title = 'Remove gem'; s.onclick = () => this.modal('Remove gem?', `Costs ${fmt(g.unsocketCost(gid))} Gold. The gem returns to your pouch.`, [{ label: 'Remove', fn: () => g.unsocketGem(ref, i) }, { label: 'Cancel', cls: 'gray' }]); this.tip(s, () => (gm ? `<b style="color:${GEMS[gm.type].color}">${esc(MATERIALS[gid].name)}</b>${esc(GEMS[gm.type].label(GEMS[gm.type].vals[gm.lv - 1]))}` : `<b style="color:#ff9ae8">${esc(MATERIALS[gid].name)}</b>${esc(EFFECTS[fx].desc)}`)); }
+        else s.onclick = () => { this.sel.socketIdx = i; this.renderPanel(); };
+        if (this.sel.socketIdx === i && !gm && !fx) s.classList.add('picked');
+        sk.appendChild(s);
+      });
+      body.appendChild(h('div', 'lbl', `${esc(eq.name)}: ${eq.gems.length} socket${eq.gems.length === 1 ? '' : 's'}${eq.xs ? ` (${eq.xs} drilled)` : ''}`));
+      body.appendChild(sk);
+      // socket drill
+      if ((eq.xs || 0) < DRILL_MAX && g.socketCount(eq) < SOCKET_MAX) {
+        const dr = h('div', 'row slim', `<div class="ic q4">${ico('socket_drill')}</div><div class="tx"><b>Socket Drill</b>Add a socket (up to ${SOCKET_MAX} per item) · you have ${g.countItem('socket_drill')} drill${g.countItem('socket_drill') === 1 ? '' : 's'}<div class="cost">${costChips(g, drillCost(eq))}</div></div>`);
+        const b = h('button', 'btn small', 'Drill'); b.disabled = !g.countItem('socket_drill') || !g.canAfford(drillCost(eq)); b.onclick = () => g.drillSocket(ref); dr.appendChild(b);
+        body.appendChild(dr);
+      }
+      const si = this.sel.socketIdx;
+      if (si != null && si < eq.gems.length && !eq.gems[si]) {
+        const owned = Object.keys(S.mats).filter((id) => parseGem(id) || parseSoul(id));
+        const hasSoul = eq.gems.some((x) => parseSoul(x));
+        const pick = h('div', 'chips');
+        if (!owned.length) pick.appendChild(h('span', 'muted', 'You have no gems. Monsters, bosses, salvage, Gem Pouches, Opal and the Auction House have them.'));
+        for (const id of owned) {
+          const gm = parseGem(id), fx = parseSoul(id);
+          if (fx && hasSoul) continue;
+          const b = h('button', 'chip gemchip' + (fx ? ' soulchip' : ''), gm ? `${ico('gem_' + gm.type, 'ico inl')}${esc(MATERIALS[id].name)} x${S.mats[id]} · ${GEMS[gm.type].label(GEMS[gm.type].vals[gm.lv - 1])}` : `${ico(id, 'ico inl')}${esc(MATERIALS[id].name)} x${S.mats[id]} · ${esc(EFFECTS[fx].desc)}`);
+          b.onclick = () => { this.sel.socketIdx = null; g.socketGem(ref, si, id); }; pick.appendChild(b);
+        }
+        body.appendChild(pick);
+      } else body.appendChild(h('div', 'note', 'Click an empty socket to insert a gem. Soulstones (one per item) add a named power.'));
+    } else body.appendChild(h('div', 'note', 'Pick a piece of gear. Uncommon/Rare have 1 socket, Special/Unique 2, Legendary and Red 3; a Socket Drill adds up to 2 more.'));
+    // gem pouch with combining up to Celestial
+    const tab = this.tabs(body, 'gemTab', [['classic', 'Classic Gems'], ['arcane', 'Arcane Gems'], ['soul', 'Soulstones']]);
+    if (tab === 'soul') {
+      const owned = Object.keys(SOULS).filter((fx) => g.matCount(soulId(fx)) > 0);
+      const L = h('div', 'list');
+      for (const fx of Object.keys(SOULS)) {
+        const n = g.matCount(soulId(fx)), E = EFFECTS[fx];
+        L.appendChild(h('div', 'row slim' + (n ? '' : ' locked'), `<div class="ic q5">${ico(soulId(fx))}</div><div class="tx"><b style="color:${E.tier === 'legendary' ? '#ffe27a' : '#ffb35a'}">${esc(SOULS[fx])} Soulstone${n ? ` x${n}` : ''}</b>${esc(E.desc)}</div>`));
+      }
+      const sf = h('div', 'row soulforge', `<div class="ic q5">${ico('soul_cache')}</div><div class="tx"><b>Soul Forge</b>Fuse ${SOUL_FORGE.gems} Brilliant gems of any kind into a random Soulstone (you have ${g.soulForgeGems().reduce((a, id) => a + g.matCount(id), 0)} Brilliant)<div class="cost">${costChips(g, { gold: SOUL_FORGE.gold, mats: SOUL_FORGE.mats })}</div></div>`);
+      const b = h('button', 'btn small red', 'Fuse'); b.disabled = !g.canSoulForge(); b.onclick = () => g.soulForge(); sf.appendChild(b);
+      body.appendChild(sf); body.appendChild(L);
+      body.appendChild(h('div', 'note', `${owned.length} kinds owned. Soulstones drop from bosses and world bosses, come from Soulstone Chests (Opal) and the Soul Forge, and turn up at the Auction House.`));
+      return;
+    }
+    body.appendChild(h('div', 'lbl', 'Combine 3 gems into 1 of the next level, up to Celestial'));
+    const t = h('div', 'gem-table g5');
+    for (const [type, gd] of Object.entries(GEMS)) {
+      if (!!gd.arcane !== (tab === 'arcane')) continue;
+      const r = h('div', 'gem-row', `<span class="gn" style="color:${gd.color}" title="${esc(gd.label(gd.vals[0]))} … ${esc(gd.label(gd.vals[GEM_MAX - 1]))}">${ico('gem_' + type, 'ico inl')}${gd.name}<small>up to ${esc(gd.label(gd.vals[GEM_MAX - 1]))}</small></span>`);
+      for (let lv = 1; lv <= GEM_MAX; lv++) {
+        const n = g.matCount(gemId(type, lv));
+        const c = h('span', 'gc', `<b>${n}</b><small>${GEM_LV[lv - 1]}</small>`);
+        if (lv < GEM_MAX) { const b = h('button', 'btn small', `${ico('combine', 'ico inl')}${fmt(GEM_COMBINE[lv].gold)}`); b.disabled = n < 3 || S.gold < GEM_COMBINE[lv].gold; b.title = `Combine 3 ${GEM_LV[lv - 1]} into 1 ${GEM_LV[lv]}`; b.onclick = () => g.combineGems(type, lv); c.appendChild(b); }
+        r.appendChild(c);
+      }
+      t.appendChild(r);
+    }
+    body.appendChild(t);
+    if (tab === 'arcane') body.appendChild(h('div', 'note', 'Arcane gems carry the rare stats: crit damage, lifesteal, cooldowns, move speed, thorns, regeneration, EXP and gold find.'));
   },
 
   // ------------------------------------------------------------ codex

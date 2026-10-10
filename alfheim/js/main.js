@@ -11,13 +11,15 @@ import { Game, newSave, migrateSave, SAVE_KEY } from './game.js';
 import { ico } from './icons.js';
 import { buildHumanoid, classLook, HAIR_COLORS, EYE_COLORS, animateHumanoid } from './models.js';
 import { magicCircleTexture } from './toon.js';
+import { connectLive, live, onLive } from './live.js';
+import { AdminPanel } from './admin.js';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
 let renderer, scene, camera, world, fx, ui, sfx, portraits, sun, lights, game = null;
-let mode = 'title', preview = null, previewYaw = 0.4, hotSave = null;
+let mode = 'title', preview = null, previewYaw = 0.4, hotSave = null, admin = null;
 
 function loadSave() {
   if (hotSave) return hotSave;
@@ -56,6 +58,11 @@ async function init() {
   sfx = new Sfx();
   portraits = new Portraits();
   ui = new UI();
+  admin = new AdminPanel(() => (game ? game.S : loadSave()));
+  ui.openAdmin = () => admin.open();
+  ui.adminAllowed = () => admin.allowed();
+  onLive(() => refreshTitleLive());
+  connectLive().then(() => { if (location.hash === '#admin' && admin.allowed()) admin.open(); });
 
   // loading screen while the world builds
   const loading = $('scr-loading'); loading.hidden = false; $('scr-title').hidden = true;
@@ -96,11 +103,34 @@ function showTitle(save) {
     b.onclick = () => { list.querySelectorAll('.server').forEach((x) => x.classList.remove('sel')); b.classList.add('sel'); sfx.ensure(); sfx.play('click'); };
     list.appendChild(b);
   });
+  refreshTitleLive();
   const cont = $('btn-continue');
   if (save) { cont.hidden = false; cont.textContent = `Continue · ${save.name} Lv${save.level}`; $('btn-enter').textContent = 'New Hero'; }
   cont.onclick = () => { sfx.ensure(); sfx.play('open'); startGame(save); };
   $('btn-enter').onclick = () => { sfx.ensure(); sfx.play('open'); showCreate(); };
 }
+
+// live link on the title screen: GM console entry (owner/editors, or any local copy), announcement and notices
+function refreshTitleLive() {
+  const box = document.querySelector('#scr-title .server-box'); if (!box) return;
+  let link = $('btn-admin');
+  if (!link) {
+    link = document.createElement('button'); link.id = 'btn-admin'; link.className = 'adm-link';
+    link.innerHTML = `${ico('crown', 'ico inl')} Game Master Console`;
+    link.onclick = () => { sfx.ensure(); sfx.play('open'); admin.open(); };
+    box.appendChild(link);
+  }
+  link.hidden = !admin || !admin.allowed() || !live.ready;
+  let note = $('title-live');
+  if (!note) { note = document.createElement('div'); note.id = 'title-live'; box.parentNode.insertBefore(note, box.nextSibling); }
+  const c = live.config || {}, parts = [];
+  if (c.maint?.on && c.maint.text) parts.push(`<div class="tl maint">${ico('timer', 'ico inl')} ${escapeHtml(c.maint.text)}</div>`);
+  if (c.motd) parts.push(`<div class="tl motd">${ico('star', 'ico inl')} ${escapeHtml(c.motd)}</div>`);
+  if (c.boost && c.boost.until > Date.now()) parts.push(`<div class="tl boost">${ico('exp', 'ico inl')} ${escapeHtml(c.boost.name)}: ${c.boost.exp > 1 ? `x${c.boost.exp} EXP ` : ''}${c.boost.gold > 1 ? `x${c.boost.gold} Gold` : ''}</div>`);
+  note.innerHTML = parts.join('');
+  note.hidden = !parts.length;
+}
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 // ---------------------------------------------------------------- create
 const SYL_A = ['Ae', 'Lu', 'Ri', 'Sel', 'Fae', 'Ka', 'Mi', 'No', 'Va', 'Ely', 'Thal', 'Zy', 'Ori', 'Cel', 'Yu', 'Ne'];

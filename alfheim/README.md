@@ -57,10 +57,27 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   pet eggs, gem pouches and Rare to Unique gear (with a Masterwork chance). The Market lists goods from other players at
   prices that drift through the day; list your own items and they sell over time (cheaper sells faster, 5% tax). Players
   also whisper you trade offers.
-- **Equipment progression**: besides enhancing to +15, gear can be reforged (reroll affixes), re-tempered to your level,
-  ascended up a rarity tier (Special gear awakens into a named Unique, Unique into a Legendary), socketed with Ruby,
-  Sapphire, Emerald and Topaz gems in three levels (combine 3 into 1), and salvaged into Spirit Dust, Shards and Star
-  Essence. The Legendary Codex tracks all 21 named items, grants a collection bonus and pays out at milestones.
+- **Enhancement +1 to +15**: the Forge's Enhance tab levels up any piece of gear with Enhancement Stones (normal for
+  +1 to +5, Greater to +10, Divine to +15) and gold. Success drops from 100% to 12% at +15; each failure adds +5% to the
+  next try (up to +25%), and from +7 a failure drops the item one level unless a Protection Charm is used. Lucky Charms
+  add +15%. Base stats grow 7% per level with bonus steps at +5, +10 and +15 (x2.6 at +15), affixes grow from +10, and
+  enhanced weapons glow blue (+7), violet (+10) and blazing (+15). Stones drop from monsters and dungeon chests, are sold
+  by Hilda and refine 5 into 1 of the next tier.
+- **Gems with unique stats**: besides Ruby, Sapphire, Emerald and Topaz, eight Arcane gems carry the rare stats
+  (Amethyst crit damage, Onyx lifesteal, Opal cooldowns, Aquamarine speed, Garnet thorns, Jade regeneration, Moonstone
+  EXP, Citrine gold find). Every gem combines 3 into 1 up to the fifth level (Celestial). **Soulstones** socket like gems
+  (one per item) and grant a named power: the twelve Unique/Legendary powers plus three found only on Soulstones (Twin
+  Fang, Executioner, Giant Slayer). The Socket Drill adds up to two extra sockets (five in total) and the Soul Forge fuses
+  three Brilliant gems into a random Soulstone.
+- **Equipment progression**: gear can also be reforged (reroll affixes), re-tempered to your level,
+  ascended up a rarity tier (Special gear awakens into a named Unique, Unique into a Legendary) and salvaged into Spirit
+  Dust, Shards and Star Essence. The Legendary Codex tracks all 21 named items, grants a collection bonus and pays out at milestones.
+- **Game Master Console**: the server list on the title screen has a Game Master Console link for the artifact's owner
+  and editors (and in any local copy). In the published version the game reports each signed-in player's status to the
+  artifact's shared database, and the console shows players online, levels, classes, zones, gear, play time, an
+  activity feed (level ups, dungeon clears, deaths, rare loot), client errors and the server clock. From it the owner can
+  post an announcement, start an EXP/Gold event, show a maintenance notice and send gifts to everyone or to one player.
+  Players with view-only access cannot report, so share the game as Contributor to see them.
 - **Seasons, festivals and leaderboards**: each month is a season with a 30-tier Season Pass (free and premium tracks)
   and a Season leaderboard that pays out when the month ends. Leaderboards also rank Battle Rating, Level, World Boss
   damage, dungeon speed, guild war wins and guilds. Festivals follow the calendar: the Harvest Moon (October to early
@@ -105,6 +122,9 @@ Other players, guildmates, market sellers and rivals are simulated, so everythin
 | `js/data-world.js` | Expanded world content: outer zones, Lv 16-200 monsters, dungeons 4-11, relics, professions, crops, recipes, costumes, shops |
 | `js/life.js` | Gathering nodes, farming, alchemy, smithing, elixirs, costumes, relic collection and Red gear |
 | `js/economy.js` | Bag expansion, Sell All, NPC shops, Auction House and direct trades |
+| `js/upgrade.js` | Enhancement +1 to +15, arcane gems, Soulstones, Socket Drill and Soul Forge |
+| `js/live.js` | Live link to the artifact's shared database: player status, announcements, events, gifts |
+| `js/admin.js` | Game Master Console |
 | `js/models-monsters.js`, `js/models-extra.js` | New monsters and bosses; new pets, mounts, gathering nodes and crops |
 | `js/toon.js` | Cel-shaded materials, ink outlines and canvas textures |
 | `js/models.js` | Procedural chibi characters, monsters, pets, mounts and sprites |

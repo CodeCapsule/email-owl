@@ -7,7 +7,7 @@ import {
 } from './data.js';
 import {
   dayKey, weekKey, monthKey, secsToDayEnd, rng32, shuffled, hashStr, monthProgress,
-  MATERIALS, GEMS, GEM_LV, gemId, parseGem, MAT_DROPS, RECIPES, SOCKETS, GEM_COMBINE, ASCEND, reforgeCost, retemperCost, salvageYield, CODEX_MILESTONES,
+  MATERIALS, GEMS, GEM_LV, gemId, parseGem, SOULS, soulId, MAT_DROPS, RECIPES, SOCKETS, GEM_COMBINE, ASCEND, reforgeCost, retemperCost, salvageYield, CODEX_MILESTONES,
   DAILY_POOL, WEEKLY_POOL, DAILY_CHESTS, WEEKLY_CHESTS,
   GUILD_LIST, GUILD_EXP, GUILD_MAX, GUILD_CREATE, GUILD_JOIN_LV, guildBuff, GUILD_DONATE, GUILD_SHOP, EXTRA_NAMES, GUILD_CHAT, GUILD_ROLES,
   WAR, WAR_DEF, WORLD_BOSS, WB_RANK_REWARDS, MARKET, MARKET_GOODS, MARKET_LINES,
@@ -19,6 +19,7 @@ import { buildHumanoid, classLook, HAIR_COLORS, EYE_COLORS } from './models.js';
 import { buildEventMonster } from './models-event.js';
 import { glowTexture, toon, outlineMaterial } from './toon.js';
 import { curveStats, MAX_LEVEL } from './data-world.js';
+import { randomGemType, stoneFor } from './upgrade.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
@@ -80,6 +81,7 @@ const M = {
     this.updateMarket(dt);
     this.updateLife(dt);
     this.updateEconomy(dt);
+    this.updateLive(dt);
     if (this.festival) this.festival.update(this.time);
     if (this.wb && this.wb.altarFx) this.wb.altarFx(this.time);
     if (this.sysT <= 0) {
@@ -172,7 +174,9 @@ const M = {
     const got = [];
     for (const [id, ch, a, b] of MAT_DROPS[m.type] || []) if (Math.random() < ch) got.push([id, Math.round(rnd(a, b))]);
     const gemCh = d.boss ? 0.4 : d.elite ? 0.07 : m.dungeon ? 0.03 : 0.006;
-    if (Math.random() < gemCh) got.push([gemId(pick(Object.keys(GEMS)), d.boss && Math.random() < 0.25 ? 2 : 1), 1]);
+    if (Math.random() < gemCh) got.push([gemId(randomGemType(), d.boss && Math.random() < 0.25 ? 2 : 1), 1]);
+    if (!d.structure && !d.war && Math.random() < (d.boss ? 1 : d.elite ? 0.35 : m.dungeon ? 0.1 : 0.05)) got.push([stoneFor(m.level), d.boss ? 3 : 1]);
+    if (d.boss && !d.war && Math.random() < (m.wb ? 0.12 : 0.05)) got.push([soulId(pick(Object.keys(SOULS))), 1]);
     if (!d.structure && Math.random() < (d.boss ? 1 : d.elite ? 0.3 : 0.05)) got.push(['spirit_dust', d.boss ? 4 : 1]);
     if (this.event && !d.war) {
       const tok = this.event.currency;
@@ -614,6 +618,7 @@ const M = {
   endWar(win, reason) {
     const W = this.war, S = this.S, G = S.guild; if (!W || W.done) return;
     W.done = true; W.win = win;
+    this.logEvent('war', `Guild war ${win ? 'won' : 'lost'}${S.guild ? ` for ${S.guild.name}` : ''}`, true);
     for (const m of this.monsters) if (m.warUnit) m.target = null;
     const L = S.level;
     const r = win ? { gold: 400 + L * 60, diamonds: 20, mats: { spirit_shard: 2 }, contrib: 120 } : { gold: 200 + L * 30, diamonds: 8, mats: { spirit_dust: 5 }, contrib: 50 };
@@ -731,6 +736,7 @@ const M = {
     const W = this.wb, S = this.S; if (!W || W.e !== m) return;
     W.finished = this.time; S.wb.done = true;
     const rank = this.wbRanking(), idx = rank.findIndex((r) => r.me), myDmg = idx >= 0 ? rank[idx].dmg : 0;
+    if (myDmg > 0) this.logEvent('worldboss', `Fought ${m.def0.name} · rank ${idx + 1} · ${Math.round(myDmg).toLocaleString('en-US')} dmg`, true);
     this.ui.chat('announce', `<b>[World Boss]</b> ${esc(m.def0.name)} has been defeated! Top damage: <b>${esc(rank[0]?.name || '?')}</b>.`);
     this.releaseWbBots();
     if (myDmg <= 0) { this.ui.refreshQuest(); return; }
@@ -846,38 +852,12 @@ const M = {
     }
     this.afterUpgrade(ref, `${before} ascended to ${RARITY[eq.quality].name}!`);
   },
-  socketGem(ref, i, gid) {
-    const eq = this.refItem(ref); if (!eq || !parseGem(gid)) return;
-    fitSockets(eq);
-    if (i < 0 || i >= eq.gems.length || eq.gems[i]) return;
-    if (!this.takeMat(gid, 1)) { this.ui.toast('You do not have that gem', 'warn'); return; }
-    eq.gems[i] = gid;
-    if (ref.where === 'equip') this.recalc();
-    this.track('gem'); this.sfx.play('level'); this.fx.buff(this.player, GEMS[parseGem(gid).type].color);
-    this.ui.toast(`Socketed ${matName(gid)}`, 'good'); this.ui.refreshPanel(); this.save();
-  },
-  unsocketGem(ref, i) {
-    const eq = this.refItem(ref); if (!eq || !eq.gems?.[i]) return;
-    const g = parseGem(eq.gems[i]);
-    if (!this.pay({ gold: 150 * g.lv })) return;
-    this.addMat(eq.gems[i], 1, true); eq.gems[i] = null;
-    if (ref.where === 'equip') this.recalc();
-    this.sfx.play('click'); this.ui.toast('Gem removed', 'good'); this.ui.refreshPanel(); this.save();
-  },
-  combineGems(type, lv) {
-    if (lv >= 3) return;
-    const id = gemId(type, lv), cost = { gold: GEM_COMBINE[lv].gold, mats: { [id]: 3 } };
-    if (!this.pay(cost)) return;
-    this.addMat(gemId(type, lv + 1), 1, true);
-    this.track('gem'); this.sfx.play('level'); this.fx.buff(this.player, GEMS[type].color);
-    this.ui.toast(`Combined into ${matName(gemId(type, lv + 1))}!`, 'good'); this.ui.refreshPanel(); this.save();
-  },
   // Bag consumables added by the systems. Returns true when handled.
   useSystemItem(id) {
     const S = this.S;
     if (id === 'gem_pouch') {
       this.removeItem('gem_pouch', 1);
-      const g = gemId(pick(Object.keys(GEMS)), Math.random() < 0.08 ? 2 : 1);
+      const g = gemId(randomGemType(), Math.random() < 0.08 ? 2 : 1);
       this.addMat(g, 1, true); this.sfx.play('chest'); this.fx.buff(this.player, GEMS[parseGem(g).type].color);
       this.ui.toast(`The pouch held a ${matName(g)}!`, 'good');
       return true;

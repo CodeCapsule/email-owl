@@ -1,6 +1,6 @@
 // Item rarity tiers, random affixes, named Unique/Legendary items and loot generation. Pure JS (no three.js).
 import { SLOTS, WEAPON_NAMES, SLOT_BASE, SLOT_INFO } from './data.js';
-import { SOCKETS, GEMS, GEM_LV, parseGem } from './systems-data.js';
+import { SOCKETS, GEMS, GEM_LV, parseGem, parseSoul, SOULS, SOCKET_MAX } from './systems-data.js';
 
 export const RARITY = [
   { key: 'common', name: 'Common', color: '#e8e8e8', glow: 'rgba(232,232,232,0.25)', mult: 1.0, affixes: 0, beam: 0 },
@@ -53,7 +53,14 @@ export const EFFECTS = {
   holy_nova: { id: 'holy_nova', tier: 'legendary', name: 'Holy Nova', desc: 'Every 8s in combat, release a nova for 150% Attack around you and heal 5% Max HP.', params: { every: 8, mult: 150, radius: 6, healPct: 5 } },
   starfall: { id: 'starfall', tier: 'legendary', name: 'Starfall', desc: 'Critical hits drop a falling star on the target for 120% Attack.', params: { mult: 120 } },
   worldtree: { id: 'worldtree', tier: 'legendary', name: 'Blessing of Yggdrasil', desc: '+20% Max HP and regenerate 1.2% Max HP per second.', params: { hpPct: 20, regenPct: 1.2 } },
+  // found only on Soulstones
+  double_strike: { id: 'double_strike', tier: 'unique', name: 'Twin Fang', desc: '15% chance on hit to strike again for 70% of the damage.', params: { chance: 15, pct: 70 } },
+  executioner: { id: 'executioner', tier: 'unique', name: 'Executioner', desc: '+40% damage to enemies below 30% HP.', params: { below: 30, pct: 40 } },
+  giant_slayer: { id: 'giant_slayer', tier: 'legendary', name: 'Giant Slayer', desc: '+20% damage to elites, bosses and world bosses.', params: { pct: 20 } },
 };
+// Enhancement: base stats grow 7% per level with bonus steps at +5, +10 and +15; from +10 affixes grow too.
+export const enhMult = (enh = 0) => 1 + 0.07 * enh + (enh >= 5 ? 0.05 : 0) + (enh >= 10 ? 0.15 : 0) + (enh >= 15 ? 0.35 : 0);
+export const enhAffixMult = (enh = 0) => 1 + (enh >= 10 ? 0.1 : 0) + (enh >= 15 ? 0.15 : 0);
 
 export const UNIQUE_ITEMS = [
   { id: 'u_thornfang', name: 'Thornfang Blade', slot: 'weapon', cls: 'knight', effect: 'stun_chance', flavor: 'Forged from a Thornwolf\'s fang and Mossveil iron.' },
@@ -204,10 +211,10 @@ const ZERO = () => ({ atk: 0, def: 0, hp: 0, crit: 0, critDmg: 0, speed: 0, life
 export function itemStats(eq) {
   const out = ZERO();
   if (!eq) return out;
-  const k = 1 + 0.08 * (eq.enh || 0);
+  const k = enhMult(eq.enh || 0), ka = enhAffixMult(eq.enh || 0);
   for (const s of ['atk', 'def', 'hp']) out[s] += (eq.stats?.[s] || 0) * k;
   out.crit += eq.stats?.crit || 0;
-  for (const a of eq.affixes || []) { const def = AFFIXES[a.id]; if (def && Number.isFinite(a.v)) out[def.stat] += a.v; }
+  for (const a of eq.affixes || []) { const def = AFFIXES[a.id]; if (def && Number.isFinite(a.v)) out[def.stat] += a.v * ka; }
   for (const gid of eq.gems || []) { const g = parseGem(gid); if (g) out[GEMS[g.type].stat] += GEMS[g.type].vals[g.lv - 1]; }
   return out;
 }
@@ -221,6 +228,7 @@ export function aggregateEquip(equipMap) {
     const s = itemStats(eq);
     for (const k in s) stats[k] += s[k];
     if (eq.effect && EFFECTS[eq.effect] && !effects.includes(eq.effect)) effects.push(eq.effect);
+    for (const gid of eq.gems || []) { const fx = parseSoul(gid); if (fx && EFFECTS[fx] && !effects.includes(fx)) effects.push(fx); }
   }
   for (const k in CAPS) stats[k] = Math.min(CAPS[k], stats[k]);
   return { stats, effects };
@@ -233,6 +241,7 @@ export function itemScore(eq) {
   let score = 0;
   for (const k in WEIGHTS) score += (s[k] || 0) * WEIGHTS[k];
   if (eq.effect && EFFECTS[eq.effect]) score += EFFECTS[eq.effect].tier === 'legendary' ? 900 : 350;
+  for (const gid of eq.gems || []) { const fx = parseSoul(gid); if (fx && EFFECTS[fx]) score += EFFECTS[fx].tier === 'legendary' ? 900 : 350; }
   return Math.round(score);
 }
 
@@ -241,17 +250,19 @@ export function itemLines(eq) {
   const R = RARITY[eq.quality] || RARITY[0];
   const lines = [{ text: eq.name + (eq.enh ? ` +${eq.enh}` : ''), color: R.color }];
   lines.push({ text: `${R.name} ${SLOT_INFO[eq.slot]?.label || eq.slot} · Lv ${eq.lvl}`, color: '#b6c2dc' });
-  const k = 1 + 0.08 * (eq.enh || 0);
+  const k = enhMult(eq.enh || 0), ka = enhAffixMult(eq.enh || 0);
   for (const s of ['atk', 'def', 'hp']) if (eq.stats?.[s]) lines.push({ text: `${STAT_LABEL[s]} +${Math.round(eq.stats[s] * k)}`, color: '#ffffff' });
   if (eq.stats?.crit) lines.push({ text: `Critical +${r1(eq.stats.crit)}%`, color: '#ffffff' });
-  for (const a of eq.affixes || []) { const def = AFFIXES[a.id]; if (def) lines.push({ text: def.label(a.v), color: '#7aff7a' }); }
+  if (eq.enh) lines.push({ text: `Enhanced +${eq.enh}: base stats x${k.toFixed(2)}${ka > 1 ? `, affixes x${ka.toFixed(2)}` : ''}`, color: eq.enh >= 15 ? '#ff7a4a' : eq.enh >= 10 ? '#d8a0ff' : '#8ad0ff' });
+  for (const a of eq.affixes || []) { const def = AFFIXES[a.id]; if (def) lines.push({ text: def.label(r1(a.v * ka)), color: '#7aff7a' }); }
   if (eq.effect && EFFECTS[eq.effect]) {
     const e = EFFECTS[eq.effect];
     lines.push({ text: `${e.name}: ${e.desc}`, color: e.tier === 'legendary' ? '#ffe27a' : '#ffb35a' });
   }
   for (const gid of eq.gems || []) {
-    const g = parseGem(gid);
-    lines.push(g ? { text: `◆ ${GEM_LV[g.lv - 1]} ${GEMS[g.type].name}: ${GEMS[g.type].label(GEMS[g.type].vals[g.lv - 1])}`, color: GEMS[g.type].color } : { text: '◇ Empty socket', color: '#8a94b0' });
+    const g = parseGem(gid), fx = parseSoul(gid);
+    lines.push(g ? { text: `◆ ${GEM_LV[g.lv - 1]} ${GEMS[g.type].name}: ${GEMS[g.type].label(GEMS[g.type].vals[g.lv - 1])}`, color: GEMS[g.type].color }
+      : fx ? { text: `✦ ${SOULS[fx]} Soulstone: ${EFFECTS[fx].desc}`, color: '#ff9ae8' } : { text: '◇ Empty socket', color: '#8a94b0' });
   }
   if (eq.flavor) lines.push({ text: `"${eq.flavor}"`, color: '#b6c2dc' });
   return lines;
@@ -264,7 +275,7 @@ export function sellPrice(eq) {
 
 // ---------------------------------------------------------------- progression helpers (Forge)
 export function fitSockets(eq) {
-  const n = SOCKETS[eq.quality] || 0;
+  const n = Math.min(SOCKET_MAX, (SOCKETS[eq.quality] || 0) + (eq.xs || 0));
   if (!Array.isArray(eq.gems)) eq.gems = [];
   const removed = eq.gems.slice(n).filter(Boolean);
   eq.gems = eq.gems.slice(0, n);

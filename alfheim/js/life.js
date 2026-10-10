@@ -361,6 +361,7 @@ const L = {
     this.unlockTitle('Crimson Smith');
     this.addProfExp('smithing', 400);
     this.ui.banner('RED ITEM!', eq.name, 'loot6');
+    this.logEvent('red', `Forged ${eq.name}`, true);
     this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} forged the Red item <span class="it" style="color:${RARITY[6].color}">[${esc(eq.name)}]</span>!`);
     this.sfx.play('legend'); this.fx.shake(0.5); this.fx.pillar(this.player.pos, 0xff3b3b, 2, 14, 1.4);
     this.ui.lootPopup([eq], { title: 'Crimson Forge' });

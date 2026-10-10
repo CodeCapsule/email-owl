@@ -36,14 +36,49 @@ export const fmtDur = (s) => {
 
 // ---------------------------------------------------------------- materials & gems (kept in a separate pouch, S.mats)
 export const GEMS = {
-  ruby: { name: 'Ruby', stat: 'atk', vals: [6, 14, 30], label: (v) => `+${v} Attack`, color: '#ff4a5a' },
-  sapphire: { name: 'Sapphire', stat: 'def', vals: [5, 11, 24], label: (v) => `+${v} Defense`, color: '#4a8aff' },
-  emerald: { name: 'Emerald', stat: 'hp', vals: [70, 160, 340], label: (v) => `+${v} Max HP`, color: '#3ad87a' },
-  topaz: { name: 'Topaz', stat: 'crit', vals: [1, 2, 3.5], label: (v) => `+${v}% Critical`, color: '#ffc83a' },
+  ruby: { name: 'Ruby', stat: 'atk', vals: [6, 14, 30, 120, 320], label: (v) => `+${v} Attack`, color: '#ff4a5a' },
+  sapphire: { name: 'Sapphire', stat: 'def', vals: [5, 11, 24, 90, 240], label: (v) => `+${v} Defense`, color: '#4a8aff' },
+  emerald: { name: 'Emerald', stat: 'hp', vals: [70, 160, 340, 1400, 3600], label: (v) => `+${v} Max HP`, color: '#3ad87a' },
+  topaz: { name: 'Topaz', stat: 'crit', vals: [1, 2, 3.5, 5, 7], label: (v) => `+${v}% Critical`, color: '#ffc83a' },
+  // arcane gems: rarer, and they grant the special stats normally found only as affixes
+  amethyst: { name: 'Amethyst', stat: 'critDmg', vals: [4, 8, 14, 22, 32], label: (v) => `+${v}% Crit Damage`, color: '#b46aff', arcane: true },
+  onyx: { name: 'Onyx', stat: 'lifesteal', vals: [0.6, 1.2, 2, 3, 4.5], label: (v) => `+${v}% Lifesteal`, color: '#9a8ab8', arcane: true },
+  opal: { name: 'Opal', stat: 'cdr', vals: [1, 2, 3.5, 5, 7], label: (v) => `-${v}% Cooldowns`, color: '#ffc8f0', arcane: true },
+  aquamarine: { name: 'Aquamarine', stat: 'speed', vals: [1.5, 3, 4.5, 6, 8], label: (v) => `+${v}% Move Speed`, color: '#6ae8e0', arcane: true },
+  garnet: { name: 'Garnet', stat: 'thorns', vals: [3, 6, 10, 15, 22], label: (v) => `Reflect ${v}% damage taken`, color: '#e83a50', arcane: true },
+  jade: { name: 'Jade', stat: 'regen', vals: [3, 8, 20, 45, 90], label: (v) => `+${v} HP per second`, color: '#3ab86a', arcane: true },
+  moonstone: { name: 'Moonstone', stat: 'expGain', vals: [3, 6, 10, 15, 22], label: (v) => `+${v}% EXP Gain`, color: '#a8c0ff', arcane: true },
+  citrine: { name: 'Citrine', stat: 'goldFind', vals: [5, 10, 16, 24, 35], label: (v) => `+${v}% Gold Find`, color: '#ffb02a', arcane: true },
 };
-export const GEM_LV = ['Chipped', 'Polished', 'Radiant'];
+export const GEM_LV = ['Chipped', 'Polished', 'Radiant', 'Brilliant', 'Celestial'];
+export const GEM_MAX = 5;
 export const gemId = (type, lv) => `gem_${type}_${lv}`;
-export function parseGem(id) { const m = /^gem_(ruby|sapphire|emerald|topaz)_([123])$/.exec(id || ''); return m ? { type: m[1], lv: +m[2] } : null; }
+export function parseGem(id) { const m = /^gem_([a-z]+)_([1-5])$/.exec(id || ''); return m && GEMS[m[1]] ? { type: m[1], lv: +m[2] } : null; }
+// Soulstones: socketed like gems (one per item) and grant a named power.
+export const SOULS = {
+  crit_heal: 'Bloodbloom', chain: 'Stormcall', stun_chance: 'Earthshock', thorn_aura: 'Bramble Aura', swift: 'Zephyr Step', mana_font: 'Mana Font',
+  meteor_proc: 'Ragnarok', phoenix: 'Phoenix Feather', frenzy: 'Frenzy', holy_nova: 'Holy Nova', starfall: 'Starfall', worldtree: 'Blessing of Yggdrasil',
+  double_strike: 'Twin Fang', executioner: 'Executioner', giant_slayer: 'Giant Slayer',
+};
+export const soulId = (fx) => 'soul_' + fx;
+export function parseSoul(id) { const m = /^soul_([a-z_]+)$/.exec(id || ''); return m && SOULS[m[1]] ? m[1] : null; }
+export const SOUL_FORGE = { gems: 3, gemLv: 4, mats: { star_essence: 3 }, gold: 50000 };
+export const SOCKET_MAX = 5, DRILL_MAX = 2; // sockets per item, extra sockets a Socket Drill can add
+export const drillCost = (eq) => ({ gold: 5000 * ((eq.xs || 0) + 1) * (1 + eq.lvl / 50) | 0 });
+
+// ---------------------------------------------------------------- enhancement (+1 to +15)
+export const ENH_MAX = 15;
+export const ENH_RATE = [1, 1, 1, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.42, 0.35, 0.28, 0.22, 0.17, 0.12]; // chance to reach +1 ... +15
+export const ENH_STONES = ['enh_stone', 'enh_stone2', 'enh_stone3'];
+export const ENH_FAIL_BONUS = 0.05, ENH_FAIL_MAX = 0.25, ENH_LUCK = 0.15;
+export const enhTier = (target) => (target <= 5 ? 0 : target <= 10 ? 1 : 2);
+export function enhCost(eq) {
+  const L = (eq.enh || 0) + 1, t = enhTier(L);
+  const n = t === 0 ? 1 + (L >> 1) : t === 1 ? L - 4 : L - 9;
+  return { gold: Math.round(150 * L * L * (1 + eq.lvl / 25)), mats: { [ENH_STONES[t]]: n } };
+}
+export const enhRisk = (target) => (target >= 7 ? 1 : 0); // enhancement levels lost when an attempt at this target fails
+export const REFINE = [{ from: 'enh_stone', to: 'enh_stone2', n: 5, gold: 1000 }, { from: 'enh_stone2', to: 'enh_stone3', n: 5, gold: 5000 }];
 
 export const MATERIALS = {
   jelly_gel: { name: 'Jelly Gel', icon: 'jelly_gel', quality: 0, price: 18, desc: 'Wobbly gel from jellies. Brewed into potions.' },
@@ -62,9 +97,14 @@ export const MATERIALS = {
 };
 for (const [type, g] of Object.entries(GEMS)) {
   g.vals.forEach((v, i) => {
-    MATERIALS[gemId(type, i + 1)] = { name: `${GEM_LV[i]} ${g.name}`, icon: 'gem_' + type, quality: i + 2, price: [150, 600, 2200][i], gem: { type, lv: i + 1 }, desc: `Socket into gear: ${g.label(v)}.` };
+    MATERIALS[gemId(type, i + 1)] = { name: `${GEM_LV[i]} ${g.name}`, icon: 'gem_' + type, quality: i + 2, price: Math.round([150, 600, 2200, 8000, 30000][i] * (g.arcane ? 1.6 : 1)), gem: { type, lv: i + 1 }, desc: `Socket into gear: ${g.label(v)}.` };
   });
 }
+
+for (const [fx, name] of Object.entries(SOULS)) MATERIALS[soulId(fx)] = { name: `${name} Soulstone`, icon: soulId(fx), quality: 5, price: 25000, soul: fx, desc: 'Socket into gear (one Soulstone per item) to gain its named power.' };
+MATERIALS.enh_stone = { name: 'Enhancement Stone', icon: 'enh_stone', quality: 2, price: 400, desc: 'Enhances gear from +1 to +5. Five refine into a Greater stone.' };
+MATERIALS.enh_stone2 = { name: 'Greater Enhancement Stone', icon: 'enh_stone2', quality: 3, price: 1600, desc: 'Enhances gear from +6 to +10.' };
+MATERIALS.enh_stone3 = { name: 'Divine Enhancement Stone', icon: 'enh_stone3', quality: 4, price: 6000, desc: 'Enhances gear from +11 to +15.' };
 
 // gathering / farm materials and dungeon collection relics
 const MAT_DESC = { ore: 'Ore mined from a vein. Smelted into gear by Smithing.', herb: 'A wild herb for Alchemy.', wood: 'A log for Smithing.', crop: 'Farm produce for Alchemy and cooking.' };
@@ -109,7 +149,7 @@ export const RECIPES = [
 
 // ---------------------------------------------------------------- gear progression
 export const SOCKETS = [0, 1, 1, 2, 2, 3, 3]; // sockets per rarity tier
-export const GEM_COMBINE = [null, { gold: 300 }, { gold: 1200 }]; // 3x level n -> 1x level n+1 (index = n)
+export const GEM_COMBINE = [null, { gold: 300 }, { gold: 1200 }, { gold: 5000 }, { gold: 20000 }]; // 3x level n -> 1x level n+1 (index = n)
 export const ASCEND = [ // indexed by current quality
   { to: 1, mats: { spirit_dust: 4 }, gold: 200 },
   { to: 2, mats: { spirit_dust: 8, spirit_shard: 1 }, gold: 800 },

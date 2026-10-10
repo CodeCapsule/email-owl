@@ -539,10 +539,9 @@ export class UI {
     const s = this.sel.eqSlot, eq = s && S.equip[s];
     const det = h('div', 'detail');
     if (eq) {
-      const cost = g.enhanceCost(eq), chance = Math.round(Math.max(0.35, 1 - eq.enh * 0.07) * 100);
-      det.innerHTML = `<div class="dtx">${this.equipTip(eq)}<br>Enhance: <span class="price"><span class="coin"></span>${fmt(cost)}</span> · ${chance}% success</div>`;
+      det.innerHTML = `<div class="dtx">${this.equipTip(eq)}<br>Enhancement <b>+${eq.enh || 0}</b>/15${(eq.enh || 0) < 15 ? ` · next ${Math.round(g.enhChance(eq) * 100)}% success` : ' · maxed'}</div>`;
       const acts = h('div', 'acts');
-      const be = h('button', 'btn', `Enhance +${eq.enh + 1}`); be.onclick = () => g.enhance(s); acts.appendChild(be);
+      const be = h('button', 'btn', (eq.enh || 0) < 15 ? `Enhance +${(eq.enh || 0) + 1}` : 'Enhance'); be.onclick = () => { this.sel.forgeRef = { where: 'equip', slot: s }; this.sel.fgTab = 'enhance'; this.togglePanel('forge', true); }; acts.appendChild(be);
       const bu = h('button', 'btn gray', 'Unequip'); bu.onclick = () => { g.unequip(s); this.sel.eqSlot = null; }; acts.appendChild(bu);
       det.appendChild(acts);
     } else det.innerHTML = '<div class="dtx">Select an equipment slot. Gorm the Blacksmith says: enhanced gear raises your Battle Rating! Reforge, ascend and socket gems at the Forge (Y).</div>';
@@ -790,6 +789,7 @@ export class UI {
     body.appendChild(s);
     const acts = h('div', 'acts'); acts.style.cssText = 'display:flex;gap:8px;margin-top:16px;flex-wrap:wrap';
     const sv = h('button', 'btn blue', 'Save Game'); sv.onclick = () => { g.save(); this.toast('Game saved', 'good'); }; acts.appendChild(sv);
+    if (this.openAdmin && this.adminAllowed && this.adminAllowed()) { const ad = h('button', 'btn', 'Game Master Console'); ad.onclick = () => { this.closePanels(); this.openAdmin(); }; acts.appendChild(ad); }
     const del = h('button', 'btn gray', 'New Character'); del.onclick = () => this.modal('Start over?', 'This deletes your saved hero and returns to character creation.', [{ label: 'Delete & Restart', fn: () => { try { localStorage.removeItem('alfheim_tales_save_v1'); } catch { /* ignore */ } location.reload(); } }, { label: 'Cancel', cls: 'gray' }]);
     acts.appendChild(del);
     body.appendChild(acts);
