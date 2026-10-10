@@ -328,6 +328,9 @@ export function npcLook(look) {
     case 'elena': return { gender: 'f', hair: '#f2d27a', eye: '#3a6fd8', hairStyle: 'long', armor: true, weapon: 'spear', cape: 0xc0303a, outfit: { main: 0xd8dee8, accent: 0xc0303a, trim: 0xe8b64a, skirt: 0x8a2030 } };
     case 'sylphie': return { gender: 'f', hair: '#7ef0a8', eye: '#2fae6a', hairStyle: 'long', wings: true, wingColor: '#b8ffd8', outfit: { main: 0xf0fff4, accent: 0x5ad88a, trim: 0xffe07a, skirt: 0xc8ffe0 }, scale: 0.85 };
     case 'nix': return { gender: 'm', hair: '#b48cff', eye: '#8a4ad8', robe: true, hood: 0x4a2a7a, weapon: 'orb', outfit: { main: 0x5a3a8a, accent: 0xd8b0ff, trim: 0xe8c86a, skirt: 0x3a2a5a } };
+    case 'mira': return { gender: 'f', hair: '#4a3a8a', eye: '#d89a2a', hairStyle: 'bob', hat: 'circlet', apron: true, outfit: { main: 0x2a6a8a, accent: 0xf0c050, trim: 0xe8b64a, skirt: 0x1a4a6a } };
+    case 'aldric': return { gender: 'm', hair: '#3a3a4a', eye: '#3a6fd8', hairStyle: 'spiky', armor: true, cape: 0x2a5ab8, weapon: 'spear', outfit: { main: 0xc8d0e0, accent: 0x2a5ab8, trim: 0xe8b64a, skirt: 0x2a3a6a }, scale: 1.06 };
+    case 'host': return { gender: 'f', hair: '#ff7a2a', eye: '#7a3ad8', hairStyle: 'twin', hat: 'witch', hatColor: 0x4a2a6a, outfit: { main: 0xff8a2a, accent: 0x7a3ad8, trim: 0x2a1a3a, skirt: 0x5a2a7a } };
   }
   return {};
 }

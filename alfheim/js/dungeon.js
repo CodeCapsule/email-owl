@@ -19,6 +19,12 @@ const THEMES = {
     ambience: { background: 0x140a18, fog: [40, 140, 0x140a18], hemi: [0xf0b8ff, 0x2a1a20, 1.3], ambient: 0.5, sun: [0xffd8f0, 1.5] },
     map: { floor: '#6a5040', wall: '#2a1a24' },
   },
+  // guild-war battleground: sunlit stone colosseum, blue (south, yours) vs red (north, theirs)
+  arena: {
+    floor: 0xcfc4ae, floorTint: '#b8ab92', wall: [0xb0a48c, 0xa09478, 0xbcb098], top: 0x7aa84a, accent: 0x6ad8ff, accent2: 0xff6a6a, barrier: '#ffd84a',
+    ambience: { background: 0x6a9ad8, fog: [70, 200, 0x9ac0e8], hemi: [0xf0f6ff, 0x6a5a40, 1.5], ambient: 0.62, sun: [0xfff2d8, 1.8] },
+    map: { floor: '#a89c84', wall: '#4a4232' },
+  },
 };
 
 // ---------------------------------------------------------------- helpers
@@ -164,6 +170,7 @@ export class Dungeon {
     this.buildDecor();
     this.buildBossRoom();
     this.buildBarriers();
+    if (def.arena) this.buildArenaBases();
     this.finishBatches();
     this.buildMotes();
     this.buildMinimap();
@@ -195,7 +202,7 @@ export class Dungeon {
   buildFloors() {
     const T = this.theme;
     let tex;
-    if (this.def.theme === 'crypt') { tex = stoneTexture().clone(); tex.needsUpdate = true; }
+    if (this.def.theme === 'crypt' || this.def.theme === 'arena') { tex = stoneTexture().clone(); tex.needsUpdate = true; }
     else tex = blotchTexture(T.floorTint, this.def.id.charCodeAt(1) * 31);
     this.track(tex);
     const mat = this.track(new THREE.MeshToonMaterial({ color: T.floor, map: tex, gradientMap: getGradient() }));
@@ -227,13 +234,23 @@ export class Dungeon {
       // walls on the camera (south) side of a floor stay low so they never hide the hero
       const low = free(cx, cz - 1) && !free(cx, cz + 1);
       if (low) {
-        if (this.def.theme === 'crypt') { this.toonBatch.add(GEO.box, col, M(x, 0.8, z, 2.05, 1.6, 2.05)); this.toonBatch.add(GEO.box, 0x5a546a, M(x, 1.7, z, 2.2, 0.3, 2.2)); }
+        if (this.def.theme === 'arena') { this.toonBatch.add(GEO.box, col, M(x, 0.6, z, 2.05, 1.2, 2.05)); this.toonBatch.add(GEO.box, 0x8a7e66, M(x, 1.3, z, 2.2, 0.25, 2.2)); }
+        else if (this.def.theme === 'crypt') { this.toonBatch.add(GEO.box, col, M(x, 0.8, z, 2.05, 1.6, 2.05)); this.toonBatch.add(GEO.box, 0x5a546a, M(x, 1.7, z, 2.2, 0.3, 2.2)); }
         else if (this.def.theme === 'roots') this.toonBatch.add(GEO.cyl, col, M(x, 0.7, z, 1.1, 1.8, 1.1, Math.PI / 2, rng() * 3, 0));
         else this.toonBatch.add(GEO.dode, col, M(x, 0.6, z, 1.6, 1.1, 1.6, rng() * 3, rng() * 3, rng() * 3));
         continue;
       }
+      if (this.def.theme === 'arena') {
+        const h = 4.2;
+        this.toonBatch.add(GEO.box, col, M(x, h / 2, z, 2.05, h, 2.05));
+        if (n % 2) this.toonBatch.add(GEO.box, 0x9a8e76, M(x, h + 0.45, z, 1.3, 0.9, 1.3));
+        if (n % 9 === 0) {
+          const mid = (this.bounds.minZ + this.bounds.maxZ) / 2;
+          this.glowBatch.add(GEO.box, z > mid ? T.accent : T.accent2, M(x, 2.6, z, 2.12, 1.8, 2.12));
+        }
+        continue;
+      }
       if (this.def.theme === 'grotto') {
-        const h = 4 + rng() * 4, s = 1.5 + rng() * 0.9;
         this.toonBatch.add(GEO.dode, col, M(x, h * 0.42, z, s, h * 0.55, s, rng() * 3, rng() * 3, rng() * 3));
         if (rng() < 0.35) this.toonBatch.add(GEO.sph, T.top, M(x, h * 0.85, z, s * 0.9, 0.4, s * 0.9));
         if (rng() < 0.12) this.addCrystal(x + (rng() - 0.5), 0.2, z + (rng() - 0.5), rng() < 0.5 ? T.accent : T.accent2, 0.5 + rng() * 0.5);
@@ -349,13 +366,19 @@ export class Dungeon {
 
   buildBossRoom() {
     const T = this.theme, r = this.rooms[this.rooms.length - 1];
-    const circleColor = { grotto: '#ff8ad8', crypt: '#c07aff', roots: '#7affb0' }[this.def.theme];
+    const circleColor = { grotto: '#ff8ad8', crypt: '#c07aff', roots: '#7affb0', arena: '#ffd84a' }[this.def.theme];
     this.addFloorCircle(r.x, r.z, Math.min(r.w, r.d) * 0.32, circleColor, 0.75);
     const n = 8, rad = Math.min(r.w, r.d) * 0.42;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + Math.PI / 8, x = r.x + Math.cos(a) * rad, z = r.z + Math.sin(a) * rad;
       if (Math.hypot(x - r.x, z - r.maxZ) < 9 || Math.hypot(x - this.exitPos.x, z - this.exitPos.z) < 5) continue;
-      if (this.def.theme === 'crypt') {
+      if (this.def.theme === 'arena') {
+        this.toonBatch.add(GEO.cyl, 0xd8ccb4, M(x, 2.2, z, 0.8, 4.4, 0.8));
+        this.toonBatch.add(GEO.box, 0xbcb098, M(x, 4.55, z, 1.9, 0.4, 1.9));
+        this.toonBatch.add(GEO.box, 0xbcb098, M(x, 0.2, z, 1.9, 0.4, 1.9));
+        this.glowBatch.add(GEO.oct, z > r.z ? T.accent : T.accent2, M(x, 5.4, z, 0.4, 0.7, 0.4));
+        this.nav.blockCircle(x, z, 0.9);
+      } else if (this.def.theme === 'crypt') {
         this.toonBatch.add(GEO.cyl, 0x8a8498, M(x, 3.5, z, 0.9, 7, 0.9));
         this.toonBatch.add(GEO.box, 0x9a94a8, M(x, 7.2, z, 2.2, 0.5, 2.2));
         this.glowBatch.add(GEO.sph, T.accent2, M(x, 7.9, z, 0.45, 0.45, 0.45));
@@ -403,6 +426,25 @@ export class Dungeon {
       });
     }
   }
+  // team bases at both ends of the arena: rune dais, banners and braziers
+  buildArenaBases() {
+    const r = this.rooms[0], T = this.theme;
+    const bases = [{ z: r.maxZ - 15, col: T.accent, hex: '#6ad8ff', banner: 0x2a6ad8 }, { z: r.minZ + 15, col: T.accent2, hex: '#ff6a6a', banner: 0xc83a3a }];
+    for (const b of bases) {
+      this.addFloorCircle(r.x, b.z, 7, b.hex, 0.7);
+      this.toonBatch.add(GEO.cyl, 0xbcb098, M(r.x, 0.06, b.z, 7.4, 0.12, 7.4));
+      for (const s of [-1, 1]) {
+        const x = r.x + s * 10, z = b.z;
+        this.toonBatch.add(GEO.cyl6, 0x7a5a3a, M(x, 3, z, 0.18, 6, 0.18));
+        this.toonBatch.add(GEO.box, b.banner, M(x + s * 0.02, 4.2, z, 0.08, 3, 1.6));
+        this.glowBatch.add(GEO.box, 0xffe07a, M(x + s * 0.06, 4.9, z, 0.06, 0.5, 0.6));
+        this.toonBatch.add(GEO.cyl, 0x8a7e66, M(x, 0.5, z + 4, 0.7, 1, 0.7));
+        this.glowBatch.add(GEO.cone, b.col, M(x, 1.4, z + 4, 0.45, 0.9, 0.45));
+        this.nav.blockCircle(x, z, 0.5); this.nav.blockCircle(x, z + 4, 0.8);
+      }
+    }
+  }
+
   openBarrier(i) {
     const b = this.barriers[i];
     if (!b || b.open) return;
@@ -431,7 +473,7 @@ export class Dungeon {
       seeds.push([x, z, rng() * 10]);
     }
     const g = this.track(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const color = this.def.theme === 'roots' ? 0xd8ff8a : this.def.theme === 'crypt' ? 0xc8a8ff : 0x9af0ff;
+    const color = this.def.theme === 'roots' ? 0xd8ff8a : this.def.theme === 'crypt' ? 0xc8a8ff : this.def.theme === 'arena' ? 0xffe8a0 : 0x9af0ff;
     const pts = new THREE.Points(g, this.track(new THREE.PointsMaterial({ map: glowTexture(), color, size: 0.6, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
     pts.frustumCulled = false; this.root.add(pts);
     this.anim.push((t) => {

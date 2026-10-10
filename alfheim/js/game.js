@@ -10,6 +10,9 @@ import {
   buildHumanoid, classLook, npcLook, buildMonster, buildPet, buildMount, buildSprite, animateHumanoid, animateCreature, blobShadow, HAIR_COLORS, EYE_COLORS,
 } from './models.js';
 import { buildDungeonMonster } from './models-dungeon.js';
+import { buildEventMonster, buildEventPet, EVENT_PET_MODELS } from './models-event.js';
+import { installSystems, initSystemsSave } from './systems.js';
+import { activeEvent } from './systems-data.js';
 import { Dungeon } from './dungeon.js';
 import {
   RARITY, EFFECTS, rollRarity, genEquip, genNamed, namedBySource, normalizeItem, aggregateEquip, itemScore, sellPrice,
@@ -39,6 +42,15 @@ export function newSave({ name, cls, gender, hair, eye }) {
     settings: { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true },
   });
 }
+const HOST_NAMES = { harvest: 'Pumpkin Pam', winter: 'Frosty Fay', sakura: 'Blossom Bea' };
+const PET_BUILD = (model) => (EVENT_PET_MODELS.has(model) ? buildEventPet(model) : buildPet(model));
+// Monster model by family: guild-war rivals are humanoids, event/world-boss models and dungeon models have their own builders.
+function monsterModel(d, variant, look) {
+  if (d.model === 'rival') { const h = buildHumanoid(look || classLook('knight', 'm', HAIR_COLORS[0], EYE_COLORS[0])); h.userData.humanoid = true; return h; }
+  if (d.event) return buildEventMonster(d.model, d.variant ?? variant);
+  if (d.dungeon) return buildDungeonMonster(d.model, variant);
+  return buildMonster(d.model, variant);
+}
 // Upgrades saves from older versions in place (v1: 5 item tiers, emoji icons, no dungeons).
 export function migrateSave(S) {
   if (!S) return S;
@@ -47,7 +59,8 @@ export function migrateSave(S) {
   for (const b of S.bag || []) if (b.eq) normalizeItem(b.eq, S.cls);
   for (const k of Object.keys(S.equip || {})) if (S.equip[k]) normalizeItem(S.equip[k], S.cls);
   S.bag = (S.bag || []).filter((b) => b.eq || ITEMS[b.id]);
-  S.v = 2;
+  initSystemsSave(S);
+  S.v = 3;
   return S;
 }
 export function needExp(l) { return Math.floor(70 * Math.pow(l, 1.6) + 30); }
@@ -65,6 +78,7 @@ export class Game {
     this.ray = new THREE.Raycaster();
     this.map = this.world; this.dg = null;
     this.mods = { stats: {}, effects: new Set() }; this.hitCount = 0; this.phoenixCD = 0; this.novaT = 8; this.procCD = {};
+    this.war = null; this.wb = null; this.event = activeEvent();
   }
 
   // ============================================================== setup
@@ -75,10 +89,14 @@ export class Game {
     if (Math.abs(p.x) > 200 || Math.abs(p.z) > 200) p = { x: 0, z: 9 };
     this.player.pos.set(p.x, this.world.heightAt(p.x, p.z), p.z);
     this.player.yaw = Math.PI;
-    for (const n of NPCS) this.createNPC(n);
+    for (const n of NPCS) {
+      if (n.event && !this.event) continue;
+      this.createNPC(n.event ? { ...n, name: HOST_NAMES[this.event.id] || n.name } : n);
+    }
     for (const sp of SPAWNS) for (let i = 0; i < sp.count; i++) this.createMonster(sp);
     this.createBots();
     this.createPortals();
+    this.initSystems();
     this.targetRing = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ map: targetRingTexture('#ff4a3a'), transparent: true, depthWrite: false }));
     this.targetRing.rotation.x = -Math.PI / 2; this.targetRing.visible = false; this.targetRing.renderOrder = 2;
     this.scene.add(this.targetRing);
@@ -89,7 +107,8 @@ export class Game {
     this.ui.refreshAll();
     this.ui.chat('system', 'Welcome to <b>Carlyle</b>! Click the quest in the tracker on the right to auto-path to your goal.');
     this.ui.chat('system', 'Controls: click to move or attack · drag to turn the camera · scroll to zoom · 1–6 skills · R mount · T auto battle.');
-    this.ui.chat('system', 'New: <b>Dungeons</b> open at Lv 4+ (Dungeon button, top right). Gear now drops in six tiers up to <span style="color:#ffd84a">Legendary</span>.');
+    this.ui.chat('system', 'New: <b>Daily & Weekly Missions</b> (H), <b>Guilds</b> (G) with Guild Wars, <b>World Bosses</b> every 15 minutes, the <b>Market</b> (N), the <b>Forge</b> (Y) for crafting, gems and ascension, the <b>Season Pass</b> and leaderboards.');
+    if (this.event) this.ui.chat('announce', `<b>[Festival]</b> The <span style="color:${this.event.color}">${esc(this.event.name)}</span> is on! ${esc(this.event.desc)}`);
     if (S.level === 1 && S.quest.id === 'q1') setTimeout(() => this.ui.banner('Sylvan Haven', 'Carlyle · Town', 'zone'), 400);
     this.bindInput();
     if (S.mounts.length && S.activeMount && S.wasMounted) this.mount(true);
@@ -128,7 +147,7 @@ export class Game {
     e.np = el; e.npHb = hp ? el.querySelector('.hb i') : null;
   }
 
-  playerLook() { const S = this.S; return classLook(S.cls, S.gender, S.hair, S.eye, { wings: S.wings }); }
+  playerLook() { const S = this.S; return classLook(S.cls, S.gender, S.hair, S.eye, { wings: S.wings, ...(S.wingColor ? { wingColor: S.wingColor } : {}) }); }
 
   createPlayer() {
     const S = this.S;
@@ -142,7 +161,9 @@ export class Game {
   refreshPlayerPlate() {
     const S = this.S;
     const t = TITLES[Math.min(TITLES.length - 1, S.title)];
-    this.player.np.innerHTML = `<div class="t">«${esc(t)}»</div><div class="n">${esc(S.name)}</div><div class="hb"><i></i></div>`;
+    if (S.titles && !S.titles.includes(S.title)) S.titles.push(S.title);
+    const g = S.guild ? `<div class="g">&lt;${esc(S.guild.name)}&gt;</div>` : '';
+    this.player.np.innerHTML = `${g}<div class="t">«${esc(t)}»</div><div class="n">${esc(S.name)}</div><div class="hb"><i></i></div>`;
     this.player.npHb = this.player.np.querySelector('.hb i');
   }
   rebuildPlayerModel() {
@@ -170,17 +191,23 @@ export class Game {
 
   monsterStats(type, lvl) {
     const d = MONSTERS[type], k = lvl - d.lvl[0];
+    if (d.festival) return { hp: Math.round(d.hp * Math.pow(1.28, lvl - 1)), atk: d.atk * Math.pow(1.2, lvl - 1), def: d.def + lvl * 1.8 };
     return { hp: Math.round(d.hp * (1 + 0.18 * k)), atk: d.atk * (1 + 0.1 * k), def: d.def * (1 + 0.08 * k) };
+  }
+  // exp / gold multipliers for a kill (festival monsters follow the level curve of the zone they live in)
+  killScale(d, lvl) {
+    if (d.festival) return { exp: Math.pow(1.27, lvl - 1), gold: Math.pow(1.2, lvl - 1) };
+    return { exp: 1 + 0.15 * (lvl - d.lvl[0]), gold: 1 + 0.1 * (lvl - d.lvl[0]) };
   }
   createMonster(sp, o = {}) {
     const d = MONSTERS[sp.type];
     const variant = d.variant ?? ((Math.random() * 3) | 0);
-    const inner = d.dungeon ? buildDungeonMonster(d.model, variant) : buildMonster(d.model, variant);
-    const e = this.makeEnt('monster', inner, { radius: d.boss ? 3 : d.elite ? 1.6 : d.height > 3 ? 1.4 : 0.9, shadowR: d.boss ? 4 : d.elite || d.height > 3 ? 1.6 : 0.85, height: d.height });
+    const inner = monsterModel(d, variant, o.look);
+    const e = this.makeEnt('monster', inner, { radius: d.boss ? 3 : d.structure ? 2.6 : d.elite ? 1.6 : d.height > 3 ? 1.4 : d.war ? 0.6 : 0.9, shadowR: d.boss ? 4 : d.structure ? 2.4 : d.elite || d.height > 3 ? 1.6 : 0.85, height: d.height });
     e.type = sp.type; e.def0 = d; e.spawn = sp; e.speed = d.speed;
     e.baseScale = inner.scale.x || 1;
     if (inner.userData.humanoid) e.humanoid = inner;
-    e.map = o.map || this.world; e.dungeon = !!o.dungeon; e.room = o.room ?? -1; e.summoned = !!o.summoned;
+    e.map = o.map || this.world; e.dungeon = !!o.dungeon; e.room = o.room ?? -1; e.summoned = !!o.summoned; e.fixed = o.fixed || null;
     const cls = 'monster' + (d.aggressive ? ' aggr' : '') + (d.elite ? ' elite' : '') + (d.boss ? ' boss' : '');
     this.nameplate(e, `<div class="n"></div>`, cls, true);
     this.respawn(e, true, o.exact);
@@ -195,8 +222,9 @@ export class Game {
       x = sp.x + Math.cos(a) * r; z = sp.z + Math.sin(a) * r;
       if (!W.isBlocked(x, z)) break;
     }
-    e.level = Math.round(rnd(d.lvl[0], d.lvl[1]));
-    const st = this.monsterStats(e.type, e.level);
+    const lr = sp.lvl || d.lvl;
+    e.level = e.fixed?.level ?? Math.round(rnd(lr[0], lr[1]));
+    const st = e.fixed || this.monsterStats(e.type, e.level);
     e.maxHp = e.hp = st.hp; e.atk = st.atk; e.def = st.def; e.crit = d.boss ? 8 : 4;
     e.pos.set(x, W.heightAt(x, z), z);
     e.home = { x, z };
@@ -206,11 +234,12 @@ export class Game {
     e.yaw = e.yawT = Math.random() * Math.PI * 2;
     if (e.np) {
       const tag = d.boss ? '[Boss] ' : d.elite ? '[Elite] ' : '';
-      e.np.querySelector('.n').textContent = `${tag}Lv${e.level} ${d.name}`;
+      if (e.labelHtml) e.np.querySelector('.n').innerHTML = e.labelHtml;
+      else e.np.querySelector('.n').textContent = `${tag}Lv${e.level} ${d.name}`;
     }
     if (!first) {
       this.fx.spawnPuff(e.pos, 0xffffff);
-      if (d.boss && !e.dungeon) this.ui.chat('announce', `<b>[Announcement]</b> ${d.name} has awakened in the Elder Ruins arena!`);
+      if (d.boss && !e.dungeon && !d.worldBoss) this.ui.chat('announce', `<b>[Announcement]</b> ${d.name} has awakened in the Elder Ruins arena!`);
     }
   }
   removeEnt(e) {
@@ -243,7 +272,7 @@ export class Game {
       e.pos.set(x, this.world.heightAt(x, z), z);
       e.waitT = rnd(0, 4); e.attackCD = rnd(0, 2);
       // pets for bots
-      const pd = pick(PETS);
+      const pd = pick(PETS.filter((x) => !x.event));
       const pm = buildPet(pd.model); pm.scale.setScalar(0.85);
       e.petModel = pm; this.scene.add(pm);
       if (role === 'town' && Math.random() < 0.45) {
@@ -275,6 +304,8 @@ export class Game {
       atk *= m.atk || 1; def *= m.def || 1; speed *= m.speed || 1; crit += m.crit || 0; spBR = 260;
     }
     if (S.wings) { hp *= 1.05; atk *= 1.05; }
+    const X = this.systemMods ? this.systemMods() : { atk: 0, hp: 0, br: 0 };
+    hp *= 1 + X.hp; atk *= 1 + X.atk;
     if (fxs.has('worldtree')) hp *= 1.2;
     speed *= 1 + (gs.speed || 0) / 100;
     if (fxs.has('swift')) speed *= 1.12;
@@ -287,7 +318,7 @@ export class Game {
     this.healMod = heal; this.cdr = cdr;
     const extras = (gs.critDmg || 0) * 4 + (gs.speed || 0) * 10 + (gs.lifesteal || 0) * 25 + (gs.cdr || 0) * 20 + (gs.expGain || 0) * 3 + (gs.goldFind || 0) * 2
       + (gs.thorns || 0) * 6 + (gs.regen || 0) * 8 + (gs.manaCost || 0) * 6 + [...fxs].reduce((a, id) => a + (EFFECTS[id]?.tier === 'legendary' ? 900 : 350), 0);
-    this.br = Math.round(p.maxHp * 0.55 + atk * 9 + def * 7 + crit * 14 + petBR + spBR + mountBR + (S.wings ? 300 : 0) + extras);
+    this.br = Math.round(p.maxHp * 0.55 + atk * 9 + def * 7 + crit * 14 + petBR + spBR + mountBR + (S.wings ? 300 : 0) + extras + X.br);
     this.ui.refreshPlayer && this.ui.refreshPlayer();
   }
   hasFx(id) { return this.mods.effects.has(id); }
@@ -377,6 +408,12 @@ export class Game {
       case 'l': this.ui.togglePanel('quests'); break;
       case 'm': this.ui.togglePanel('map'); break;
       case 'o': this.ui.togglePanel('settings'); break;
+      case 'g': this.ui.togglePanel('guild'); break;
+      case 'h': this.ui.togglePanel('missions'); break;
+      case 'n': this.ui.togglePanel('market'); break;
+      case 'y': this.ui.togglePanel('forge'); break;
+      case 'x': this.ui.togglePanel('codex'); break;
+      case 'j': this.ui.togglePanel('season'); break;
     }
   }
 
@@ -390,7 +427,7 @@ export class Game {
     const x = sx - rect.left, y = sy - rect.top;
     let best = null, bd = Infinity;
     const focal = rect.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
-    const extra = this.dg ? [this.dg.chestEnt, this.dg.exitEnt].filter(Boolean) : this.portals;
+    const extra = this.dg ? [this.dg.chestEnt, this.dg.exitEnt].filter(Boolean) : this.war ? [] : this.portals;
     const cands = [...this.monsters, ...this.npcs, ...(this.S.settings.others ? this.bots : []), ...this.loots.filter((l) => l.map === this.map), ...extra];
     for (const e of cands) {
       if (e.dead || !e.model.visible) continue;
@@ -503,6 +540,7 @@ export class Game {
     p.path = []; this.pendingSkill = null;
     if (t && ['target', 'dash', 'proj', 'aoeTarget'].includes(sk.kind)) p.yaw = p.yawT = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
     p.mp -= this.mpCost(sk);
+    if (!sk.basic) this.track('skill');
     this.cd[sk.id] = this.time + sk.cd * (sk.basic ? (this.hasFx('swift') ? 0.88 : 1) : 1 - this.cdr);
     const ranged = CLASSES[this.S.cls].ranged || ['buff', 'heal', 'zone'].includes(sk.kind);
     p.state = ranged ? 'cast' : 'attack'; p.actDur = p.actT = sk.basic ? 0.42 : 0.5;
@@ -657,10 +695,12 @@ export class Game {
       this.fx.emit(head, { count: crit ? 16 : 8, color: crit ? 0xffb02a : 0xffffff, speed: 4, life: 0.3, size: 0.4 });
       dst.hitT = 0.15;
       if (crit) this.fx.shake(0.12);
-    } else if (dst.kind === 'monster' && src.kind === 'bot' && flat(dst.pos, this.player.pos) < 25) {
-      this.fx.emit(head, { count: 5, color: 0xffffff, speed: 3, life: 0.25, size: 0.35 });
-      dst.hitT = 0.12;
+    } else if ((src.kind === 'bot' || src.kind === 'ally' || src.kind === 'monster') && flat(dst.pos, this.player.pos) < 25 && dst.kind !== 'bot') {
+      this.fx.emit(head, { count: 5, color: dst.kind === 'monster' ? 0xffffff : 0xff8a8a, speed: 3, life: 0.25, size: 0.35 });
+      if (!dst.crystal) dst.hitT = 0.12;
+      if (dst.kind === 'monster' && dst.wb && dmg > 0 && Math.random() < 0.35) this.fx.text(head, String(dmg), 'other');
     }
+    if (dst.wb) this.wbHit(src, dst, dmg);
     if (dst.kind === 'monster') {
       if (mine) { dst.tagged = true; this.lastCombat = this.time; }
       if (!dst.target || dst.target.dead || (mine && dst.target.kind === 'bot' && Math.random() < 0.3)) dst.target = src.kind === 'pet' ? this.player : src;
@@ -673,6 +713,7 @@ export class Game {
       if (back >= 1) this.after(0.05, () => { if (!src.dead) this.damage(this.player, src, 0, { fixed: back, proc: true, cls: 'pet' }); });
     }
     if (dst.hp <= 0) {
+      if (dst.kind === 'monster') dst.lastHitMine = mine;
       if (dst === this.player && this.hasFx('phoenix') && this.time >= this.phoenixCD) {
         dst.hp = Math.round(dst.maxHp * 0.5); this.phoenixCD = this.time + 60;
         this.fx.pillar(dst.pos, 0xff8a2a, 2.2, 12, 1.2); this.fx.circle(dst.pos, '#ffb35a', 3, 1.5, dst.model);
@@ -683,6 +724,7 @@ export class Game {
       if (dst.kind === 'monster') this.killMonster(dst);
       else if (dst === this.player) this.playerDied(src);
       else if (dst.kind === 'bot') { dst.hp = dst.maxHp; this.fx.heal(dst); }
+      else if (dst.kind === 'ally') this.allyDown(dst);
     }
     return dmg;
   }
@@ -731,24 +773,30 @@ export class Game {
 
   killMonster(m) {
     const d = m.def0, p = this.player;
-    m.hp = 0; m.dead = true; m.state = 'dead'; m.deadT = 0; m.respawnT = m.dungeon ? Infinity : d.boss ? 90 : rnd(9, 15);
+    m.hp = 0; m.dead = true; m.state = 'dead'; m.deadT = 0;
+    m.respawnT = m.dungeon || m.summoned || m.wb || d.structure ? Infinity : d.war ? 7 : d.boss ? 90 : rnd(9, 15);
     m.dots = [];
     if (p.target === m) { this.setTarget(null); }
     if (this.pet && this.pet.target === m) this.pet.target = null;
     if (m.dungeon && this.dg && m === this.dg.boss) this.completeDungeon();
+    if (m.warUnit) this.onWarKill(m);
+    const lastHit = !!m.lastHitMine;
+    if (m.wb) this.onWorldBossKilled(m, lastHit);
     if (!m.tagged) return;
     m.tagged = false;
+    const K = this.killScale(d, m.level);
     // exp
-    let exp = d.exp * (1 + 0.15 * (m.level - d.lvl[0]));
+    let exp = d.exp * K.exp;
     if (this.S.level - m.level > 4) exp *= 0.4;
     exp = Math.round(exp * (1 + this.stat('expGain') / 100));
     this.after(0.3, () => { this.fx.text(p.pos.clone().setY(p.pos.y + p.height + 0.3), `+${exp} EXP`, 'exp'); this.gainExp(exp); });
     // gold
-    const gold = Math.round(rnd(d.gold[0], d.gold[1]) * (1 + 0.1 * (m.level - d.lvl[0])) * (1 + this.stat('goldFind') / 100));
-    this.fx.coins(m.pos, p, Math.min(8, 2 + (gold / 15) | 0), () => { this.S.gold += gold; this.sfx.play('coin'); this.ui.refreshWallet(); this.fx.text(p.pos.clone().setY(p.pos.y + p.height), `+${gold} Gold`, 'gold', 0.5); });
+    const gold = Math.round(rnd(d.gold[0], d.gold[1]) * K.gold * (1 + this.stat('goldFind') / 100));
+    this.fx.coins(m.pos, p, Math.min(8, 2 + (gold / 15) | 0), () => { this.S.gold += gold; this.sfx.play('coin'); this.ui.refreshWallet(); this.fx.text(p.pos.clone().setY(p.pos.y + p.height), `+${gold} Gold`, 'gold', 0.5); this.track('gold', gold); });
     this.S.kills[m.type] = (this.S.kills[m.type] || 0) + 1;
     if (this.hasFx('frenzy')) this.addFrenzy();
-    this.rollDrops(m);
+    if (!d.structure && !d.war) this.rollDrops(m);
+    this.onKillSystems(m);
     this.questKill(m);
   }
 
@@ -838,6 +886,7 @@ export class Game {
     const it = L.item;
     const ok = it.eq ? this.addEquip(it.eq) : this.addItem(it.id, it.qty || 1);
     if (!ok) { L.flying = false; L.failT = this.time; L.ground.copy(L.pos); L.pos.y = (L.map || this.world).heightAt(L.pos.x, L.pos.z); return false; }
+    if (it.eq && it.eq.quality >= 2) this.track('lootRare');
     this.removeLoot(L);
     if (!quiet) { this.sfx.play('pickup'); this.lootMsg(L.name, RARITY[L.q].color); }
     return true;
@@ -879,7 +928,8 @@ export class Game {
     this.engage = false; p.path = []; this.setTarget(null);
     if (this.mounted) this.dismount(true);
     for (const m of this.monsters) if (m.target === p) { m.target = null; m.returning = true; }
-    this.ui.chat('system', `You were defeated by ${esc(src?.def0?.name || src?.name || 'a monster')}.`);
+    this.ui.chat('system', `You were defeated by ${esc(src?.name || src?.def0?.name || 'a monster')}.`);
+    if (this.war) { this.warPlayerDown(); return; }
     if (this.dg) {
       this.dg.deaths++;
       this.ui.modal('You have been defeated', `The ${this.dg.def.name} claims another adventurer... Deaths lower your clear rating.`, [
@@ -924,6 +974,7 @@ export class Game {
     const S = this.S;
     if (S.bag.length >= BAG_SIZE) { this.ui.toast('Bag is full!', 'warn'); return false; }
     S.bag.push({ eq }); this.ui.refreshPanel(); this.ui.markMenu('bag');
+    if (eq.named) this.registerNamed(eq);
     return true;
   }
   countItem(id) { return this.S.bag.filter((b) => b.id === id).reduce((a, b) => a + b.qty, 0); }
@@ -949,7 +1000,7 @@ export class Game {
     const it = ITEMS[b.id];
     if (b.id === 'hp_potion' || b.id === 'mp_potion') return this.usePotion(b.id);
     if (b.id === 'pet_egg') {
-      const pool = PETS.filter((pd) => pd.rarity <= 2 && !S.pets[pd.id]);
+      const pool = PETS.filter((pd) => pd.rarity <= 2 && !pd.event && !S.pets[pd.id]);
       this.removeItem('pet_egg', 1);
       if (!pool.length) { S.gold += 600; this.ui.toast('All common pets collected: received 600 Gold', 'good'); this.ui.refreshWallet(); return; }
       const pd = pick(pool);
@@ -959,6 +1010,7 @@ export class Game {
       return;
     }
     if (b.id === 'dungeon_ticket') { this.ui.toast('Tickets are used automatically when your free dungeon entries run out', 'good'); return; }
+    if (this.useSystemItem(b.id)) return;
     if (b.id === 'exp_scroll') { this.removeItem('exp_scroll', 1); this.gainExp(Math.round(needExp(S.level) * 0.25)); this.fx.buff(this.player, '#c8ff6a'); return; }
     if (it.type === 'quest') this.ui.toast('Quest item — bring it to the right person', 'warn');
   }
@@ -994,6 +1046,7 @@ export class Game {
     const cost = this.enhanceCost(eq);
     if (S.gold < cost) { this.ui.toast('Not enough Gold', 'warn'); this.sfx.play('error'); return; }
     S.gold -= cost;
+    this.track('enhance');
     const chance = Math.max(0.35, 1 - eq.enh * 0.07);
     if (Math.random() < chance) {
       eq.enh++; this.recalc(); this.sfx.play('level'); this.fx.buff(this.player, '#ffe07a');
@@ -1024,6 +1077,7 @@ export class Game {
     const cost = 150 * st.lv * st.lv;
     if (S.gold < cost) { this.ui.toast('Not enough Gold', 'warn'); this.sfx.play('error'); return; }
     S.gold -= cost; st.lv++;
+    this.track('feed');
     this.sfx.play('level'); if (this.pet && S.activePet === id) this.fx.levelUp(this.pet);
     this.ui.toast(`${PETS.find((x) => x.id === id).name} grew to Lv ${st.lv}!`, 'good');
     this.recalc(); this.ui.refreshWallet(); this.ui.refreshPanel(); this.ui.refreshPlayer();
@@ -1033,7 +1087,7 @@ export class Game {
     if (this.pet) { this.scene.remove(this.pet.model); this.ents = this.ents.filter((e) => e !== this.pet); this.pet.np?.remove(); this.pet = null; }
     if (!S.activePet) return;
     const pd = PETS.find((x) => x.id === S.activePet);
-    const inner = buildPet(pd.model);
+    const inner = PET_BUILD(pd.model);
     const e = this.makeEnt('pet', inner, { name: pd.name, radius: 0.5, shadowR: 0.45 });
     const pp = this.player.pos;
     e.pos.set(pp.x - 1.5, pp.y, pp.z - 1); e.data = pd; e.speed = 8; e.attackCD = 1;
@@ -1119,7 +1173,7 @@ export class Game {
   }
   talkTo(n) {
     const p = this.player;
-    if (this.dg) { this.ui.toast('Leave the dungeon first', 'warn'); return; }
+    if (this.dg || this.war) { this.ui.toast(this.war ? 'Finish the battle first' : 'Leave the dungeon first', 'warn'); return; }
     if (flat(p.pos, n.pos) > 4.5) { this.pendingTalk = n; this.pathTo(n.pos.x, n.pos.z, flat(p.pos, n.pos) > 12); return; }
     this.pendingTalk = null; p.path = []; this.autoPathing = false; this.ui.setAutoPath(false);
     n.yaw = Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z);
@@ -1147,8 +1201,10 @@ export class Game {
       if (B && B.status === 'complete') btns.push({ label: 'Turn in Bounty', cls: 'green', fn: () => this.completeBounty() });
       else if (!B) btns.push({ label: 'Take a Bounty', cls: 'blue', fn: () => this.takeBounty() });
     }
-    const svc = { pets: ['Pet Collection', 'pets'], mounts: ['Mount Stable', 'mounts'], shop: ['Open Shop', 'mall'], enhance: ['Enhance Gear', 'char'] }[d.service];
+    const svc = { pets: ['Pet Collection', 'pets'], mounts: ['Mount Stable', 'mounts'], shop: ['Open Shop', 'mall'], enhance: ['Open the Forge', 'forge'], market: ['Open the Market', 'market'], guild: [S.guild ? 'Guild Hall' : 'Find a Guild', 'guild'], event: ['Festival Exchange', 'event'] }[d.service];
     if (svc) btns.push({ label: svc[0], cls: 'blue', fn: () => this.ui.togglePanel(svc[1], true) });
+    if (d.service === 'guild' && S.guild && S.level >= 10) btns.push({ label: `Guild War (${this.warEntriesLeft()} left)`, cls: 'green', fn: () => { this.ui.closeDialog(); this.startWar(); } });
+    if (d.service === 'event' && this.event) text = `${d.greet} ${this.event.desc}`;
     if (d.service === 'teleport') TELEPORTS.forEach((t, i) => btns.push({ label: `${t.name}`, cls: 'blue small', fn: () => this.teleport(i) }));
     btns.push({ label: 'Goodbye', cls: 'gray' });
     this.ui.dialog({ npc: n, qname, text, rewards, buttons: btns });
@@ -1254,6 +1310,7 @@ export class Game {
     const S = this.S, B = S.bounty; if (!B || B.status !== 'complete') return;
     const exp = Math.round(needExp(S.level) * 0.3), gold = 150 + S.level * 40;
     S.gold += gold; S.diamonds += 10; S.bounty = null;
+    this.track('bounty');
     this.sfx.play('quest'); this.ui.banner('Bounty Complete', `+${fmt(exp)} EXP · +${fmt(gold)} Gold · +10 Diamonds`);
     this.gainExp(exp); this.ui.refreshWallet(); this.ui.refreshQuest(); this.ui.closeDialog(); this.save();
   }
@@ -1383,14 +1440,14 @@ export class Game {
   }
   monsterIcon(type) {
     const d = MONSTERS[type], h = d.height;
-    return this.portraits.snap('mon-' + type, () => (d.dungeon ? buildDungeonMonster(d.model, d.variant ?? 0) : buildMonster(d.model, 0)), { w: 96, h: 96, look: [0, h * 0.62, 0], from: [h * 0.35, h * 0.72, h * 1.25], fov: 34 });
+    return this.portraits.snap('mon-' + type, () => monsterModel(d, d.variant ?? 0), { w: 96, h: 96, look: [0, h * 0.62, 0], from: [h * 0.35, h * 0.72, h * 1.25], fov: 34 });
   }
   botIcon(b) {
     return this.portraits.snap('bot-' + b.name, () => buildHumanoid(b.look), { w: 96, h: 96, look: [0, 1.5, 0], from: [0.45, 1.62, 2.3], fov: 32 });
   }
   petIcon(id) {
     const pd = PETS.find((x) => x.id === id);
-    return this.portraits.snap('pet-' + id, () => buildPet(pd.model), { w: 112, h: 112, look: [0, 0.6, 0], from: [0.6, 0.95, 2.6], fov: 34 });
+    return this.portraits.snap('pet-' + id, () => PET_BUILD(pd.model), { w: 112, h: 112, look: [0, 0.6, 0], from: [0.6, 0.95, 2.6], fov: 34 });
   }
   mountIcon(id) {
     const md = MOUNTS.find((x) => x.id === id);
@@ -1416,6 +1473,7 @@ export class Game {
     for (const n of this.npcs) this.updateNPC(n, dt);
     this.updateLoot(dt);
     this.updateDungeon(dt);
+    this.updateSystems(dt);
     this.animateAll(dt);
     this.updateCamera(dt);
     this.updatePlates();
@@ -1619,8 +1677,10 @@ export class Game {
       m.deadT += dt; m.respawnT -= dt;
       if (m.deadT > 1.4) { m.inner.position.y = -Math.min(2, (m.deadT - 1.4) * 2); if (m.deadT > 2.4) m.model.visible = false; }
       if (m.respawnT <= 0) this.respawn(m);
+      else if (m.respawnT === Infinity && !m.dungeon && !m.warUnit && m.deadT > 3 && !m.removed) this.removeEnt(m);
       return;
     }
+    if (m.warUnit) { this.updateWarUnit(m, dt); return; }
     m.actT = Math.max(0, m.actT - dt); m.attackCD -= dt; m.hitT = Math.max(0, (m.hitT || 0) - dt);
     if (m.stun > 0) { m.stun -= dt; m.moving = false; if (Math.random() < dt * 8) this.fx.emit(m.pos.clone().setY(m.pos.y + m.height + 0.2), { count: 1, color: 0xffe07a, speed: 1, life: 0.5, size: 0.4 }); return; }
     const home = m.home;
@@ -1689,7 +1749,7 @@ export class Game {
     if (enraged && !m.enraged) { m.enraged = true; this.ui.toast(`${d.name} is enraged!`, 'warn'); this.fx.ring(m.pos, 0xff3a3a, 9, 0.8); }
     const skills = d.skills || ['slam', 'roots'];
     let sk = pick(skills);
-    if (sk === 'summon' && (!m.dungeon || this.monsters.filter((x) => x.summoned && !x.dead).length >= 4)) sk = 'slam';
+    if (sk === 'summon' && ((!m.dungeon && !m.wb) || this.monsters.filter((x) => x.summoned && !x.dead).length >= 4)) sk = 'slam';
     const gy = (x, z) => W.heightAt(x, z) + 0.05;
     const hitIn = (c, r, mult) => { for (const e of this.bossTargets(m)) if (flat(e.pos, c) < r) this.damage(m, e, mult, { canCrit: false }); };
     if (sk === 'slam') {
@@ -1744,9 +1804,26 @@ export class Game {
         const a = (i / n) * Math.PI * 2 + Math.random();
         let x = m.pos.x + Math.cos(a) * 5, z = m.pos.z + Math.sin(a) * 5;
         [x, z] = W.nearestFree(x, z);
-        const add = this.createMonster({ type: d.summon, x, z, r: 2 }, { map: W, dungeon: true, room: m.room, summoned: true, exact: true });
+        const add = this.createMonster({ type: d.summon, x, z, r: 2, lvl: [Math.max(1, m.level - 3), Math.max(1, m.level - 1)] }, { map: W, dungeon: !!m.dungeon, room: m.room, summoned: true, exact: true });
         add.target = t; this.fx.spawnPuff(add.pos, 0xc07aff); this.fx.circle(add.pos, '#c07aff', 1.6, 0.8);
       }
+    } else if (sk === 'storm') {
+      // lightning (or cursed lantern fire) strikes under several targets at once
+      const col = d.model === 'pumpkinking' ? '#ff9a2e' : '#9ad8ff', hex = d.model === 'pumpkinking' ? 0xffa040 : 0x9ad8ff;
+      this.ui.toast(d.model === 'pumpkinking' ? 'Lanterns blaze overhead — keep moving!' : 'Thunder gathers overhead — keep moving!', 'warn');
+      m.state = 'cast'; m.actT = m.actDur = 1.4;
+      const targets = this.bossTargets(m).filter((e) => flat(e.pos, m.pos) < 30).sort(() => Math.random() - 0.5).slice(0, enraged ? 6 : 4);
+      targets.forEach((e, i) => {
+        const c = e.pos.clone(); c.y = gy(c.x, c.z);
+        this.fx.circle(c, col, 3, 1.5);
+        this.fx.telegraph(c, 3, 1.3 + i * 0.12, () => {
+          if (m.dead) return;
+          this.fx.bolt(c.clone().setY(c.y + 18), c.clone().setY(c.y + 0.3), hex, 0.35);
+          this.fx.emit(c.clone().setY(c.y + 0.5), { count: 26, colors: [hex, 0xffffff], speed: 7, life: 0.5, size: 0.7, up: 4 });
+          this.sfx.play('boom');
+          hitIn(c, 3, 1.8);
+        });
+      });
     }
   }
 
@@ -1767,7 +1844,7 @@ export class Game {
   }
   enterDungeon(id) {
     const def = DUNGEONS.find((d) => d.id === id), S = this.S, p = this.player;
-    if (!def || this.dg || p.dead) return false;
+    if (!def || this.dg || this.war || p.dead) return false;
     if (S.level < def.lv - 2) { this.ui.toast(`Requires Lv ${def.lv - 2}`, 'warn'); this.sfx.play('error'); return false; }
     if (this.dungeonEntries(def) > 0) S.dgn.used[def.id] = (S.dgn.used[def.id] || 0) + 1;
     else if (this.countItem('dungeon_ticket') > 0) this.removeItem('dungeon_ticket', 1);
@@ -1866,6 +1943,10 @@ export class Game {
     if (!S.dgn.best[def.id] || order[dg.rating] > order[S.dgn.best[def.id]]) S.dgn.best[def.id] = dg.rating;
     dg.firstClear = !S.dgn.clears[def.id];
     S.dgn.clears[def.id] = (S.dgn.clears[def.id] || 0) + 1;
+    this.track('dungeon'); this.addSeasonExp(300);
+    if (dg.rating === 'S') { this.track('dungeonS'); this.addSeasonExp(150); }
+    const best = S.lb.dgTime[def.id];
+    if (!best || dg.time < best) { S.lb.dgTime[def.id] = Math.round(dg.time); if (best) this.ui.chat('system', `New personal record for <b>${esc(def.name)}</b>!`); }
     for (const m of [...this.monsters]) if (m.dungeon && m.summoned && !m.dead) { m.tagged = false; this.killMonster(m); }
     const chest = map.buildChest(); chest.position.set(map.chestPos.x, map.heightAt(map.chestPos.x, map.chestPos.z), map.chestPos.z); map.root.add(chest);
     const exit = map.buildExitPortal(); exit.position.set(map.exitPos.x, map.heightAt(map.exitPos.x, map.exitPos.z), map.exitPos.z); map.root.add(exit);
@@ -1904,6 +1985,7 @@ export class Game {
     let ticket = false;
     if (Math.random() < (dg.rating === 'S' ? 0.35 : 0.15)) { this.addItem('dungeon_ticket', 1); ticket = true; }
     for (const eq of items) {
+      if (eq.quality >= 2) this.track('lootRare');
       if (!this.addEquip(eq)) this.dropLoot({ eq }, dg.chest.position);
       else if (eq.quality >= 4) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} looted <span class="it" style="color:${RARITY[eq.quality].color}">[${esc(eq.name)}]</span> from ${esc(dg.def.name)}!`);
     }
@@ -1952,7 +2034,8 @@ export class Game {
       }
     } else {
       let t = b.target;
-      if (!t || t.dead) {
+      if (b.role === 'wboss') t = b.target = this.wb && !this.wb.e.dead ? this.wb.e : null;
+      else if (!t || t.dead) {
         b.target = t = null;
         let bd = 30;
         for (const m of this.monsters) { if (m.dead || m.type !== b.role) continue; const d = flat(m.pos, b.pos); if (d < bd && (!m.target || m.target === b)) { bd = d; t = m; } }
@@ -1972,7 +2055,8 @@ export class Game {
                 if (CLASSES[b.cls].ranged) this.fx.projectile(b.pos.clone().setY(b.pos.y + 1.3), t, { color: b.cls === 'mage' ? 0xff7a2a : 0x4ab8ff, size: 0.3 });
                 else this.fx.slash(b.pos, b.yaw, 0xffffff, 1.4, 0.3, 0.25);
               }
-              this.damage(b, t, Math.random() < 0.3 ? 1.8 : 1);
+              if (t.wb) this.damage(b, t, 0, { fixed: this.wbBotAttack(b, t) });
+              else this.damage(b, t, Math.random() < 0.3 ? 1.8 : 1);
             });
           }
         }
@@ -2063,7 +2147,7 @@ export class Game {
     const range = { npc: 80, portal: 90, loot: 40 };
     for (const e of [...this.ents, ...this.loots, ...this.portals]) {
       if (!e.np) continue;
-      let show = !(e.kind === 'monster' && e.dead) && !(e.kind === 'bot' && !this.S.settings.others) && (!e.map || e.map === this.map) && !(e.kind === 'portal' && this.dg);
+      let show = !(e.kind === 'monster' && e.dead) && !(e.kind === 'bot' && !this.S.settings.others) && (!e.map || e.map === this.map) && !(e.kind === 'portal' && (this.dg || this.war));
       if (show && e.kind !== 'portal') show = e.model.visible;
       if (show) {
         v.copy(e.pos); v.y += e.npY ?? (e.height + 0.25);
@@ -2106,9 +2190,7 @@ export class Game {
     if (this.chatT <= 0) {
       this.chatT = rnd(7, 18);
       const b = pick(this.bots);
-      const ch = Math.random() < 0.2 && b.guild ? 'guild' : 'world';
-      if (ch === 'guild' && b.guild !== 'Moonlight') this.ui.chat('world', esc(pick(CHAT_LINES)), b.name);
-      else this.ui.chat(ch, esc(pick(CHAT_LINES)), b.name);
+      this.ui.chat('world', esc(pick(CHAT_LINES)), b.name);
     }
     this.annT -= dt;
     if (this.annT <= 0) {
@@ -2123,10 +2205,12 @@ export class Game {
 
   save() {
     const S = this.S, p = this.player;
-    if (this.dg) { const r = this.overworldReturn || { x: 0, z: 9 }; S.pos = { x: r.x, z: r.z }; }
+    if (this.dg || this.war) { const r = this.overworldReturn || { x: 0, z: 9 }; S.pos = { x: r.x, z: r.z }; }
     else if (p && !p.dead) S.pos = { x: Math.round(p.pos.x * 10) / 10, z: Math.round(p.pos.z * 10) / 10 };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch { /* storage unavailable */ }
   }
 }
 
 export { fmt, esc, ARENA, TELEPORT_CIRCLE };
+
+installSystems(Game);

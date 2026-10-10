@@ -21,7 +21,7 @@ let mode = 'title', preview = null, previewYaw = 0.4, hotSave = null;
 
 function loadSave() {
   if (hotSave) return hotSave;
-  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return s && (s.v === 1 || s.v === 2) && CLASSES[s.cls] ? migrateSave(s) : null; } catch { return null; }
+  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return s && [1, 2, 3].includes(s.v) && CLASSES[s.cls] ? migrateSave(s) : null; } catch { return null; }
 }
 
 async function init() {

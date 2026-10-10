@@ -5,6 +5,8 @@ import {
 import { needExp, fmt, esc, PET_TIER } from './game.js';
 import { RARITY, LEGENDARY_ITEMS, itemLines, itemScore, namedBySource } from './loot.js';
 import { ico } from './icons.js';
+import { installSystemsUI } from './ui-systems.js';
+import { WORLD_BOSS, MATERIALS } from './systems-data.js';
 
 const $ = (id) => document.getElementById(id);
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
@@ -13,7 +15,7 @@ const RARC = PET_TIER.map((t) => RARITY[t].color);
 const LEGEND_IDS = new Set(LEGENDARY_ITEMS.map((x) => x.id));
 const slotIcon = (slot, cls) => (slot === 'weapon' ? WEAPON_ICONS[cls] : SLOT_INFO[slot].icon);
 const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-const CHN = { world: 'World', system: 'System', guild: 'Guild', team: 'Team', announce: 'Announce' };
+const CHN = { world: 'World', system: 'System', guild: 'Guild', team: 'Team', announce: 'Announce', whisper: 'Whisper' };
 
 export class UI {
   constructor() {
@@ -48,7 +50,7 @@ export class UI {
     $('btn-auto').innerHTML = `${ico('auto')}<small>Auto</small>`;
     // menu
     const menu = $('hud-menu'); menu.innerHTML = '';
-    const items = [['char', 'Character', 'C'], ['bag', 'Bag', 'B'], ['skills', 'Skills', 'K'], ['pets', 'Pets', 'P'], ['mounts', 'Mounts', 'U'], ['quests', 'Quests', 'L'], ['map', 'World Map', 'M'], ['settings', 'Settings', 'O']];
+    const items = [['char', 'Character', 'C'], ['bag', 'Bag', 'B'], ['skills', 'Skills', 'K'], ['pets', 'Pets', 'P'], ['mounts', 'Mounts', 'U'], ['guild', 'Guild', 'G'], ['forge', 'Forge', 'Y'], ['market', 'Market', 'N'], ['codex', 'Codex', 'X'], ['quests', 'Quests', 'L'], ['map', 'World Map', 'M'], ['settings', 'Settings', 'O']];
     this.menuBtns = {};
     for (const [n, label, k] of items) {
       const b = h('button', 'mbtn', `${ico(n)}<span class="k">${k}</span>`); b.title = `${label} (${k})`; b.setAttribute('aria-label', label);
@@ -57,13 +59,14 @@ export class UI {
     }
     // activities
     const acts = $('hud-acts'); acts.innerHTML = '';
-    const A = [['dungeon', 'Dungeon'], ['signin', 'Sign-In'], ['gift', 'Gift'], ['mall', 'Mall'], ['rank', 'Ranking'], ['bounty', 'Bounty'], ['teleport', 'Teleport']];
+    const A = [['missions', 'Missions'], ['dungeon', 'Dungeon'], ['worldboss', 'World Boss'], ['war', 'Guild War'], ['event', 'Festival'], ['season', 'Season'], ['signin', 'Sign-In'], ['gift', 'Gift'], ['mall', 'Mall'], ['rank', 'Ranking'], ['bounty', 'Bounty'], ['teleport', 'Teleport']];
     this.acts = {};
     for (const [n, label] of A) {
       const b = h('button', 'act', `<span class="ai">${ico(n)}</span><span class="al stroke">${label}</span>`); b.setAttribute('aria-label', label);
       b.onclick = () => {
         g.sfx.play('click');
         if (n === 'dungeon') { this.togglePanel('dungeons'); return; }
+        if (n === 'war') { this.sel.guildTab = 'war'; this.togglePanel('guild'); return; }
         if (g.dg && (n === 'bounty' || n === 'teleport')) { this.toast('Not available inside a dungeon', 'warn'); return; }
         if (n === 'bounty') { if (S.bounty) g.autoQuest('bounty'); else if (g.bountyUnlocked()) g.talkTo(g.npcById('elena')); else this.toast('Bounties unlock after "Swift as the Wind"', 'warn'); return; }
         if (n === 'teleport') { g.talkTo(g.npcById('nix')); return; }
@@ -87,6 +90,7 @@ export class UI {
     this.mm = $('mm').getContext('2d');
     $('btn-wmap').innerHTML = ico('worldmap'); $('chat-toggle').innerHTML = ico('chat');
     $('hud-autobattle').innerHTML = `${ico('auto', 'ico inl')} Auto Battle`;
+    this.bindSystems();
     this.refreshSound();
     $('hud').hidden = false;
   }
@@ -164,6 +168,7 @@ export class UI {
     this.acts.bounty.classList.toggle('glow', !!(S.bounty && S.bounty.status === 'complete'));
     const anyEntry = DUNGEONS.some((d) => S.level >= d.lv - 2 && this.g.dungeonEntries(d) > 0);
     this.acts.dungeon.classList.toggle('glow', anyEntry && !this.g.dg);
+    this.refreshActsSys();
   }
   // Notification marker: a small gold sparkle (not a red "!" that reads as an error).
   setBadge(el, on) { let b = el.querySelector('.badge'); if (!on) { b && b.remove(); return; } if (!b) { b = h('span', 'badge', ico('new')); el.appendChild(b); } }
@@ -214,6 +219,7 @@ export class UI {
     if (this.frameN % 2 === 0) this.drawMinimap();
     if (g.dg && this.frameN % 10 === 0) this.updateDungeonHUD();
     if (this.panelName === 'map' && this.frameN % 15 === 0) this.drawWorldMap();
+    this.frameSys();
   }
 
   drawMinimap() {
@@ -231,9 +237,13 @@ export class UI {
         dot(n.pos.x, n.pos.z, '#ffe066', 3);
         if (n.markChar && n.markChar !== '…') { const sx = (n.pos.x - p.x + R) * k, sy = (n.pos.z - p.z + R) * k; c.font = 'bold 13px sans-serif'; c.fillStyle = '#ffd84a'; c.strokeStyle = '#000'; c.lineWidth = 3; c.strokeText(n.markChar, sx - 3, sy - 4); c.fillText(n.markChar, sx - 3, sy - 4); }
       }
+      dot(WORLD_BOSS.site.x, WORLD_BOSS.site.z, g.wb && !g.wb.e.dead ? '#ff3aa8' : '#7ad8ff', 3.5);
     } else if (g.dg) {
       if (g.dg.chestEnt && !g.dg.opened) dot(g.dg.chestEnt.pos.x, g.dg.chestEnt.pos.z, '#ffd84a', 4);
       if (g.dg.exitEnt) dot(g.dg.exitEnt.pos.x, g.dg.exitEnt.pos.z, '#7ad8ff', 4);
+    } else if (g.war) {
+      for (const a of g.war.allies) if (!a.dead) dot(a.pos.x, a.pos.z, '#6ac8ff', 2.6);
+      if (!g.war.ourCrystal.dead) dot(g.war.ourCrystal.pos.x, g.war.ourCrystal.pos.z, '#3a8aff', 5.5);
     }
     if (g.player.path.length) {
       c.strokeStyle = 'rgba(122,255,122,.8)'; c.lineWidth = 2; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(S / 2, S / 2);
@@ -250,6 +260,7 @@ export class UI {
   refreshQuest() {
     const g = this.g; if (!g) return;
     if (g.dg) { this.renderDungeonTracker(); return; }
+    if (g.war) { this.renderWarTracker(); return; }
     const S = g.S, list = $('qt-list'); list.innerHTML = '';
     const q = g.quest();
     if (q && q.def) {
@@ -271,6 +282,7 @@ export class UI {
     } else if (g.bountyUnlocked()) {
       list.appendChild(h('div', 'qt-item', `<span class="qtag bounty">Bounty</span><div class="qo">Visit <u>Captain Elena</u> for a bounty</div>`)).onclick = () => g.talkTo(g.npcById('elena'));
     }
+    this.questExtras(list);
     if (this.panelName === 'quests') this.renderPanel();
   }
 
@@ -295,6 +307,13 @@ export class UI {
     this.txt($('dg-time'), `Time ${mmss(P.time)}`);
     this.txt($('dg-deaths'), P.done ? `Rating ${P.rating}` : `Deaths ${g.dg.deaths}`);
   }
+  renderWarTracker() {
+    const g = this.g, list = $('qt-list'); list.innerHTML = '';
+    list.appendChild(h('div', 'qt-item', `<span class="qtag war">Guild War</span><span class="qn">vs ${esc(g.war.opp.name)}</span><div class="qo">Destroy the <u>enemy Spirit Crystal</u> (north) and defend yours</div>`)).onclick = () => { const c = g.war.theirCrystal; if (!c.dead) { g.setTarget(c); g.engage = true; } };
+    const leave = h('button', 'btn small gray', 'Leave Battle'); leave.style.margin = '4px 0 0 4px';
+    leave.onclick = () => this.modal('Leave the battle?', g.war.done ? 'Return to Carlyle.' : 'Leaving early counts as a defeat.', [{ label: 'Leave', fn: () => { if (!g.war.done) g.endWar(false, 'left'); g.leaveWar(); } }, { label: 'Stay', cls: 'gray' }]);
+    list.appendChild(leave);
+  }
   enterDungeon() { this.closePanels(); this.closeDialog(); this.refreshQuest(); this.refreshActs(); $('hud').classList.add('in-dungeon'); }
   leaveDungeon() { $('hud').classList.remove('in-dungeon'); this.refreshQuest(); this.refreshActs(); this.closeModal(); }
   fade(fn) {
@@ -314,7 +333,8 @@ export class UI {
     if (extra.diamonds) rw.push(`<span class="rw"><span class="gem"></span>${fmt(extra.diamonds)}</span>`);
     if (extra.exp) rw.push(`<span class="rw">${ico('exp', 'ico inl')}${fmt(extra.exp)} EXP</span>`);
     if (extra.ticket) rw.push(`<span class="rw">${ico('dungeon_ticket', 'ico inl')}Dungeon Ticket</span>`);
-    m.innerHTML = `<div class="frame loot-pop">${extra.rating ? `<div class="rating r${extra.rating}">${extra.rating}</div>` : ''}<h3>${esc(extra.title || 'Treasure')}</h3><div class="lcards">${cards}</div><div class="drew lp-rw">${rw.join('')}</div><div class="macts"></div></div>`;
+    for (const [id, n] of Object.entries(extra.mats || {})) rw.push(`<span class="rw">${ico(MATERIALS[id]?.icon || id, 'ico inl')}${esc(MATERIALS[id]?.name || id)} x${n}</span>`);
+    m.innerHTML = `<div class="frame loot-pop">${extra.rating ? `<div class="lp-rating r${extra.rating}">${extra.rating}</div>` : ''}<h3>${esc(extra.title || 'Treasure')}</h3>${extra.note ? `<p class="lp-note">${esc(extra.note)}</p>` : ''}<div class="lcards">${cards}</div><div class="drew lp-rw">${rw.join('')}</div><div class="macts"></div></div>`;
     const ok = h('button', 'btn', 'Collect'); ok.onclick = () => { this.g?.sfx.play('click'); this.closeModal(); };
     m.querySelector('.macts').appendChild(ok);
     m.querySelectorAll('.lcard').forEach((c, i) => this.tip(c, () => this.equipTip(items[i])));
@@ -436,8 +456,9 @@ export class UI {
     this.closePanels(true); this.closeDialog();
     this.panelName = name;
     const dot = this.menuBtns[name]?.querySelector('.dotn'); if (dot) dot.remove();
-    const titles = { char: 'Character', bag: 'Bag', skills: 'Skills', pets: 'Pets & Sprites', mounts: 'Mount Stable', quests: 'Quest Log', map: this.g.dg ? this.g.dg.def.name : 'World Map of Carlyle', settings: 'Settings', mall: 'Mall', signin: 'Daily Sign-In', gift: 'Online Gifts', rank: 'Battle Rating Ranking', dungeons: 'Dungeons' };
-    const widths = { char: 600, bag: 460, skills: 520, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 480, dungeons: 620 };
+    const titles = { char: 'Character', bag: 'Bag', skills: 'Skills', pets: 'Pets & Sprites', mounts: 'Mount Stable', quests: 'Quest Log', map: this.g.dg ? this.g.dg.def.name : this.g.war ? 'Spirit Crystal Arena' : 'World Map of Carlyle', settings: 'Settings', mall: 'Mall', signin: 'Daily Sign-In', gift: 'Online Gifts', rank: 'Leaderboards', dungeons: 'Dungeons',
+      missions: 'Daily & Weekly Missions', guild: this.g.S.guild ? `Guild · ${this.g.S.guild.name}` : 'Guilds of Carlyle', market: 'Carlyle Market', forge: "Gorm's Forge", codex: 'Legendary Codex', season: 'Season Pass', event: this.g.event ? this.g.event.name : 'Festivals', worldboss: 'World Boss' };
+    const widths = { char: 600, bag: 460, skills: 520, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 560, dungeons: 620, missions: 600, guild: 600, market: 620, forge: 600, codex: 620, season: 660, event: 600, worldboss: 600 };
     const p = h('div', 'panel frame');
     p.style.width = `min(${widths[name]}px, calc(100vw - 24px))`;
     p.innerHTML = `<div class="ptitle">${titles[name]}</div><button class="x-close" aria-label="Close"></button><div class="pbody"></div>`;
@@ -515,13 +536,15 @@ export class UI {
       const be = h('button', 'btn', `Enhance +${eq.enh + 1}`); be.onclick = () => g.enhance(s); acts.appendChild(be);
       const bu = h('button', 'btn gray', 'Unequip'); bu.onclick = () => { g.unequip(s); this.sel.eqSlot = null; }; acts.appendChild(bu);
       det.appendChild(acts);
-    } else det.innerHTML = '<div class="dtx">Select an equipment slot. Gorm the Blacksmith says: enhanced gear raises your Battle Rating!</div>';
+    } else det.innerHTML = '<div class="dtx">Select an equipment slot. Gorm the Blacksmith says: enhanced gear raises your Battle Rating! Reforge, ascend and socket gems at the Forge (Y).</div>';
     body.appendChild(det);
+    this.titleChooser(body);
   }
 
   panel_bag(body) {
     const g = this.g, S = g.S;
-    const tab = this.tabs(body, 'bagTab', [['all', 'All'], ['eq', 'Equipment'], ['it', 'Items']]);
+    const tab = this.tabs(body, 'bagTab', [['all', 'All'], ['eq', 'Equipment'], ['it', 'Items'], ['mats', 'Materials']]);
+    if (tab === 'mats') { this.matsGrid(body); return; }
     const grid = h('div', 'grid-bag');
     const idx = S.bag.map((b, i) => [b, i]).filter(([b]) => tab === 'all' || (tab === 'eq' ? !!b.eq : !b.eq));
     for (let k = 0; k < 48; k++) {
@@ -809,20 +832,9 @@ export class UI {
     clearTimeout(this.giftRefresh); this.giftRefresh = setTimeout(() => { if (this.panelName === 'gift') this.renderPanel(); }, 1000);
   }
 
-  panel_rank(body) {
-    const g = this.g, S = g.S;
-    if (!this.rankData) {
-      const names = [...BOT_NAMES].sort(() => Math.random() - 0.5).slice(0, 15);
-      const cls = Object.keys(CLASSES);
-      this.rankData = names.map((n, i) => ({ name: n, cls: cls[i % 4], lv: 30 - Math.floor(i * 1.5), br: Math.round(42000 * Math.pow(0.8, i) + 600) }));
-    }
-    const rows = [...this.rankData, { name: S.name, cls: S.cls, lv: S.level, br: g.br, me: true }].sort((a, b) => b.br - a.br);
-    const t = h('div', '');
-    t.appendChild(h('div', 'rank-row', '<span class="rk">#</span><span>Name</span><span class="cls">Class</span><span style="text-align:right">BR</span>'));
-    rows.forEach((r, i) => t.appendChild(h('div', 'rank-row' + (r.me ? ' me' : ''), `<span class="rk ${i < 3 ? 'top' + (i + 1) : ''}">${i + 1}</span><span>${esc(r.name)} <small style="color:var(--muted)">Lv${r.lv}</small></span><span class="cls" style="color:${CLASSES[r.cls].elemColor}">${CLASSES[r.cls].name}</span><span style="text-align:right;font-family:var(--f-num);font-weight:400;color:#ffd36b">${fmt(r.br)}</span>`)));
-    body.appendChild(t);
-  }
 }
+
+installSystemsUI(UI);
 
 function linkify(obj) {
   return esc(obj).replace(/(Talk to |Return to |Defeat |Collect )(.+?)( \(|$)/, (m, a, b, c) => `${a}<u>${b}</u>${c}`);

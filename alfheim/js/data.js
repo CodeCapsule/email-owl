@@ -128,6 +128,17 @@ export const MONSTERS = {
   blightspore: { name: 'Blightspore', lvl: [16, 17], hp: 1000, atk: 82, def: 24, exp: 290, gold: [30, 50], model: 'sporeling', variant: 2, aggressive: true, speed: 3.6, range: 2, height: 1.9, dungeon: true },
   rottreant: { name: 'Rotwood Treant', lvl: [17, 18], hp: 3200, atk: 92, def: 32, exp: 800, gold: [80, 130], model: 'rottreant', aggressive: true, elite: true, speed: 3.6, range: 3, height: 4, dungeon: true },
   nidhogg: { name: 'Nidhogg Hatchling', lvl: [20, 20], hp: 26000, atk: 120, def: 40, exp: 9000, gold: [1200, 1600], model: 'nidhogg', aggressive: true, boss: true, speed: 3.4, range: 5.5, height: 7, dungeon: true, skills: ['breath', 'slam', 'nova', 'summon'], summon: 'rootwolf' },
+  // ---- world bosses (Storm Altar, every 15 minutes). Stats scale with the hero's level at spawn time.
+  behemoth: { name: 'Thunderhoof Behemoth', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'behemoth', variant: 0, event: true, aggressive: true, boss: true, worldBoss: true, speed: 3.4, range: 5.5, height: 7, skills: ['slam', 'storm', 'nova', 'breath'] },
+  frostbehemoth: { name: 'Frost Behemoth', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'behemoth', variant: 1, event: true, aggressive: true, boss: true, worldBoss: true, speed: 3.4, range: 5.5, height: 7, skills: ['slam', 'storm', 'nova', 'breath'] },
+  pumpkinking: { name: 'Pumpkin King', lvl: [12, 12], hp: 1, atk: 1, def: 1, exp: 6000, gold: [800, 1200], model: 'pumpkinking', variant: 0, event: true, aggressive: true, boss: true, worldBoss: true, speed: 3.2, range: 5, height: 7, skills: ['slam', 'roots', 'nova', 'summon', 'storm'], summon: 'jackpuff' },
+  // ---- festival monsters (levels follow the spawn area)
+  jackpuff: { name: 'Jackpuff', lvl: [1, 1], hp: 70, atk: 9, def: 2, exp: 20, gold: [3, 9], model: 'jackpuff', variant: 0, event: true, festival: true, aggressive: false, speed: 3.6, range: 1.8, height: 1.5 },
+  snowpuff: { name: 'Snowpuff', lvl: [1, 1], hp: 70, atk: 9, def: 2, exp: 20, gold: [3, 9], model: 'jackpuff', variant: 1, event: true, festival: true, aggressive: false, speed: 3.6, range: 1.8, height: 1.5 },
+  blossompuff: { name: 'Blossom Puff', lvl: [1, 1], hp: 70, atk: 9, def: 2, exp: 20, gold: [3, 9], model: 'jackpuff', variant: 2, event: true, festival: true, aggressive: false, speed: 3.6, range: 1.8, height: 1.5 },
+  // ---- guild war units (stats set from the hero's level when the battle starts)
+  rival: { name: 'Rival', lvl: [10, 10], hp: 1, atk: 1, def: 1, exp: 120, gold: [20, 40], model: 'rival', aggressive: true, speed: 6.4, range: 2.6, height: 2.1, war: true },
+  warcrystal: { name: 'Enemy Spirit Crystal', lvl: [10, 10], hp: 1, atk: 0, def: 1, exp: 800, gold: [200, 300], model: 'warcrystal', variant: 1, event: true, aggressive: false, elite: true, structure: true, speed: 0, range: 0, height: 5.5, war: true },
 };
 
 
@@ -200,6 +211,9 @@ export const PETS = [
   { id: 'pet_ghost', name: 'Boo', species: 'Ghost', rarity: 2, atk: 18, hp: 70, model: 'ghost', src: 'Drop: Ruin Golem' },
   { id: 'pet_star', name: 'Twinkle', species: 'Star', rarity: 3, atk: 24, hp: 110, model: 'star', src: 'Mall: 300 Diamonds' },
   { id: 'pet_dragon', name: 'Sparky', species: 'Baby Dragon', rarity: 3, atk: 28, hp: 120, model: 'dragon', src: 'Drop: Treant King Yggr' },
+  { id: 'pet_pumpkin', name: 'Pumpkin Pip', species: 'Pumpkin', rarity: 2, atk: 19, hp: 90, model: 'pumpkin', src: 'Harvest Moon Festival shop', event: 'harvest' },
+  { id: 'pet_snowpuff', name: 'Flurry', species: 'Snowpuff', rarity: 2, atk: 19, hp: 90, model: 'snowpuff', src: 'Winter Starlight Festival shop', event: 'winter' },
+  { id: 'pet_blossom', name: 'Petalle', species: 'Blossom Spirit', rarity: 2, atk: 19, hp: 90, model: 'blossom', src: 'Sakura Bloom Festival shop', event: 'sakura' },
 ];
 
 export const SPRITES = [
@@ -225,6 +239,9 @@ export const ITEMS = {
   glowcap: { name: 'Glowcap', icon: 'glowcap', type: 'quest', quality: 1, stack: 99, desc: 'A luminous mushroom from Mossveil Forest.' },
   dungeon_ticket: { name: 'Dungeon Ticket', icon: 'dungeon_ticket', type: 'ticket', quality: 3, stack: 99, price: 0, desc: 'Grants one extra dungeon run after your free daily entries are used up.' },
   exp_scroll: { name: 'Scroll of Wisdom', icon: 'exp_scroll', type: 'consumable', quality: 2, stack: 99, price: 600, desc: 'Grants experience equal to 25% of your current level.' },
+  gem_pouch: { name: 'Gem Pouch', icon: 'gem_pouch', type: 'consumable', quality: 2, stack: 99, price: 300, desc: 'Open to receive a random Chipped gem (small chance of a Polished one).' },
+  unique_cache: { name: 'Unique Cache', icon: 'unique_cache', type: 'consumable', quality: 4, stack: 99, price: 3000, desc: 'Open to receive a random Unique item for your class at your level.' },
+  legend_cache: { name: 'Legendary Cache', icon: 'legend_cache', type: 'consumable', quality: 5, stack: 99, price: 9000, desc: 'Open to receive a random Legendary item for your class at your level.' },
 };
 
 export const SLOTS = ['weapon', 'helm', 'armor', 'boots', 'necklace', 'ring'];
@@ -258,6 +275,12 @@ export const NPCS = [
     greet: 'The four Spirits watch over Carlyle. Listen closely and they will guide you.' },
   { id: 'nix', name: 'Nix', title: 'Teleporter', x: 0, z: -40, look: 'nix', face: 0, service: 'teleport',
     greet: 'Where shall the winds carry you today?' },
+  { id: 'mira', name: 'Mira', title: 'Market Broker', x: -30, z: 14, look: 'mira', face: 2.1, service: 'market',
+    greet: 'Buying? Selling? Every adventurer in Carlyle trades through my ledger. Prices change by the hour, so look sharp~' },
+  { id: 'aldric', name: 'Aldric', title: 'Guild Envoy', x: 30, z: -16, look: 'aldric', face: -0.9, service: 'guild',
+    greet: 'A hero alone is strong; a guild is unstoppable. Join one, or found your own banner!' },
+  { id: 'host', name: 'Pumpkin Pam', title: 'Festival Host', x: 10, z: 30, look: 'host', face: 2.8, service: 'event', event: true,
+    greet: 'Happy festival! Bring me your festival tokens and I will trade you something wonderful!' },
 ];
 
 export const TELEPORTS = [
@@ -340,7 +363,8 @@ export const MALL = [
 
 export const BOT_NAMES = ['Lunaria', 'xXShadowXx', 'MochiMochi', 'Kirito77', 'SakuraBloom', 'Valkyr', 'Pudding', 'Aerith', 'NoobSlayer', 'Celestine', 'Tofu', 'RuneKnight', 'Mirabelle', 'Zephyrus', 'Bubbles', 'DarkAngel', 'Yuki', 'Ignis', 'Mercy', 'Felix'];
 export const GUILDS = ['Moonlight', 'Starfall', 'Sakura', 'Valhalla', 'Dreamers', ''];
-export const TITLES = ['Novice Adventurer', 'Jelly Hunter', 'Pet Lover', 'Rising Star', 'Guardian of Carlyle', 'Spirit Chosen'];
+export const TITLES = ['Novice Adventurer', 'Jelly Hunter', 'Pet Lover', 'Rising Star', 'Guardian of Carlyle', 'Spirit Chosen',
+  'Guild Hero', 'Titan Slayer', 'Market Mogul', 'Codex Keeper', 'Lorekeeper of Alfheim', 'Season Veteran', 'Season Champion', 'Harvest Lord', 'Starlight Guardian', 'Blossom Dancer', 'Warlord'];
 
 export const CHAT_LINES = [
   'LF2M Treant King, need healer!!',
@@ -363,6 +387,14 @@ export const CHAT_LINES = [
   'sell Elven ring, 2k gold',
   'online gift gives Pengu after 5 min btw',
   'love the music in Sylvan Haven',
+  'world boss at the Storm Altar soon, who is coming?',
+  'WTB Spirit Shards, paying well',
+  'my guild won the war 3-0 today!!',
+  'anyone know the best gem for crit builds?',
+  'reforged my ring 5 times for lifesteal lol',
+  'season pass tier 20 already~',
+  'daily missions done, chest time',
+  'Star Essence prices are crazy today',
 ];
 
 export const TIPS = [

@@ -19,10 +19,12 @@ const ROADS = [
 ];
 export const BRIDGES = [{ x: 70.5, z: 0.5, len: 26, w: 6, axis: 'x' }, { x: 102, z: 118, len: 24, w: 5, axis: 'x' }];
 export const ARENA = { x: -150, z: -112, r: 21 };
+export const ALTAR = { x: 128, z: -86, r: 13 }; // Storm Altar: world boss stage
 export const OVERLOOK = { x: 0, z: -160 };
 export const TELEPORT_CIRCLE = { x: 0, z: -46 };
 export const WORLD_TREE = { x: 0, z: -470 };
-const PLATFORMS = [{ x: 0, z: 0, r: 17.2, y: 0.3 }, { x: -150, z: -112, r: 21.5, y: 0.55 }, { x: 0, z: -160, r: 8, y: 1.95 }, { x: 0, z: -46, r: 4.6, y: 0.2 }];
+const PLATFORMS = [{ x: 0, z: 0, r: 17.2, y: 0.3 }, { x: -150, z: -112, r: 21.5, y: 0.55 }, { x: 0, z: -160, r: 8, y: 1.95 }, { x: 0, z: -46, r: 4.6, y: 0.2 }, { x: ALTAR.x, z: ALTAR.z, r: ALTAR.r + 0.4, y: 0.5 }];
+const nearAltar = (x, z, m = 6) => Math.hypot(x - ALTAR.x, z - ALTAR.z) < ALTAR.r + m;
 
 // ---------------------------------------------------------------- noise
 function hash(x, z) { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); }
@@ -60,6 +62,8 @@ function rawHeight0(x, z) {
   h = lerp(h * 0.3, h, smooth(3, 10, rd));
   const da = Math.hypot(x - ARENA.x, z - ARENA.z);
   h = lerp(0.4, h, smooth(ARENA.r + 1, ARENA.r + 10, da));
+  const dal = Math.hypot(x - ALTAR.x, z - ALTAR.z);
+  h = lerp(0.3, h, smooth(ALTAR.r + 1, ALTAR.r + 10, dal));
   const dO = Math.hypot(x - OVERLOOK.x, z - OVERLOOK.z);
   h = lerp(1.5, h, smooth(14, 24, dO));
   const rv = riverDist(x, z);
@@ -126,6 +130,7 @@ const GEO = {
   hemi: new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
   torus: new THREE.TorusGeometry(1, 0.12, 6, 18, Math.PI),
   dode: new THREE.DodecahedronGeometry(1, 0),
+  oct: new THREE.OctahedronGeometry(1, 0),
 };
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
 function M(x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) {
@@ -191,7 +196,7 @@ export class World {
     this.buildTerrain(); onProgress(0.2);
     this.buildWater(); this.buildSky(); onProgress(0.3);
     this.buildTown(); this.buildDungeonGates(); onProgress(0.45);
-    this.buildBridges(); this.buildRuins(); this.buildOverlook(); onProgress(0.55);
+    this.buildBridges(); this.buildRuins(); this.buildOverlook(); this.buildAltar(); onProgress(0.55);
     this.buildTrees(); onProgress(0.7);
     this.buildGroundCover(); onProgress(0.8);
     this.buildBoundary(); this.buildWorldTree(); this.buildIslands(); onProgress(0.9);
@@ -594,6 +599,33 @@ export class World {
     this.put(GEO.sph, 0xf0c040, x, y + 7.5, z, 0.5, 0.5, 0.5);
   }
 
+  // Storm Altar: a rune platform ringed by standing stones where world bosses descend.
+  buildAltar() {
+    const { x, z, r } = ALTAR;
+    const st = stoneTexture().clone(); st.needsUpdate = true; st.repeat.set(4, 4);
+    const floor = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 0.8, 0.6, 48), new THREE.MeshToonMaterial({ color: 0xb8c4d8, map: st, gradientMap: getGradient() }));
+    floor.position.set(x, 0.2, z); floor.receiveShadow = true; this.root.add(floor);
+    const mc = new THREE.Mesh(new THREE.CircleGeometry(r * 0.75, 48), new THREE.MeshBasicMaterial({ map: magicCircleTexture('#7ad8ff'), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+    mc.rotation.x = -Math.PI / 2; mc.position.set(x, 0.53, z); this.root.add(mc);
+    this.anim.push((t) => { mc.rotation.z = t * 0.12; mc.material.opacity = 0.45 + Math.sin(t * 1.3) * 0.12; });
+    const face = Math.atan2(-x, -z);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      if (Math.abs(Math.atan2(Math.sin(a - face), Math.cos(a - face))) < 0.4) continue; // opening toward town
+      const px = x + Math.cos(a) * (r + 1.6), pz = z + Math.sin(a) * (r + 1.6), y = this.heightAt(px, pz), h = 4 + (i % 3) * 1.2;
+      this.put(GEO.box, 0x8a92a8, px, y + h / 2, pz, 1.3, h, 0.8, 0, -a, 0);
+      this.putGlow(GEO.box, 0x7ad8ff, px, y + h * 0.62, pz, 1.34, 0.16, 0.84, 0, -a, 0);
+      this.put(GEO.box, 0x9aa2b8, px, y + h + 0.2, pz, 1.5, 0.4, 1.0, 0, -a, 0);
+      this.blockCircle(px, pz, 0.9);
+    }
+    for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const px = x + dx * r * 0.62, pz = z + dz * r * 0.62;
+      this.put(GEO.cyl6, 0x6a7288, px, 1.6, pz, 0.35, 2.4, 0.35);
+      this.putGlow(GEO.oct, 0x9ae8ff, px, 3.3, pz, 0.4, 0.75, 0.4);
+      this.blockCircle(px, pz, 0.5);
+    }
+  }
+
   buildDungeonGates() {
     this.gates = [];
     for (const d of DUNGEONS) {
@@ -644,7 +676,7 @@ export class World {
       if (Math.hypot(x, z) < 64) return false;
       if (roadDist(x, z) < 7 || riverDist(x, z) < 11) return false;
       if (Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r + 6) return false;
-      if (Math.hypot(x - OVERLOOK.x, z - OVERLOOK.z) < 20) return false;
+      if (Math.hypot(x - OVERLOOK.x, z - OVERLOOK.z) < 20 || nearAltar(x, z, 8)) return false;
       if (this.isBlocked(x, z)) return false;
       for (const s of spawns) if (Math.hypot(x - s.x, z - s.z) < s.r * 0.75) return false;
       return true;
@@ -676,7 +708,7 @@ export class World {
     const pts = [];
     for (let i = 0; i < 9000 && pts.length < 4200; i++) {
       const x = -170 + rng() * 340, z = -170 + rng() * 340;
-      if (Math.hypot(x, z) < 18 || roadDist(x, z) < 3.5 || riverDist(x, z) < 8 || Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r + 1) continue;
+      if (Math.hypot(x, z) < 18 || roadDist(x, z) < 3.5 || riverDist(x, z) < 8 || Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r + 1 || nearAltar(x, z, 1)) continue;
       pts.push([x, z]);
     }
     const im = new THREE.InstancedMesh(tuft, new THREE.MeshLambertMaterial({ color: 0xffffff }), pts.length * 3);
@@ -709,7 +741,7 @@ export class World {
     // rocks
     for (let i = 0; i < 70; i++) {
       const x = -170 + rng() * 340, z = -170 + rng() * 340;
-      if (Math.hypot(x, z) < 62 || roadDist(x, z) < 6 || riverDist(x, z) < 9 || this.isBlocked(x, z)) continue;
+      if (Math.hypot(x, z) < 62 || roadDist(x, z) < 6 || riverDist(x, z) < 9 || this.isBlocked(x, z) || nearAltar(x, z, 5)) continue;
       if ((this.gates || []).some((gt) => Math.hypot(x - gt.x, z - gt.z) < 14)) continue;
       const s = 0.6 + rng() * 1.4, y = this.heightAt(x, z);
       this.put(GEO.dode, 0xa8a49a, x, y + s * 0.3, z, s, s * 0.7, s * 1.1, rng(), rng() * 3, 0);
@@ -882,6 +914,7 @@ export class World {
       g.save(); g.translate(toPx(b.x), toPx(b.z)); g.rotate(-b.rot); g.fillRect(-b.w / 2, -b.d / 2, b.w, b.d); g.strokeRect(-b.w / 2, -b.d / 2, b.w, b.d); g.restore();
     }
     g.fillStyle = '#c8b8d8'; g.beginPath(); g.arc(toPx(ARENA.x), toPx(ARENA.z), ARENA.r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#a8c8e8'; g.beginPath(); g.arc(toPx(ALTAR.x), toPx(ALTAR.z), ALTAR.r * S / SIZE, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#b07a50';
     for (const b of BRIDGES) g.fillRect(toPx(b.x - b.len / 2), toPx(b.z - b.w / 2), b.len, b.w);
     for (const gt of this.gates || []) {

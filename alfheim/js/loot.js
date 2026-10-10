@@ -1,5 +1,6 @@
 // Item rarity tiers, random affixes, named Unique/Legendary items and loot generation. Pure JS (no three.js).
 import { SLOTS, WEAPON_NAMES, SLOT_BASE, SLOT_INFO } from './data.js';
+import { SOCKETS, GEMS, GEM_LV, parseGem } from './systems-data.js';
 
 export const RARITY = [
   { key: 'common', name: 'Common', color: '#e8e8e8', glow: 'rgba(232,232,232,0.25)', mult: 1.0, affixes: 0, beam: 0 },
@@ -15,7 +16,7 @@ const pct = (v) => (Math.round(v * 10) / 10).toString();
 // Affix roll: base + per-level growth, scaled by tier (Rare 1.0 ... Legendary 1.6) and a 0.8-1.2 random spread.
 const tierScale = (q) => [0.7, 0.85, 1.0, 1.2, 1.4, 1.6][q] || 1;
 const mk = (name, stat, label, base, perLvl, cap) => ({
-  name, stat, label,
+  name, stat, label, base, perLvl, cap,
   roll(lvl, q, rng = Math.random) {
     const v = (base + perLvl * lvl) * tierScale(q) * (0.8 + rng() * 0.4);
     return r1(cap ? Math.min(cap, v) : v);
@@ -80,6 +81,7 @@ export const LEGENDARY_ITEMS = [
   { id: 'l_oberon', name: 'Oberon\'s Signet', slot: 'ring', effect: 'holy_nova', flavor: 'The seal of the Fairy King, warm to the touch.', source: 'queenjelly' },
 ];
 
+export const NAMED_LIST = [...UNIQUE_ITEMS.map((d) => ({ ...d, quality: 4 })), ...LEGENDARY_ITEMS.map((d) => ({ ...d, quality: 5 }))];
 const NAMED = new Map([...UNIQUE_ITEMS.map((d) => [d.id, { ...d, quality: 4 }]), ...LEGENDARY_ITEMS.map((d) => [d.id, { ...d, quality: 5 }])]);
 const PREFIX = [['Worn', 'Plain'], ['Sturdy', 'Fine'], ['Sylvan', 'Gleaming'], ['Elven', 'Runed']];
 const WEAPON_KEY = { knight: 'w_sword', assassin: 'w_daggers', mage: 'w_staff', priest: 'w_scepter' };
@@ -142,7 +144,7 @@ export function genEquip({ slot, lvl, quality, cls, uid, named = null, rng = Mat
   return {
     uid, slot, name: `${pre} ${base}`, quality, lvl, stats: baseStats(slot, lvl, quality),
     affixes: rollAffixes(RARITY[quality].affixes, lvl, quality, rng), effect: null, named: null, enh: 0,
-    icon: iconKey(slot, cls, quality),
+    icon: iconKey(slot, cls, quality), gems: new Array(SOCKETS[quality]).fill(null),
   };
 }
 
@@ -154,7 +156,7 @@ export function genNamed(namedId, { lvl = 1, cls, uid, rng = Math.random } = {})
   return {
     uid, slot: d.slot, name: d.name, quality: d.quality, lvl, stats: baseStats(d.slot, lvl, d.quality),
     affixes: rollAffixes(RARITY[d.quality].affixes, lvl, d.quality, rng), effect: d.effect, named: d.id, enh: 0,
-    icon: iconKey(d.slot, useCls, d.quality), flavor: d.flavor, cls: d.cls || null,
+    icon: iconKey(d.slot, useCls, d.quality), flavor: d.flavor, cls: d.cls || null, gems: new Array(SOCKETS[d.quality]).fill(null),
   };
 }
 
@@ -174,6 +176,7 @@ export function normalizeItem(eq, cls) {
   eq.quality = Math.max(0, Math.min(5, eq.quality | 0));
   eq.lvl = Math.max(1, eq.lvl | 0);
   if (!SLOTS.includes(eq.slot)) eq.slot = EMOJI_SLOT[eq.icon] || 'ring';
+  fitSockets(eq);
   const validKey = typeof eq.icon === 'string' && /^(w_(sword|daggers|staff|scepter)|helm|armor|boots|necklace|ring)(_l)?$/.test(eq.icon);
   if (!validKey) {
     const wc = EMOJI_WEAPON[eq.icon] || (VALID_CLS.includes(cls) ? cls : 'knight');
@@ -190,6 +193,7 @@ export function itemStats(eq) {
   for (const s of ['atk', 'def', 'hp']) out[s] += (eq.stats?.[s] || 0) * k;
   out.crit += eq.stats?.crit || 0;
   for (const a of eq.affixes || []) { const def = AFFIXES[a.id]; if (def && Number.isFinite(a.v)) out[def.stat] += a.v; }
+  for (const gid of eq.gems || []) { const g = parseGem(gid); if (g) out[GEMS[g.type].stat] += GEMS[g.type].vals[g.lv - 1]; }
   return out;
 }
 
@@ -230,6 +234,10 @@ export function itemLines(eq) {
     const e = EFFECTS[eq.effect];
     lines.push({ text: `${e.name}: ${e.desc}`, color: e.tier === 'legendary' ? '#ffe27a' : '#ffb35a' });
   }
+  for (const gid of eq.gems || []) {
+    const g = parseGem(gid);
+    lines.push(g ? { text: `◆ ${GEM_LV[g.lv - 1]} ${GEMS[g.type].name}: ${GEMS[g.type].label(GEMS[g.type].vals[g.lv - 1])}`, color: GEMS[g.type].color } : { text: '◇ Empty socket', color: '#8a94b0' });
+  }
   if (eq.flavor) lines.push({ text: `"${eq.flavor}"`, color: '#b6c2dc' });
   return lines;
 }
@@ -237,4 +245,63 @@ export function itemLines(eq) {
 export function sellPrice(eq) {
   if (!eq) return 0;
   return Math.round(12 * eq.lvl * (eq.quality + 1) * (1 + (eq.enh || 0) * 0.3) * (eq.quality >= 4 ? 2 : 1));
+}
+
+// ---------------------------------------------------------------- progression helpers (Forge)
+export function fitSockets(eq) {
+  const n = SOCKETS[eq.quality] || 0;
+  if (!Array.isArray(eq.gems)) eq.gems = [];
+  const removed = eq.gems.slice(n).filter(Boolean);
+  eq.gems = eq.gems.slice(0, n);
+  while (eq.gems.length < n) eq.gems.push(null);
+  return removed;
+}
+// Reroll every affix (same count). Named effects stay.
+export function reforgeItem(eq, rng = Math.random) {
+  eq.affixes = rollAffixes(RARITY[eq.quality].affixes, eq.lvl, eq.quality, rng);
+  return eq;
+}
+// Raise an item to a new level: base stats are recomputed and affix values grow along their level curve.
+export function retemperItem(eq, lvl) {
+  const old = eq.lvl;
+  lvl = Math.max(old, Math.round(lvl));
+  eq.stats = baseStats(eq.slot, lvl, eq.quality);
+  for (const a of eq.affixes) {
+    const d = AFFIXES[a.id]; if (!d) continue;
+    const k = (d.base + d.perLvl * lvl) / (d.base + d.perLvl * old);
+    a.v = r1(d.cap ? Math.min(d.cap, a.v * k) : a.v * k);
+  }
+  eq.lvl = lvl;
+  return eq;
+}
+// Raise rarity by one tier. Special -> Unique and Unique -> Legendary awaken into a named item for the same slot,
+// keeping level, enhancement and socketed gems. Returns gems that no longer fit (none in practice; sockets only grow).
+export function ascendItem(eq, cls, rng = Math.random) {
+  const q = eq.quality;
+  if (q >= 5) return eq;
+  if (q >= 3) {
+    const list = (q === 3 ? UNIQUE_ITEMS : LEGENDARY_ITEMS).filter((d) => d.slot === eq.slot && (!d.cls || d.cls === cls));
+    const pool = list.length ? list : (q === 3 ? UNIQUE_ITEMS : LEGENDARY_ITEMS).filter((d) => d.slot === eq.slot);
+    const d = pool[Math.floor(rng() * pool.length)];
+    const fresh = genNamed(d.id, { lvl: eq.lvl, cls, uid: eq.uid, rng });
+    const keep = { enh: eq.enh, gems: eq.gems };
+    for (const k of Object.keys(eq)) delete eq[k];
+    Object.assign(eq, fresh, { enh: keep.enh, gems: keep.gems || [] });
+    fitSockets(eq);
+    return eq;
+  }
+  const nq = q + 1;
+  eq.quality = nq;
+  eq.stats = baseStats(eq.slot, eq.lvl, nq);
+  const have = new Set(eq.affixes.map((a) => a.id));
+  const ids = Object.keys(AFFIXES).filter((id) => !have.has(id));
+  while (eq.affixes.length < RARITY[nq].affixes && ids.length) {
+    const id = ids.splice(Math.floor(rng() * ids.length), 1)[0];
+    eq.affixes.push({ id, v: AFFIXES[id].roll(eq.lvl, nq, rng) });
+  }
+  const words = eq.name.split(' ');
+  const all = PREFIX.flat();
+  if (all.includes(words[0])) { words[0] = PREFIX[nq][PREFIX[q].indexOf(words[0]) === 1 ? 1 : 0]; eq.name = words.join(' '); }
+  fitSockets(eq);
+  return eq;
 }
