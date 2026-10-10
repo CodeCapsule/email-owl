@@ -913,7 +913,7 @@ const M = {
   // ============================================================ market
   mkValue(kind, id, eq) {
     if (kind === 'mat') return MATERIALS[id]?.price || 10;
-    if (kind === 'item') return ITEMS[id]?.price || 20;
+    if (kind === 'item') return ({ dungeon_ticket: 1500 })[id] || ITEMS[id]?.price || 20;
     return Math.round(sellPrice(eq) * 3 + itemScore(eq) * 0.8);
   },
   mkIndex(id, t = Date.now()) {
@@ -1019,7 +1019,7 @@ const M = {
     }
     // bot trade offers
     const M2 = this.market;
-    if (M2.offer && this.time > M2.offer.expires) { this.ui.tradeOffer(null); M2.offer = null; }
+    if (M2.offer && (this.time > M2.offer.expires || this.dg || this.war)) { this.ui.tradeOffer(null); M2.offer = null; }
     M2.offerT -= dt;
     if (M2.offerT > 0 || M2.offer || this.dg || this.war || S.level < 3) return;
     M2.offerT = rnd(...MARKET.offerEvery);

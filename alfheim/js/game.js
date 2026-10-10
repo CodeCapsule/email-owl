@@ -1447,7 +1447,8 @@ export class Game {
   }
   petIcon(id) {
     const pd = PETS.find((x) => x.id === id);
-    return this.portraits.snap('pet-' + id, () => PET_BUILD(pd.model), { w: 112, h: 112, look: [0, 0.6, 0], from: [0.6, 0.95, 2.6], fov: 34 });
+    const small = EVENT_PET_MODELS.has(pd.model);
+    return this.portraits.snap('pet-' + id, () => PET_BUILD(pd.model), small ? { w: 112, h: 112, look: [0, 0.32, 0], from: [0.32, 0.5, 1.45], fov: 34 } : { w: 112, h: 112, look: [0, 0.6, 0], from: [0.6, 0.95, 2.6], fov: 34 });
   }
   mountIcon(id) {
     const md = MOUNTS.find((x) => x.id === id);
@@ -1744,9 +1745,12 @@ export class Game {
     m.skillT -= dt;
     if (m.skillT > 0) return;
     const d = m.def0, W = m.map || this.world;
+    const near = W === this.map && flat(m.pos, this.player.pos) < 45;
+    const warn = (msg) => { if (near) this.ui.toast(msg, 'warn'); };
+    const boom = () => { if (near) this.sfx.play('boom'); };
     const enraged = m.hp < m.maxHp * 0.4;
     m.skillT = (enraged ? 5.5 : 8.5) + Math.random() * 1.5;
-    if (enraged && !m.enraged) { m.enraged = true; this.ui.toast(`${d.name} is enraged!`, 'warn'); this.fx.ring(m.pos, 0xff3a3a, 9, 0.8); }
+    if (enraged && !m.enraged) { m.enraged = true; warn(`${d.name} is enraged!`); this.fx.ring(m.pos, 0xff3a3a, 9, 0.8); }
     const skills = d.skills || ['slam', 'roots'];
     let sk = pick(skills);
     if (sk === 'summon' && ((!m.dungeon && !m.wb) || this.monsters.filter((x) => x.summoned && !x.dead).length >= 4)) sk = 'slam';
@@ -1754,11 +1758,11 @@ export class Game {
     const hitIn = (c, r, mult) => { for (const e of this.bossTargets(m)) if (flat(e.pos, c) < r) this.damage(m, e, mult, { canCrit: false }); };
     if (sk === 'slam') {
       const c = m.pos.clone().add(new THREE.Vector3(Math.sin(m.yaw) * 3, 0, Math.cos(m.yaw) * 3)); c.y = gy(c.x, c.z);
-      this.ui.toast(`${d.name} raises up — get out of the red circle!`, 'warn');
+      warn(`${d.name} raises up — get out of the red circle!`);
       m.state = 'attack'; m.actT = m.actDur = 1.6;
-      this.fx.telegraph(c, 7, 1.6, () => { if (m.dead) return; this.fx.quake(c, 7); this.sfx.play('boom'); hitIn(c, 7, 2.4); });
+      this.fx.telegraph(c, 7, 1.6, () => { if (m.dead) return; this.fx.quake(c, 7); boom(); hitIn(c, 7, 2.4); });
     } else if (sk === 'roots') {
-      this.ui.toast('The ground splits beneath you!', 'warn');
+      warn('The ground splits beneath you!');
       for (let i = 0; i < (enraged ? 4 : 3); i++) {
         const c = t.pos.clone().add(new THREE.Vector3(rnd(-4, 4), 0, rnd(-4, 4))); c.y = gy(c.x, c.z);
         this.fx.telegraph(c, 3.2, 1.4 + i * 0.15, () => {
@@ -1770,19 +1774,19 @@ export class Game {
       }
     } else if (sk === 'nova') {
       const c = m.pos.clone(); c.y = gy(c.x, c.z);
-      this.ui.toast(`${d.name} gathers power — run away!`, 'warn');
+      warn(`${d.name} gathers power — run away!`);
       m.state = 'cast'; m.actT = m.actDur = 2.2;
       this.fx.circle(c, '#ff6aa8', 4, 2.3);
       this.fx.telegraph(c, 10, 2.2, () => {
         if (m.dead) return;
         this.fx.ring(c, 0xff6aa8, 11, 0.6); this.fx.ring(c, 0xffffff, 8, 0.45);
         this.fx.emit(c.clone().setY(c.y + 1), { count: 80, colors: [0xff6aa8, 0xffffff, 0xb07aff], speed: 14, life: 0.7, size: 0.9, spread: 1 });
-        this.sfx.play('boom'); this.fx.shake(0.5); hitIn(c, 10, 2.0);
+        boom(); if (near) this.fx.shake(0.5); hitIn(c, 10, 2.0);
       });
     } else if (sk === 'breath') {
       m.yaw = m.yawT = Math.atan2(t.pos.x - m.pos.x, t.pos.z - m.pos.z);
       const dir = new THREE.Vector3(Math.sin(m.yaw), 0, Math.cos(m.yaw));
-      this.ui.toast(`${d.name} inhales deeply — dodge the breath!`, 'warn');
+      warn(`${d.name} inhales deeply — dodge the breath!`);
       m.state = 'attack'; m.actT = m.actDur = 1.8;
       const zones = [[4.5, 3], [8.5, 3.8], [12.5, 4.6]].map(([dist, r]) => { const c = m.pos.clone().addScaledVector(dir, dist); c.y = gy(c.x, c.z); return [c, r]; });
       zones.forEach(([c, r]) => this.fx.telegraph(c, r, 1.6));
@@ -1792,12 +1796,12 @@ export class Game {
           const c = m.pos.clone().addScaledVector(dir, 2 + i); c.y = gy(c.x, c.z) + 1.4;
           this.fx.emit(c, { count: 8, colors: [0xb07aff, 0x6af0d0, 0xffffff], speed: 4, life: 0.6, size: 1.2, up: 1 });
         });
-        this.sfx.play('boom');
+        boom();
         const hit = new Set();
         for (const [c, r] of zones) for (const e of this.bossTargets(m)) if (!hit.has(e) && flat(e.pos, c) < r) { hit.add(e); this.damage(m, e, 2.6, { canCrit: false }); }
       });
     } else if (sk === 'summon') {
-      this.ui.toast(`${d.name} calls for help!`, 'warn');
+      warn(`${d.name} calls for help!`);
       m.state = 'cast'; m.actT = m.actDur = 1.2;
       const n = enraged ? 3 : 2;
       for (let i = 0; i < n; i++) {
@@ -1810,7 +1814,7 @@ export class Game {
     } else if (sk === 'storm') {
       // lightning (or cursed lantern fire) strikes under several targets at once
       const col = d.model === 'pumpkinking' ? '#ff9a2e' : '#9ad8ff', hex = d.model === 'pumpkinking' ? 0xffa040 : 0x9ad8ff;
-      this.ui.toast(d.model === 'pumpkinking' ? 'Lanterns blaze overhead — keep moving!' : 'Thunder gathers overhead — keep moving!', 'warn');
+      warn(d.model === 'pumpkinking' ? 'Lanterns blaze overhead — keep moving!' : 'Thunder gathers overhead — keep moving!');
       m.state = 'cast'; m.actT = m.actDur = 1.4;
       const targets = this.bossTargets(m).filter((e) => flat(e.pos, m.pos) < 30).sort(() => Math.random() - 0.5).slice(0, enraged ? 6 : 4);
       targets.forEach((e, i) => {
@@ -1820,7 +1824,7 @@ export class Game {
           if (m.dead) return;
           this.fx.bolt(c.clone().setY(c.y + 18), c.clone().setY(c.y + 0.3), hex, 0.35);
           this.fx.emit(c.clone().setY(c.y + 0.5), { count: 26, colors: [hex, 0xffffff], speed: 7, life: 0.5, size: 0.7, up: 4 });
-          this.sfx.play('boom');
+          boom();
           hitIn(c, 3, 1.8);
         });
       });

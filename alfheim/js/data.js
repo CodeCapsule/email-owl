@@ -279,7 +279,7 @@ export const NPCS = [
     greet: 'Buying? Selling? Every adventurer in Carlyle trades through my ledger. Prices change by the hour, so look sharp~' },
   { id: 'aldric', name: 'Aldric', title: 'Guild Envoy', x: 30, z: -16, look: 'aldric', face: -0.9, service: 'guild',
     greet: 'A hero alone is strong; a guild is unstoppable. Join one, or found your own banner!' },
-  { id: 'host', name: 'Pumpkin Pam', title: 'Festival Host', x: 10, z: 30, look: 'host', face: 2.8, service: 'event', event: true,
+  { id: 'host', name: 'Pumpkin Pam', title: 'Festival Host', x: -16, z: 22, look: 'host', face: 2.4, service: 'event', event: true,
     greet: 'Happy festival! Bring me your festival tokens and I will trade you something wonderful!' },
 ];
 

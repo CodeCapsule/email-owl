@@ -559,7 +559,7 @@ button { font-family: inherit; }
 /* world boss */
 .wb-status { margin: 12px 0; padding: 8px 12px; border-radius: 8px; text-align: center; font-family: var(--f-title); font-size: 16px; color: #9ad8ff; background: rgba(60, 120, 200, .15); border: 1px solid rgba(120, 200, 255, .35); }
 .wb-status.live { color: #ffb0d8; background: rgba(200, 40, 120, .2); border-color: rgba(255, 106, 168, .6); animation: actglow 1.4s infinite; }
-#hud-wb { position: absolute; top: 228px; right: 272px; width: 220px; padding: 8px 10px; border-radius: 8px; background: linear-gradient(180deg, rgba(40, 10, 30, .85), rgba(10, 12, 28, .8)); border: 1px solid rgba(255, 106, 168, .5); font-size: 12px; }
+#hud-wb { position: absolute; top: 206px; left: 10px; width: 220px; padding: 8px 10px; border-radius: 8px; background: linear-gradient(180deg, rgba(40, 10, 30, .85), rgba(10, 12, 28, .8)); border: 1px solid rgba(255, 106, 168, .5); font-size: 12px; }
 #hud-wb .wt { font-family: var(--f-title); color: #ff9ad0; font-size: 13px; }
 #hud-wb .wt small { float: right; color: #fff; font-family: var(--f-num); font-weight: 400; }
 #hud-wb .bar { height: 8px; margin: 4px 0 6px; border-radius: 4px; background: rgba(0, 0, 0, .6); overflow: hidden; position: relative; }
@@ -578,12 +578,12 @@ button { font-family: inherit; }
 #hud-war .bar { height: 9px; border-radius: 5px; background: rgba(0, 0, 0, .6); overflow: hidden; position: relative; margin-top: 3px; }
 #hud-war .side.us .bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(180deg, #8ad8ff, #2a6ad8); }
 #hud-war .side.them .bar i { position: absolute; inset: 0 0 0 auto; background: linear-gradient(180deg, #ff9a8a, #c82a2a); }
-#hud-war .mid { text-align: center; }
+#hud-war .mid { text-align: center; min-width: 64px; white-space: nowrap; }
 #hud-war .sc { font-family: var(--f-num); font-weight: 400; font-size: 22px; color: #fff; }
 #hud-war .tm { font-family: var(--f-num); font-weight: 400; font-size: 12px; color: var(--gold); }
 
 /* trade offers */
-#trade-offer { position: absolute; left: 10px; bottom: 236px; width: 300px; padding: 10px 12px 12px; font-size: 13px; z-index: 6; animation: toastIn .3s; }
+#trade-offer { position: absolute; left: 10px; bottom: 250px; width: 300px; padding: 10px 12px 12px; font-size: 13px; z-index: 6; animation: toastIn .3s; }
 #trade-offer .th { font-family: var(--f-title); color: #ff9ad0; font-size: 13px; margin-bottom: 4px; }
 #trade-offer .tt { color: var(--muted); line-height: 1.45; }
 #trade-offer .tt b { color: var(--ink); }
@@ -617,6 +617,9 @@ button { font-family: inherit; }
 .gem-row .gc { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; background: rgba(255, 255, 255, .05); }
 .gem-row .gc b { font-family: var(--f-num); font-weight: 400; font-size: 16px; }
 .gem-row .gc small { color: var(--muted); font-size: 10px; flex: 1; }
+.gem-row .btn { display: inline-flex; align-items: center; gap: 2px; }
+.g-emb svg { width: 62%; height: 62%; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .5)); }
+.chip.emb svg { width: 20px; height: 20px; display: block; margin: auto; }
 
 /* codex */
 .codex-head { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
@@ -663,21 +666,6 @@ button { font-family: inherit; }
 .ev-how > div { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 8px; background: rgba(255, 255, 255, .05); font-size: 11px; color: var(--muted); }
 .ev-how img, .ev-how .ico { width: 44px; height: 44px; border-radius: 8px; flex: none; background: radial-gradient(circle at 50% 40%, #6a4a3a, #1a1020); }
 .ev-how b { display: block; color: var(--ink); font-size: 12px; }
-
-@media (max-width: 900px) {
-  #hud-acts { grid-template-columns: repeat(6, 46px); }
-  #hud-wb { top: auto; right: auto; left: 10px; bottom: 330px; transform: scale(.85); transform-origin: bottom left; }
-  #trade-offer { bottom: 340px; }
-}
-@media (max-width: 640px) {
-  #hud-war { top: 62px; transform: translateX(-50%) scale(.8); }
-  #hud-war .side { width: 100px; }
-  .don-row, .ev-how { grid-template-columns: 1fr; }
-  .codex-ms { grid-template-columns: repeat(3, 1fr); }
-  .gem-row { grid-template-columns: 80px repeat(3, 1fr); font-size: 11px; }
-  #trade-offer { width: calc(100% - 20px); bottom: 380px; }
-  .g-head { flex-wrap: wrap; }
-}
 
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
@@ -736,6 +724,26 @@ button { font-family: inherit; }
   .talents { margin: 4px 0 0; }
   .create-bottom { gap: 10px; padding: 10px; }
   .create-bottom .btn.big { padding: 10px 28px; font-size: 18px; }
+}
+/* ---------- responsive: live systems (after the base responsive rules so these win) ---------- */
+@media (max-width: 900px) {
+  #hud-acts { grid-template-columns: repeat(6, 46px); }
+  #hud-wb { top: 196px; left: 10px; transform: scale(.85); transform-origin: top left; }
+  #trade-offer { bottom: 340px; }
+  #hud-war { top: auto; bottom: 336px; }
+}
+@media (max-width: 640px) {
+  #hud-acts { grid-template-columns: repeat(6, 44px); gap: 4px 4px; bottom: 206px; }
+  #hud-acts .ai { width: 36px; height: 36px; }
+  #hud-acts .al { font-size: 9px; }
+  #hud-wb { top: 172px; transform: scale(.78); }
+  #hud-war { bottom: 330px; transform: translateX(-50%) scale(.82); }
+  #hud-war .side { width: 96px; }
+  .don-row, .ev-how { grid-template-columns: 1fr; }
+  .codex-ms { grid-template-columns: repeat(3, 1fr); }
+  .gem-row { grid-template-columns: 76px repeat(3, 1fr); font-size: 11px; }
+  #trade-offer { width: calc(100% - 20px); bottom: 330px; font-size: 12px; padding: 8px 10px; }
+  .g-head { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

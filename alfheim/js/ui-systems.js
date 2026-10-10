@@ -23,6 +23,16 @@ const costChips = (g, c = {}) => {
   for (const [id, n] of Object.entries(c.mats || {})) out.push(`<span class="need ${g.matCount(id) >= n ? '' : 'no'}" title="${esc(matName(id))}">${ico(MATERIALS[id].icon, 'ico inl')}${g.matCount(id)}/${n}</span>`);
   return out.join('');
 };
+// Guild emblems as inline SVG (never depends on the device's symbol fonts).
+const EMB_PATH = {
+  moon: '<path d="M15.5 2.5a9.5 9.5 0 1 0 6 16.8A8 8 0 1 1 15.5 2.5z"/>',
+  star: '<path d="M12 1.8l3 6.6 7.2.7-5.4 4.8 1.6 7.1L12 17.3 5.6 21l1.6-7.1-5.4-4.8 7.2-.7z"/>',
+  flower: '<g><circle cx="12" cy="5.5" r="4"/><circle cx="18.2" cy="10" r="4"/><circle cx="15.8" cy="17.4" r="4"/><circle cx="8.2" cy="17.4" r="4"/><circle cx="5.8" cy="10" r="4"/></g><circle cx="12" cy="12" r="3.2" fill="#ffd84a"/>',
+  axe: '<path d="M4.5 2.5l10 10-2 2-10-10V2.5zM19.5 2.5h2v2l-10 10-2-2zM6.5 15.5l2 2-3.5 3.5-2-2zM17.5 15.5l3.5 3.5-2 2-3.5-3.5z"/>',
+  cloud: '<path d="M6.5 19a5 5 0 0 1-.6-9.96A6.5 6.5 0 0 1 18.4 8a5.5 5.5 0 0 1-.4 11z"/>',
+  wing: '<path d="M2 15C6 6 13 3 22 3c-2 3-4.5 4.5-7.5 5.2 2.6.3 4.8 0 6.5-.8-1.8 3.8-5 5.8-9 6.1 2 .8 4 .9 5.6.6C14.5 17.8 9 19.6 2 15z"/>',
+};
+const emblem = (k) => `<svg viewBox="0 0 24 24" fill="#fff" stroke="#24160f" stroke-width="1.2" stroke-linejoin="round">${EMB_PATH[k] || EMB_PATH.wing}</svg>`;
 const MISSION_GO = { dungeon: 'dungeons', dungeonS: 'dungeons', worldboss: 'worldboss', war: 'guild', warWin: 'guild', donate: 'guild', craft: 'forge', salvage: 'forge', enhance: 'forge', gem: 'forge', trade: 'market', marketGold: 'market', feed: 'pets', eventToken: 'event' };
 
 const P = {
@@ -196,7 +206,7 @@ const P = {
     const def = g.guildDef(G.name);
     const tab = this.tabs(body, 'guildTab', [['hall', 'Guild Hall'], ['members', `Members (${g.guildSize()})`], ['shop', 'Guild Shop'], ['war', 'Guild War']]);
     const head = h('div', 'g-head');
-    head.innerHTML = `<div class="g-emb" style="--gc:${G.color || '#9ad0ff'}">${GUILD_EMBLEMS[G.emblem] || '❖'}</div><div class="g-info"><div class="g-name">${esc(G.name)} <small>Lv ${G.lv}</small></div><div class="muted">${def ? esc(def.motto) : 'Your own banner, your own legend.'}</div><div class="g-bar"><i style="width:${G.lv >= GUILD_MAX ? '100%' : pct(G.exp, GUILD_EXP[G.lv])}"></i><span>${G.lv >= GUILD_MAX ? 'MAX' : `${fmt(G.exp)} / ${fmt(GUILD_EXP[G.lv])} EXP`}</span></div></div><div class="g-contrib">${ico('contrib', 'ico inl')}<b>${fmt(G.contrib)}</b><small>Contribution</small></div>`;
+    head.innerHTML = `<div class="g-emb" style="--gc:${G.color || '#9ad0ff'}">${emblem(G.emblem)}</div><div class="g-info"><div class="g-name">${esc(G.name)} <small>Lv ${G.lv}</small></div><div class="muted">${def ? esc(def.motto) : 'Your own banner, your own legend.'}</div><div class="g-bar"><i style="width:${G.lv >= GUILD_MAX ? '100%' : pct(G.exp, GUILD_EXP[G.lv])}"></i><span>${G.lv >= GUILD_MAX ? 'MAX' : `${fmt(G.exp)} / ${fmt(GUILD_EXP[G.lv])} EXP`}</span></div></div><div class="g-contrib">${ico('contrib', 'ico inl')}<b>${fmt(G.contrib)}</b><small>Contribution</small></div>`;
     body.appendChild(head);
     if (tab === 'hall') {
       const b = guildBuff(G.lv);
@@ -249,7 +259,7 @@ const P = {
     const L = h('div', 'list');
     for (const gd of GUILD_LIST) {
       const r = h('div', 'row');
-      r.innerHTML = `<div class="ic g-emb sm" style="--gc:${gd.color}">${GUILD_EMBLEMS[gd.emblem]}</div><div class="tx"><b>${esc(gd.name)} <span class="lv">Lv ${gd.lv}</span></b>${esc(gd.motto)}<br><span class="muted">Leader ${esc(gd.leader)} · ${gd.size} members · Blessing +${(guildBuff(gd.lv).atk * 100).toFixed(1)}%</span></div>`;
+      r.innerHTML = `<div class="ic g-emb sm" style="--gc:${gd.color}">${emblem(gd.emblem)}</div><div class="tx"><b>${esc(gd.name)} <span class="lv">Lv ${gd.lv}</span></b>${esc(gd.motto)}<br><span class="muted">Leader ${esc(gd.leader)} · ${gd.size} members · Blessing +${(guildBuff(gd.lv).atk * 100).toFixed(1)}%</span></div>`;
       const b = h('button', 'btn small green', 'Join'); b.disabled = S.level < GUILD_JOIN_LV; b.onclick = () => g.joinGuild(gd.name);
       r.appendChild(b); L.appendChild(r);
     }
@@ -257,7 +267,7 @@ const P = {
     body.appendChild(h('div', 'lbl', '<br>Found your own guild'));
     const f = h('div', 'g-create');
     const emb = this.sel.gEmb || 'wing', col = this.sel.gCol || '#9ad0ff';
-    f.innerHTML = `<input id="g-name" maxlength="14" placeholder="Guild name" value="${esc(this.sel.gName || '')}"><div class="chips">${Object.entries(GUILD_EMBLEMS).map(([k, v]) => `<button class="chip emb ${k === emb ? 'sel' : ''}" data-e="${k}">${v}</button>`).join('')}</div><div class="chips">${['#9ad0ff', '#ffd84a', '#ff9ad0', '#7aff9a', '#ff7a5a', '#c8a0ff'].map((c) => `<button class="chip sw ${c === col ? 'sel' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>`;
+    f.innerHTML = `<input id="g-name" maxlength="14" placeholder="Guild name" value="${esc(this.sel.gName || '')}"><div class="chips">${Object.keys(EMB_PATH).map((k) => `<button class="chip emb ${k === emb ? 'sel' : ''}" data-e="${k}" aria-label="${k} emblem">${emblem(k)}</button>`).join('')}</div><div class="chips">${['#9ad0ff', '#ffd84a', '#ff9ad0', '#7aff9a', '#ff7a5a', '#c8a0ff'].map((c) => `<button class="chip sw ${c === col ? 'sel' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>`;
     f.querySelector('#g-name').oninput = (e) => { this.sel.gName = e.target.value; };
     f.querySelectorAll('[data-e]').forEach((b) => { b.onclick = () => { this.sel.gEmb = b.dataset.e; this.renderPanel(); }; });
     f.querySelectorAll('[data-c]').forEach((b) => { b.onclick = () => { this.sel.gCol = b.dataset.c; this.renderPanel(); }; });

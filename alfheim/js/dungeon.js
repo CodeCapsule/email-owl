@@ -158,7 +158,7 @@ export class Dungeon {
     this.inside = inside;
     const last = this.rooms[this.rooms.length - 1];
     const cx = (bx0 + bx1) / 2, cz = (bz0 + bz1) / 2;
-    this.zone = { name: def.name, lv: `Lv ${def.lv}+ Dungeon`, safe: false, x: cx, z: cz, r: Math.max(bx1 - bx0, bz1 - bz0) };
+    this.zone = { name: def.name, lv: def.arena ? 'Guild War' : `Lv ${def.lv}+ Dungeon`, safe: false, x: cx, z: cz, r: Math.max(bx1 - bx0, bz1 - bz0) };
     const r0 = this.rooms[0];
     this.start = { x: r0.x, z: r0.maxZ - 7, yaw: Math.PI };
     this.chestPos = { x: last.x, z: last.z };
@@ -251,6 +251,7 @@ export class Dungeon {
         continue;
       }
       if (this.def.theme === 'grotto') {
+        const h = 4 + rng() * 4, s = 1.5 + rng() * 0.9;
         this.toonBatch.add(GEO.dode, col, M(x, h * 0.42, z, s, h * 0.55, s, rng() * 3, rng() * 3, rng() * 3));
         if (rng() < 0.35) this.toonBatch.add(GEO.sph, T.top, M(x, h * 0.85, z, s * 0.9, 0.4, s * 0.9));
         if (rng() < 0.12) this.addCrystal(x + (rng() - 0.5), 0.2, z + (rng() - 0.5), rng() < 0.5 ? T.accent : T.accent2, 0.5 + rng() * 0.5);
