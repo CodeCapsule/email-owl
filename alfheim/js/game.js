@@ -952,7 +952,7 @@ export class Game {
       const unlocked = this.skillList().filter((s) => s.lvl === S.level && !s.basic);
       for (const s of unlocked) { this.ui.toast(`New skill unlocked: ${s.name}`, 'good'); this.ui.chat('system', `New skill unlocked: <b>${esc(s.name)}</b>`); }
       if (S.level >= 10 && S.title < 3) { S.title = 3; this.refreshPlayerPlate(); }
-      if (S.level >= MAX_LEVEL) { this.unlockTitle('Legend of Alfheim'); this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached the maximum level ${MAX_LEVEL}!`); }
+      if (S.level >= MAX_LEVEL) { this.unlockTitle('Legend of Aetherheim'); this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached the maximum level ${MAX_LEVEL}!`); }
       else if (S.level % 25 === 0) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached Level ${S.level}!`);
       this.ui.refreshSkills();
       this.save();

@@ -35,7 +35,8 @@ export class AdminPanel {
     this.getSave = getSave; this.el = null; this.players = []; this.tab = 'overview'; this.sel = null; this.q = ''; this.sort = 'lastSeen'; this.feedType = 'all';
     this.names = {}; this.unsub = null; this.offLive = null; this.tick = null;
   }
-  allowed() { return !live.framed || live.admin; }
+  // on claude.ai: owner and editors; in a copy elsewhere (local dev, GitHub Pages) only on a dev host or with #admin
+  allowed() { return live.framed ? live.admin : (['localhost', '127.0.0.1', ''].includes(location.hostname) || location.hash === '#admin'); }
   canWrite() { return !!(live.db && live.admin); }
   open(tab) {
     if (!this.allowed()) return;
@@ -66,7 +67,7 @@ export class AdminPanel {
     const keepScroll = this.el.querySelector('.adm-body')?.scrollTop || 0;
     const mode = live.db && live.admin ? 'live' : live.framed ? 'nodb' : 'local';
     this.el.innerHTML = '';
-    const head = h('div', 'adm-head', `<div class="adm-title">${ico('crown', 'ico')}<div><b>Game Master Console</b><small>Alfheim Tales · ${esc(LIVE_VERSION)}</small></div></div>
+    const head = h('div', 'adm-head', `<div class="adm-title">${ico('crown', 'ico')}<div><b>Game Master Console</b><small>Aetherheim Tales · ${esc(LIVE_VERSION)}</small></div></div>
       <div class="adm-status ${mode}">${mode === 'live' ? `<i></i>Live database · ${this.players.length} player${this.players.length === 1 ? '' : 's'} reporting` : mode === 'nodb' ? '<i></i>Database unavailable in this view' : '<i></i>Local copy · this browser only'}</div>`);
     const x = h('button', 'btn gray small adm-close', 'Back'); x.onclick = () => this.close(); head.appendChild(x);
     this.el.appendChild(head);

@@ -1,6 +1,6 @@
-# Alfheim Tales — fan-made 3D browser MMORPG
+# Aetherheim Tales — fan-made 3D browser MMORPG
 
-A single-player tribute to the 2013 anime-style web MMORPG *Alfheim Tales Online*, built with Three.js.
+An original single-player game inspired by the 2013 anime-style web MMORPG *Alfheim Tales Online*, built with Three.js. Not affiliated with the original game.
 Every model, texture, icon and sound is generated in code; no assets from the original game are used.
 
 ## Play

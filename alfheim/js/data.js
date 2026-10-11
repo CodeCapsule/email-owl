@@ -368,7 +368,7 @@ export const MALL = [
 export const BOT_NAMES = ['Lunaria', 'xXShadowXx', 'MochiMochi', 'Kirito77', 'SakuraBloom', 'Valkyr', 'Pudding', 'Aerith', 'NoobSlayer', 'Celestine', 'Tofu', 'RuneKnight', 'Mirabelle', 'Zephyrus', 'Bubbles', 'DarkAngel', 'Yuki', 'Ignis', 'Mercy', 'Felix'];
 export const GUILDS = ['Moonlight', 'Starfall', 'Sakura', 'Valhalla', 'Dreamers', ''];
 export const TITLES = ['Novice Adventurer', 'Jelly Hunter', 'Pet Lover', 'Rising Star', 'Guardian of Carlyle', 'Spirit Chosen',
-  'Guild Hero', 'Titan Slayer', 'Market Mogul', 'Codex Keeper', 'Lorekeeper of Alfheim', 'Season Veteran', 'Season Champion', 'Harvest Lord', 'Starlight Guardian', 'Blossom Dancer', 'Warlord'];
+  'Guild Hero', 'Titan Slayer', 'Market Mogul', 'Codex Keeper', 'Lorekeeper of Aetherheim', 'Season Veteran', 'Season Champion', 'Harvest Lord', 'Starlight Guardian', 'Blossom Dancer', 'Warlord'];
 
 export const CHAT_LINES = [
   'LF2M Treant King, need healer!!',
