@@ -379,7 +379,9 @@ const P = {
   panel_online(body) {
     const g = this.g, S = g.S;
     if (!mpEnabled()) {
-      body.appendChild(h('div', 'note', 'Playing with friends works on the public website: <b>codecapsule.github.io/aetherheim-tales</b>. Here you play with simulated adventurers only.'));
+      const framed = !!(window.claude && typeof window.claude.use === 'function');
+      body.appendChild(h('div', 'note', framed ? 'Playing with friends works on the public website: <b>codecapsule.github.io/aetherheim-tales</b>. Here you play with simulated adventurers only.'
+        : 'Multiplayer is not switched on for this copy yet (no key in <b>js/mp-config.js</b>). For now you play with simulated adventurers only.'));
       return;
     }
     const st = { online: ['good', 'Connected'], connecting: ['', 'Connecting…'], error: ['bad', `Not connected — ${esc(mp.error || 'error')}`], off: ['', 'Offline'] }[mp.status] || ['', mp.status];
