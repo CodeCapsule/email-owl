@@ -655,7 +655,7 @@ const M = {
     return { slot, active, endsIn: WORLD_BOSS.lasts - into, nextIn: WORLD_BOSS.every - into };
   },
   wbLevel() { return clamp(this.S.level + 3, 8, MAX_LEVEL + 3); },
-  wbStats(L) { const c = curveStats(L, { hp: 40, atk: 2, def: 1.2 }); return { level: L, hp: c.hp, atk: c.atk, def: c.def }; },
+  wbStats(L) { const c = curveStats(L, { hp: 35, atk: 2, def: 1.2 }); return { level: L, hp: c.hp, atk: c.atk, def: c.def }; },
   updateWorldBoss() {
     const S = this.S, st = this.wbState();
     if (!st.active && st.nextIn < 120 && S.wb.warned !== st.slot + 1) {
