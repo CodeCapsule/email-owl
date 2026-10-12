@@ -218,17 +218,27 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   (alchemy), Opal (gems), Coco (costumes), Elias (relics and Crimson Cores), plus pet and stable shops and a trader at
   every outpost. Grimsby runs the **Auction House**: real-time lots with bidding, buyouts and rival bids, and your
   own auctions.
-- **Bag**: 48 slots, expandable to 160 with Bag Expansion Scrolls, gold or diamonds. Your equipped gear is shown inside
-  the Bag window, next to the slots (tap a piece to see it or take it off), with the selected item's details below it.
-  **Sell All** sells everything up to a chosen rarity in one go; locked gear is always kept.
+- **Bag**: 48 slots, expandable to 160 with Bag Expansion Scrolls, gold or diamonds. The Bag is a compact window
+  (`Bag 22 / 48`) with tabs (All, Gear, Consume, Quest, Valuable, Others, Mats), six slots a row, a strip for the selected
+  item (Equip or Use, Sell, Lock), **Sort** (gear first by rarity, then consumables, quest items and valuables) and
+  **Sell All**, which sells everything up to a chosen rarity in one go (locked gear is always kept). Your Diamonds and
+  Gold sit at the bottom beside a **Mall** button. Equipped gear is in the Character window (C).
 - **MMO systems**: Battle Rating, bag, auto-hit, auto potions, titles, daily sign-in, online gifts, a gold/diamond mall
   (no XP or progress for sale), world and guild chat, minimap and world map.
-- **Quick access menus**: activities sit in a slim panel at the top right (Online, Missions, Dungeon, the World Boss
-  timer) and the character menu in a compact panel at the bottom right (Hero, Bag, Skills, Pets, Gathering, Quests,
-  Map). **More** expands each panel to the rest and collapses again when you pick something or click away; a red dot
-  on More means something inside is waiting.
-- **Phones and tablets**: on small screens the HUD docks to a bar along the bottom (Events, Hero, Bag, Skills, Quests,
-  Chat, More). Events and More open as sheets above the dock that close when you pick something or tap the game; a red
+- **Action bar**: on computers one gold-framed bar runs along the bottom, in the style of classic web MMORPGs: a row
+  of small slots for Mount, Auto, Roll, Block and the tool belt sits over the skill row (keys 1-7 and the Q/E potions
+  with their counts), the round menu buttons with their labels sit to the right (Hero, Bag, Skills, Pets, Mounts,
+  Gathering, Relics, Codex, Quests, Map, Settings) and the EXP strip runs underneath. Activities sit in a slim panel at
+  the top right (Online, Missions, Dungeon, the World Boss timer); **More** there expands to the rest.
+- **Day and night, seasonal weather**: one clock for every player; a day lasts 40 minutes. Dawn and dusk blush the
+  sky, nights are deep blue with stars, a moon and lit lamps (still easy to see in), and the shadows follow the sun
+  and moon. The weather changes every 10 minutes from the real-world season's table: spring brings blossom breezes and
+  rain, summer rain and thunderstorms (lightning and thunder), autumn falling leaves, winter snow and blizzards, with
+  cloudy and clear spells between. Rain falls as snow in the frost highlands. The minimap shows the time and the
+  weather; Settings can switch the falling particles off. Dungeons, trials and guild wars keep their own light, and
+  the weather never changes combat.
+- **Phones and tablets**: on small screens the HUD docks to a leather-and-gold bar along the bottom (Events, Hero, Bag,
+  Skills, Quests, Chat, More). Events and More open as sheets above the dock that close when you pick something or tap the game; a red
   dot marks a sheet with something waiting. The skill bar sits above the dock with Mount, Auto, Roll and Block above it, a joystick
   in the bottom-left corner (with the tool belt above it) walks your hero (one thumb walks while the other turns the camera; tapping the ground still
   works), and the layout also works in landscape.
@@ -267,6 +277,7 @@ market buyers and auction bids are simulated, so those systems also work solo.
 | `js/data-world.js` | Expanded world content: outer zones, Lv 16-200 monsters, dungeons 4-11, relics, professions, crops, recipes, costumes, shops |
 | `js/life.js` | Gathering nodes, farming, alchemy, smithing, elixirs, costumes, relic collection and Red gear |
 | `js/economy.js` | Bag expansion, Sell All, NPC shops and the Auction House |
+| `js/sky.js` | Day and night (sky colours, sun, moon, stars, lamps) and seasonal weather (rain, storms, snow, petals, leaves) |
 | `js/upgrade.js` | Enhancement +1 to +15, arcane gems, Soulstones, Socket Drill and Soul Forge |
 | `js/live.js` | Live link to the artifact's shared database: player status, announcements, events, gifts |
 | `js/admin.js` | Game Master Console |

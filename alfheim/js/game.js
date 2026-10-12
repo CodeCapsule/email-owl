@@ -17,6 +17,7 @@ import { installUpgrade, stoneFor } from './upgrade.js';
 import { installLive, liveBoost } from './live.js';
 import { installMp } from './mp.js';
 import { installParty } from './party.js';
+import { installSky } from './sky.js';
 import { buildExtraMonster, EXTRA_MONSTER_MODELS } from './models-monsters.js';
 import { buildExtraPet, buildExtraMount, EXTRA_PET_MODELS, EXTRA_MOUNT_MODELS } from './models-extra.js';
 import { MAX_LEVEL, curveStats, DUNGEON_RULES, RELIC_SETS } from './data-world.js';
@@ -64,7 +65,7 @@ export function newSave({ name, cls, gender, hair, eye, app }) {
     sprites: [], activeSprite: null, mounts: [], activeMount: null, wings: false,
     quest: { id: 'q1', status: 'available', prog: 0 }, bounty: null, skills: {}, loadout: [null, null, null, null, null, null], ult: null, awaken: null,
     signin: { count: 0, last: '' }, gift: { idx: 0, t: 0 }, pos: null, kills: {}, title: 0, uid: 1,
-    settings: { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true },
+    settings: { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true, weather: true },
   });
 }
 const HOST_NAMES = { harvest: 'Pumpkin Pam', winter: 'Frosty Fay', sakura: 'Blossom Bea' };
@@ -82,7 +83,7 @@ function monsterModel(d, variant, look) {
 // Upgrades saves from older versions in place (v1: 5 item tiers, emoji icons, no dungeons).
 export function migrateSave(S) {
   if (!S) return S;
-  S.settings = { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true, ...(S.settings || {}) };
+  S.settings = { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true, weather: true, ...(S.settings || {}) };
   S.dgn = S.dgn || { date: '', used: {}, best: {}, clears: {} };
   // heroes from before races and appearance sliders become Sylvans (they always had elf ears)
   if (!S.app) S.app = { race: 'sylvan', body: S.gender === 'm' ? 'a' : 'b', hair: S.hair || '#6a4024', eye: S.eye || '#3a2a20', skin: '#f2cdb4', face: 'round', build: 0.5, height: 0.5, helm: true };
@@ -99,6 +100,13 @@ export function migrateSave(S) {
   return S;
 }
 export function needExp(l) { return xpNext(l); }
+// which Bag tab an entry belongs to
+const BAG_USE = new Set(['consumable', 'elixir', 'food']), BAG_VAL = new Set(['egg', 'ticket', 'sigil', 'survey', 'material']);
+export function bagCat(b) {
+  if (b.eq) return 'gear';
+  const t = ITEMS[b.id]?.type;
+  return t === 'quest' ? 'quest' : BAG_USE.has(t) ? 'use' : BAG_VAL.has(t) ? 'val' : 'other';
+}
 const BEASTS = /^(bunny|wolf|rootwolf|boar|frog|croc|yeti|stag|behemoth|drake)$/;
 
 export class Game {
@@ -138,6 +146,7 @@ export class Game {
     this.initEconomy();
     this.initCampfires();
     this.initNavigation();
+    this.skyInit();
     this.prestigeInit();
     this.targetRing = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ map: targetRingTexture('#ff4a3a'), transparent: true, depthWrite: false }));
     this.targetRing.rotation.x = -Math.PI / 2; this.targetRing.visible = false; this.targetRing.renderOrder = 2;
@@ -1081,6 +1090,14 @@ export class Game {
     S.bag.push({ eq: S.equip[slot] }); delete S.equip[slot];
     this.recalc(); this.ui.refreshPanel();
   }
+  // Sort: gear first (best quality, then level), then consumables, quest items, valuables and the rest
+  sortBag() {
+    const rank = { gear: 0, use: 1, quest: 2, val: 3, other: 4 };
+    this.S.bag.sort((a, b) => rank[bagCat(a)] - rank[bagCat(b)]
+      || (a.eq && b.eq ? b.eq.quality - a.eq.quality || b.eq.lvl - a.eq.lvl || a.eq.slot.localeCompare(b.eq.slot)
+        : !a.eq && !b.eq ? (ITEMS[b.id].quality || 0) - (ITEMS[a.id].quality || 0) || ITEMS[a.id].name.localeCompare(ITEMS[b.id].name) : 0));
+    this.sfx.play('click'); this.ui.refreshPanel();
+  }
   sell(i) {
     const S = this.S, b = S.bag[i]; if (!b) return;
     let g = 0;
@@ -1530,6 +1547,7 @@ export class Game {
     this.updatePet(dt);
     this.updateCombat(dt);
     this.updateSoul(dt); this.updateFog(); this.updateNavigation(dt); this.gearTick(dt);
+    this.skyUpdate(dt);
     this.dzUpdate(dt);
     this.updateSprite(dt);
     for (const m of this.monsters) this.updateMonster(m, dt);
@@ -2243,8 +2261,9 @@ export class Game {
     if (this.fx.shakeAmt > 0) pos.add(new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(this.fx.shakeAmt * 0.6));
     this.camera.position.copy(pos);
     this.camera.lookAt(c.target);
-    // sun follows player for shadows
-    this.sun.position.set(p.pos.x + 50, p.pos.y + 70, p.pos.z + 40);
+    // the sun (or moon) follows the player for shadows, from where it stands in the sky (sky.js)
+    const ld = this.skyLit ? this.skyLightDir : null;
+    this.sun.position.set(p.pos.x + (ld ? ld.x : 50), p.pos.y + (ld ? ld.y : 70), p.pos.z + (ld ? ld.z : 40));
     this.sun.target.position.set(p.pos.x, p.pos.y, p.pos.z);
   }
 
@@ -2317,6 +2336,7 @@ installUpgrade(Game);
 installLive(Game);
 installMp(Game);
 installParty(Game);
+installSky(Game);
 installCombat(Game);
 installCombatWorld(Game);
 installProgress(Game);

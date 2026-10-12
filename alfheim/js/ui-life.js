@@ -384,6 +384,7 @@ const P = {
   bagTools(body) {
     const g = this.g;
     const row = h('div', 'acts-row bag-tools');
+    const so = h('button', 'btn small', 'Sort'); so.title = 'Gear first, then consumables, quest items and valuables'; so.onclick = () => { this.sel.bagIdx = null; g.sortBag(); }; row.appendChild(so);
     const sa = h('button', 'btn small', `${ico('sell_all', 'ico inl')} Sell All…`); sa.onclick = () => { this.sel.sellAll = !this.sel.sellAll; this.renderPanel(); }; row.appendChild(sa);
     if (g.bagMax() < BAG_MAX) {
       const c = g.bagExpandCost();
