@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { PETS, MOUNTS, CLASSES } from './data.js';
 import { MP_CONFIG } from './mp-config.js';
 import { buildHumanoid } from './models.js';
+import { cleanApp } from './models-hero.js';
 import { lookFor } from './life.js';
 
 const LIB_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js';
@@ -51,7 +52,7 @@ function cleanInfo(m) {
   const cls = CLASSES[m.cls] ? m.cls : 'knight';
   return {
     id: str(m.id, 40), name: str(m.name, 16) || 'Adventurer', cls, gender: m.gender === 'm' ? 'm' : 'f',
-    hair: /^#[0-9a-f]{6}$/i.test(m.hair) ? m.hair : '#f2d27a', eye: /^#[0-9a-f]{6}$/i.test(m.eye) ? m.eye : '#3a6fd8',
+    hair: /^#[0-9a-f]{6}$/i.test(m.hair) ? m.hair : '#f2d27a', eye: /^#[0-9a-f]{6}$/i.test(m.eye) ? m.eye : '#3a6fd8', app: cleanApp(m.app),
     level: num(m.level, 1, 200, 1) | 0, guild: str(m.guild, 24) || null, title: str(m.title, 32), wings: !!m.wings,
     wingColor: /^#[0-9a-f]{6}$/i.test(m.wingColor) ? m.wingColor : null,
     costume: { outfit: str(m.costume?.outfit, 24) || null, head: str(m.costume?.head, 24) || null, back: str(m.costume?.back, 24) || null },
@@ -103,7 +104,7 @@ const M = {
     const S = this.S, p = this.player;
     const where = this.dg || this.war ? 'away' : 'world';
     const info = {
-      id: mp.id, name: S.name, cls: S.cls, gender: S.gender, hair: S.hair, eye: S.eye, level: S.level, guild: S.guild?.name || null,
+      id: mp.id, name: S.name, cls: S.cls, gender: S.gender, hair: S.hair, eye: S.eye, app: S.app, level: S.level, guild: S.guild?.name || null,
       wings: !!S.wings, wingColor: S.wingColor || null, costume: S.costume || {}, mount: this.mounted ? S.activeMount : null, pet: S.activePet || null,
       zone: this.dg ? this.dg.def.name : this.war ? 'Guild War' : (this.zone?.name || 'Carlyle'), map: where, br: this.br || 0,
       party: mp.party.id, pj: mp.party.pj,
@@ -205,7 +206,7 @@ const M = {
   mpEnsure(key) {
     const pr = mp.peers.get(key); if (!pr) return;
     const info = pr.info;
-    const sig = JSON.stringify([info.cls, info.gender, info.hair, info.eye, info.wings, info.wingColor, info.costume, info.mount, info.pet, info.name, info.level, info.guild]);
+    const sig = JSON.stringify([info.cls, info.app, info.gender, info.hair, info.eye, info.wings, info.wingColor, info.costume, info.mount, info.pet, info.name, info.level, info.guild]);
     let e = this.rplayers.find((x) => x.peerId === key);
     if (e && e.sig === sig) return;
     const keepPos = e ? { x: e.pos.x, z: e.pos.z, yaw: e.yaw } : null;

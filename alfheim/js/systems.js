@@ -19,6 +19,7 @@ import { buildEventMonster } from './models-event.js';
 import { glowTexture, toon, outlineMaterial } from './toon.js';
 import { curveStats, MAX_LEVEL } from './data-world.js';
 import { randomGemType, stoneFor } from './upgrade.js';
+import { xpNext } from './progress.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
@@ -618,7 +619,7 @@ const M = {
     if (G) { G.contribTotal += r.contrib; this.addGuildExp(win ? 120 : 50, true); if (win) G.wins++; else G.losses++; }
     if (win) { this.track('warWin'); S.season.warWins++; this.addSeasonExp(SEASON_EXP.warWin); if (G && G.wins >= 10) this.unlockTitle('Warlord'); }
     this.addSeasonExp(SEASON_EXP.war);
-    this.gainExp(Math.round(needExpL(L) * (win ? 0.12 : 0.06)));
+    this.gainExp(Math.round(xpNext(L) * (win ? 0.06 : 0.03)));
     this.sfx.play(win ? 'level' : 'error');
     this.ui.banner(win ? 'VICTORY!' : 'DEFEAT', `${S.guild?.name || 'You'} ${W.score.us} : ${W.score.them} ${W.opp.name}`, win ? 'clear' : 'boss');
     const why = reason === 'crystal' ? (win ? 'You shattered their Spirit Crystal!' : 'Your Spirit Crystal fell...') : 'Time ran out: the healthier crystal wins.';
@@ -1111,7 +1112,6 @@ const M = {
   },
 };
 
-function needExpL(l) { return Math.floor(70 * Math.pow(l, 1.6) + 30); }
 
 export function installSystems(Game) { Object.assign(Game.prototype, M); }
 export { GEMS, GEM_LV };

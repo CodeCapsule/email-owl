@@ -112,7 +112,7 @@ const Z = {
     if (!fixed) {
       crit = o.canCrit !== false && Math.random() * 100 < this.critOf(src);
       if (crit) { let cd = src.critDmg ?? 0.6; for (const b of src.buffs || []) if (b.mods?.critDmg) cd += b.mods.critDmg; raw *= 1 + cd; }
-      if (src === this.player) raw *= this.treeDealMult(dst);
+      if (src === this.player) { const X = this.cbOut(dst, o); raw *= X.m; }
       if (this.hasFx('anc_king')) raw *= 1.3;
       if (this.hasFx('set_covenant')) raw *= 1.15;
     }
@@ -126,7 +126,7 @@ const Z = {
     if (!o.proc) this.sfx.play(crit ? 'crit' : 'hit');
     dst.hitT = 0.15; this.lastCombat = this.time;
     if (src === this.player && !o.proc) {
-      const ls = Math.min(25, this.stat('lifesteal') + (this.petIs('vampire') ? this.petFx.v : 0) + (this.tAgg?.stat.lifesteal || 0));
+      const ls = Math.min(25, this.stat('lifesteal') + (this.petIs('vampire') ? this.petFx.v : 0) + this.ps('lifesteal'));
       if (ls > 0) this.player.hp = Math.min(this.player.maxHp, this.player.hp + est * ls / 100);
     }
     return est;
@@ -138,9 +138,9 @@ const Z = {
     const e = this.rplayers.find((x) => x.peerId === pr.info.id);
     if (!e || !inDZ(e.pos.x, e.pos.z) || this.partyHas(e.peerId)) return;
     const raw = num(m.raw, 0, 1e9, 0); if (!raw) return;
-    if (this.treeDodge() || (this.petIs('dodge') && Math.random() * 100 < this.petFx.v)) { this.fx.text(p.pos.clone().setY(p.pos.y + p.height), 'Dodge', 'miss'); return; }
+    if (Math.random() * 100 < this.ps('dodge') || (this.petIs('dodge') && Math.random() * 100 < this.petFx.v)) { this.fx.text(p.pos.clone().setY(p.pos.y + p.height), 'Dodge', 'miss'); return; }
     const K = 50 + 8 * num(m.lv, 1, 200, 1);
-    let dmg = raw * PVP_DMG * K / (K + this.defOf(p)) * this.treeTakeMult();
+    let dmg = raw * PVP_DMG * K / (K + this.defOf(p)) * this.buffMod(p, 'dmgTaken');
     if (this.petIs('guard') || this.petIs('guardian')) dmg *= 1 - this.petFx.v / 100;
     if (this.hasFx('set_covenant')) dmg *= 0.85;
     if (this.hasFx('anc_dread')) dmg *= 0.8;

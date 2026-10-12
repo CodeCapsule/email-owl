@@ -11,10 +11,12 @@ import { installPartyUI, partyMembers } from './party.js';
 import { CHAPTERS } from './data-story.js';
 import { setOfDungeon } from './data-sets.js';
 import { PET_ABILITIES, PET_MAX_LV, petAbilityText } from './data-pets.js';
-import { TREE_NODES, TIER_PTS, skillPoints, resetCost, nodeText } from './data-skills.js';
+import { CLASS_SKILLS, SKILL_BY_ID, rankMult, RACES } from './data-classes.js';
 import { MAX_LEVEL, SHOPS, DUNGEON_RULES } from './data-world.js';
 import { WORLD_BOSS, MATERIALS } from './systems-data.js';
 import { DZ } from './data-dz.js';
+import { MASTERY, MASTERY_MAX, masteryNeed, minMastery } from './progress.js';
+import { trialLabel } from './data-trials.js';
 
 const $ = (id) => document.getElementById(id);
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
@@ -24,6 +26,7 @@ const LEGEND_IDS = new Set(LEGENDARY_ITEMS.map((x) => x.id));
 const slotIcon = (slot, cls) => (slot === 'weapon' ? WEAPON_ICONS[cls] : SLOT_INFO[slot].icon);
 const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 const TOWN_R = 56; // half-size of the World Map's town view (Sylvan Haven)
+const STAT_WORD = { hpPct: 'max HP', defPct: 'defense', atkPct: 'attack', mpPct: 'max mana', crit: 'critical chance', critDmg: 'critical damage', speedPct: 'move speed', aspd: 'attack speed', mregen: 'mana regeneration', healPct: 'healing', healRecv: 'healing received', skillDmg: 'skill damage', magicDmg: 'magic damage', rangedDmg: 'ranged damage', rangePct: 'range', poisonDmg: 'poison damage', burnDmg: 'burn damage', fireDmg: 'fire damage', block: 'block chance', dodge: 'dodge chance', ccRes: 'stun and knockdown resistance', lifesteal: 'lifesteal', area: 'area size', castSpeed: 'cast speed', stamina: 'stamina regeneration', dmg: 'damage', summonDmg: 'summon damage', summonHp: 'summon HP', summonAspd: 'summon attack speed', summonDur: 'summon duration', summonSlots: 'summon slot', summonCrit: 'of your critical chance for summons', statShare: 'of your stats for summons', atk: 'attack', def: 'defense' };
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 const DOCK_MENU = ['char', 'bag', 'skills', 'quests'];
 const STATION_TABS = ['alchemy', 'smithing', 'red']; // Professions tabs that only open at their NPC
@@ -46,11 +49,11 @@ export class UI {
     // skill bar
     const bar = $('skillbar'); bar.innerHTML = '';
     this.slots = [];
-    for (let i = 1; i <= 6; i++) {
-      const b = h('button', 'slot'); b.dataset.i = i; b.setAttribute('aria-label', 'Skill ' + i);
+    for (let i = 1; i <= 7; i++) {
+      const b = h('button', 'slot' + (i === 7 ? ' ult' : '')); b.dataset.i = i; b.setAttribute('aria-label', i === 7 ? 'Ultimate skill' : 'Skill ' + i);
       b.innerHTML = `<span class="ic"></span><span class="key">${i}</span><span class="cd"></span><span class="cdt"></span>`;
       b.addEventListener('click', () => g.useSkill(i));
-      this.tip(b, () => this.skillTip(g.skillList()[i]));
+      this.tip(b, () => { const sk = g.skillList()[i]; return sk ? this.skillTip(sk) : `<b>${i === 7 ? 'Ultimate' : 'Empty slot'}</b>${i === 7 ? 'Your ultimate unlocks at Lv 200.' : 'Choose a skill for this slot in the Skills window (K).'}`; });
       bar.appendChild(b); this.slots.push(b);
     }
     for (const [id, key] of [['hp_potion', 'Q'], ['mp_potion', 'E']]) {
@@ -63,6 +66,11 @@ export class UI {
     $('btn-mount').onclick = () => g.toggleMount();
     $('btn-auto').onclick = () => g.toggleAuto();
     $('btn-auto').innerHTML = `${ico('auto')}<small>Auto</small>`;
+    $('btn-roll').innerHTML = `${ico('roll')}<small>Roll</small>`; $('btn-roll').onclick = () => g.roll();
+    const bb = $('btn-block'); bb.innerHTML = `${ico('block')}<small>Block</small>`; bb.hidden = S.cls !== 'knight';
+    const hold = (on) => { g.blockHold = on; if (on) g.startBlock(); bb.classList.toggle('on', on); };
+    bb.addEventListener('pointerdown', (e) => { e.preventDefault(); hold(true); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) bb.addEventListener(ev, () => hold(false));
     // quick access menus: a few pinned buttons and a More button that expands the rest; on phones each opens whole as a sheet
     this.qa = { acts: false, menu: false };
     const qaTog = (box, key) => {
@@ -176,10 +184,32 @@ export class UI {
   }
   refreshWallet() { const S = this.g.S; this.txt($('w-gold'), fmt(S.gold)); this.txt($('w-dia'), fmt(S.diamonds)); }
   refreshExp() {
-    const S = this.g.S, need = needExp(S.level);
+    const g = this.g, S = g.S, need = needExp(S.level);
     const pct = S.level >= MAX_LEVEL ? 100 : (S.exp / need) * 100;
+    const block = S.level < MAX_LEVEL && S.exp >= need && g.levelBlock ? g.levelBlock() : null;
     $('exp-f').style.width = pct + '%';
-    this.txt($('exp-t'), S.level >= MAX_LEVEL ? 'MAX LEVEL' : `EXP ${fmt(S.exp)} / ${fmt(need)}  (${pct.toFixed(1)}%)`);
+    $('hud-exp').classList.toggle('blocked', !!block);
+    this.txt($('exp-t'), S.level >= MAX_LEVEL ? 'MAX LEVEL' : block ? `EXP FULL · ${g.blockText(block)}` : `EXP ${fmt(S.exp)} / ${fmt(need)}  (${pct.toFixed(1)}%)${S.rested > 0 ? ` · Rested ${fmt(S.rested)}` : ''}`);
+  }
+  // the Hero panel's "what next" box: XP left, the three masteries against this bracket's minimum, the next trial
+  progressBox(body) {
+    const g = this.g, S = g.S; if (!S.mastery) return;
+    const goal = g.nextGoal(), need = minMastery(S.level);
+    const box = h('div', 'prog-box');
+    const lines = [];
+    if (S.level >= MAX_LEVEL) lines.push('<b>Maximum level.</b>');
+    else if (goal.block) lines.push(`<b class="bad">Next level needs:</b> ${esc(g.blockText(goal.block))}`);
+    else lines.push(`<b>Next level:</b> ${fmt(goal.xpLeft)} EXP to go`);
+    if (goal.trial) lines.push(`<b>Next wall:</b> ${esc(trialLabel(goal.trial / 20))} at Lv ${goal.trial} · talk to the Trial Warden`);
+    if (S.rested > 0) lines.push(`<b>Rested:</b> ${fmt(S.rested)} bonus EXP (kills give double until it runs out)`);
+    box.appendChild(h('div', 'pg-goal', lines.join('<br>')));
+    for (const t of ['weapon', 'defense', 'survival']) {
+      const m = g.masteryRec(t), nx = masteryNeed(m.r), max = m.r >= MASTERY_MAX;
+      const row = h('div', 'pg-m' + (m.r < need ? ' low' : ''), `<span class="pl">${ico('m_' + t, 'ico inl')} ${MASTERY[t].name}${t === 'weapon' ? ` <small>(${esc(CLASSES[S.cls].weapon)})</small>` : ''} <b>${m.r}</b><small>/${need}</small></span><span class="bar xp"><i style="width:${max ? 100 : Math.min(100, m.p / nx * 100)}%"></i></span>`);
+      this.tip(row, () => `<b>${MASTERY[t].name} mastery ${m.r}</b>${MASTERY[t].how}.<br>${MASTERY[t].tip}.<br>${max ? 'Maxed.' : `${Math.floor(m.p)}/${nx} to rank ${m.r + 1}`}<br>Levels ${Math.floor(S.level / 20) * 20 || 1}–${Math.floor(S.level / 20) * 20 + 19} need rank ${need} in all three.`);
+      box.appendChild(row);
+    }
+    body.appendChild(box);
   }
   refreshSkills() {
     const g = this.g; if (!g || !this.slots) return;
@@ -187,13 +217,10 @@ export class UI {
     this.slots.forEach((b) => {
       if (b.dataset.potion) { b.querySelector('.cnt').textContent = g.countPotions(b.dataset.potion); return; }
       const sk = list[+b.dataset.i];
-      const icEl = b.querySelector('.ic');
-      if (icEl.dataset.k !== sk.id) { icEl.dataset.k = sk.id; icEl.innerHTML = ico(sk.id); }
-      const locked = g.S.level < sk.lvl;
-      b.classList.toggle('locked', locked);
-      let lk = b.querySelector('.lk');
-      if (locked && !lk) { lk = h('span', 'lk'); b.appendChild(lk); }
-      if (lk) { if (locked) lk.textContent = 'Lv' + sk.lvl; else lk.remove(); }
+      const icEl = b.querySelector('.ic'), key = sk ? sk.id : 'empty';
+      if (icEl.dataset.k !== key) { icEl.dataset.k = key; icEl.innerHTML = sk ? ico(sk.id) : ''; }
+      b.classList.toggle('empty', !sk);
+      b.classList.toggle('locked', !sk && +b.dataset.i === 7);
     });
   }
   refreshSkillCD() {}
@@ -284,12 +311,15 @@ export class UI {
     const t = p.target;
     if (t !== this.tgShown || (t && t.dead)) this.refreshTarget();
     if (t && !t.dead) { $('tg-hp').style.width = (t.hp / t.maxHp) * 100 + '%'; this.txt($('tg-hp-t'), `${fmt(Math.max(0, t.hp))} / ${fmt(t.maxHp)}`); }
+    // stamina on the roll button
+    const sta = Math.round(p.sta ?? 100);
+    if (sta !== this.staShown) { this.staShown = sta; $('btn-roll').style.setProperty('--sta', sta + '%'); }
     // cooldowns
     const list = g.skillList();
     for (const b of this.slots) {
       let rem = 0, total = 1;
       if (b.dataset.potion) { rem = g.potionCD - g.time; total = 3; }
-      else { const sk = list[+b.dataset.i]; rem = (g.cd[sk.id] || 0) - g.time; total = sk.cd * (1 - g.cdr); b.classList.toggle('nomp', p.mp < g.mpCost(sk) && S.level >= sk.lvl); }
+      else { const sk = list[+b.dataset.i]; if (!sk) continue; rem = g.chargesLeft(sk) > 0 ? 0 : (g.cd[sk.id] || 0) - g.time; total = g.cdTotal(sk); b.classList.toggle('nomp', p.mp < g.mpCost(sk)); }
       const cd = b.querySelector('.cd'), cdt = b.querySelector('.cdt');
       if (rem > 0) { cd.style.background = `conic-gradient(rgba(0,0,0,.7) ${(rem / total) * 360}deg, transparent 0)`; if (cdt) this.txt(cdt, rem > 1 ? String(Math.ceil(rem)) : rem.toFixed(1)); }
       else if (cd.style.background) { cd.style.background = ''; if (cdt) this.txt(cdt, ''); }
@@ -542,8 +572,9 @@ export class UI {
     tt.style.left = x + 'px'; tt.style.top = y + 'px';
   }
   skillTip(sk) {
-    const g = this.g, lv = g.skillLevel(sk.id);
-    return `<b style="color:var(--gold-l)">${esc(sk.name)} <span style="color:var(--cyan)">Lv ${lv}</span></b>${esc(sk.desc)}<br><span class="ts">MP ${g.mpCost(sk)} · Cooldown ${sk.cd}s${g.S.level < sk.lvl ? ` · Unlocks at Lv ${sk.lvl}` : ''}</span>`;
+    const g = this.g, r = g.rk(sk);
+    if (sk.basic) return `<b style="color:var(--gold-l)">${esc(sk.name)}</b>${esc(sk.desc)}`;
+    return `<b style="color:var(--gold-l)">${esc(sk.name)} <span style="color:var(--cyan)">Rank ${r}/10</span></b>${esc(sk.desc)}.<br><span class="ts">${esc(this.skillNumbers(sk, Math.max(1, r)))}</span>`;
   }
   equipTip(eq) {
     const lines = itemLines(eq, this.g?.S?.equip);
@@ -630,15 +661,16 @@ export class UI {
     wrap.appendChild(col(['boots', 'necklace', 'ring']));
     const st = h('div', 'stats-col');
     st.appendChild(h('div', 'br-big', `<span class="flame"></span>${fmt(g.br)}`));
-    const T = C.talents[S.talent];
+    const RC = RACES[S.app?.race] || RACES.human;
     st.appendChild(h('div', 'stats', `
-      <span>Class</span><span>${C.name}</span><span>Talent</span><span>${T.name}</span>
+      <span>Class</span><span>${C.name}</span><span>${S.awaken != null ? 'Path' : 'Race'}</span><span>${S.awaken != null ? esc(C.paths[S.awaken]) : esc(RC.name)}</span>
       <span>Max HP</span><span>${fmt(p.maxHp)}</span><span>Max MP</span><span>${fmt(p.maxMp)}</span>
       <span>Attack</span><span>${fmt(g.atkOf(p))}</span><span>Defense</span><span>${fmt(g.defOf(p))}</span>
       <span>Critical</span><span>${g.critOf(p).toFixed(1)}%</span><span>Crit Damage</span><span>+${Math.round(p.critDmg * 100)}%</span>
       <span>Move Speed</span><span>${(g.speedOf(p) / 7 * 100).toFixed(0)}%</span><span>Element</span><span style="color:${C.elemColor}">${C.element}</span>`));
     wrap.appendChild(st);
     body.appendChild(wrap);
+    this.progressBox(body);
     const s = this.sel.eqSlot, eq = s && S.equip[s];
     const det = h('div', 'detail');
     if (eq) {
@@ -714,82 +746,107 @@ export class UI {
   }
 
   panel_skills(body) {
-    const g = this.g, S = g.S, C = CLASSES[S.cls];
-    const left = g.treePointsLeft();
-    const tab = this.tabs(body, 'skTab', [['skills', 'Skills'], ['tree', `Skill Tree${left > 0 ? ` · ${left} point${left > 1 ? 's' : ''}` : ''}`]]);
-    if (tab === 'tree') { this.skillTree(body); return; }
-    body.appendChild(h('div', 'lbl', 'Dual Talent'));
-    const tl = h('div', 'talents');
-    C.talents.forEach((t, i) => {
-      const d = h('div', '', `<b>${t.name} <span style="color:var(--cyan);font-size:11px">${t.role}</span></b>${t.desc}`);
-      d.style.cursor = 'pointer'; if (S.talent === i) { d.style.borderColor = 'var(--gold)'; d.style.boxShadow = '0 0 10px rgba(243,199,91,.4)'; }
-      d.onclick = () => g.setTalent(i);
-      tl.appendChild(d);
-    });
-    body.appendChild(tl);
-    body.appendChild(h('div', 'lbl', 'Active skills'));
-    const list = h('div', 'list');
-    for (const sk of g.skillList()) {
-      const lv = g.skillLevel(sk.id), locked = S.level < sk.lvl;
-      const td = g.tAgg?.skill[sk.id] || 0, tc = g.tAgg?.cd[sk.id] || 0;
-      const r = h('div', 'row');
-      r.innerHTML = `<div class="ic">${ico(sk.id)}</div><div class="tx"><b>${esc(sk.name)} <span class="lv">Lv ${lv}</span>${sk.basic ? ' <span style="color:var(--muted);font-size:11px">(auto attack)</span>' : ''}</b>${esc(sk.desc)}<br>MP ${g.mpCost(sk)} · CD ${sk.cd}s${locked ? ` · <span style="color:#ff8a7a">Unlocks at Lv ${sk.lvl}</span>` : ''}${td ? ` · <span class="good">+${td}% damage (tree)</span>` : ''}${tc ? ` · <span class="good">${tc}% faster cooldown (tree)</span>` : ''}</div>`;
-      if (!locked && !sk.basic) {
-        const b = h('button', 'btn small', `Upgrade<br><span class="price" style="justify-content:center"><span class="coin"></span>${fmt(120 * lv * lv)}</span>`);
-        b.onclick = () => g.upgradeSkill(sk.id); r.appendChild(b);
-      }
-      list.appendChild(r);
-    }
-    body.appendChild(list);
-    // passive skills: every passive and capstone learned in the tree
-    body.appendChild(h('div', 'lbl', 'Passive skills'));
-    const pas = Object.entries(S.tree).map(([id, r]) => [TREE_NODES[id], r]).filter(([n, r]) => n && n.cls === S.cls && r && !['stat', 'skill', 'skillCd'].includes(n.k));
-    if (!pas.length) {
-      const note = h('div', 'note', 'Passive skills work on their own, all the time. Learn them in the Skill Tree with the points you earn from leveling up.');
-      const go = h('button', 'btn small', 'Open Skill Tree'); go.onclick = () => { this.sel.skTab = 'tree'; this.renderPanel(); };
-      body.appendChild(note); body.appendChild(go);
-      return;
-    }
-    const pl = h('div', 'list');
-    for (const [n, r] of pas) pl.appendChild(h('div', 'row slim', `<div class="ic">${ico(n.icon)}</div><div class="tx"><b>${esc(n.n)} <span class="lv">${n.t === 5 ? 'Capstone' : `Rank ${r}/${n.max}`}</span></b>${esc(nodeText(n, r).replace(/^Capstone: /, ''))}</div>`));
-    body.appendChild(pl);
-  }
-  // three branches side by side; tiers open as you spend points in a branch
-  skillTree(body) {
-    const g = this.g, S = g.S, tree = g.tree(), earned = skillPoints(S.level), spent = g.treeSpent(), left = earned - spent;
-    const head = h('div', 'st-head', `<span class="st-pts"><b>${left}</b>skill point${left === 1 ? '' : 's'} to spend</span><span class="muted">${spent} of ${earned} spent · 1 point per level up to Lv 50, then 1 every 4 levels</span>`);
-    const rb = h('button', 'btn small gray', `Reset · <span class="coin" style="display:inline-block;vertical-align:-3px"></span> ${fmt(resetCost(S.level))}`);
-    rb.disabled = !spent;
-    rb.onclick = () => this.modal('Reset the skill tree?', `All ${spent} points come back to spend again. It costs ${fmt(resetCost(S.level))} Gold.`, [{ label: 'Reset', fn: () => g.resetTree() }, { label: 'Cancel', cls: 'gray' }]);
+    const g = this.g, S = g.S, C = CLASSES[S.cls], T = CLASS_SKILLS[S.cls];
+    const left = g.skillPtsLeft(), total = g.skillPtsTotal(), wm = g.weaponMastery();
+    // header: points, weapon mastery, respec
+    const head = h('div', 'sk-head', `<span class="st-pts"><b>${left}</b>skill point${left === 1 ? '' : 's'}</span><span class="muted">${total - left} of ${total} spent · 1 per level and 3 per cleared trial · weapon mastery ${wm}</span>`);
+    const R = g.respecInfo();
+    const rb = h('button', 'btn small gray', R.free ? 'Reset ranks (free today)' : 'Reset ranks (used today)');
+    rb.disabled = !R.ok;
+    rb.title = R.town ? (R.free ? 'Free once per day in a town' : 'Come back tomorrow') : 'Only in a town';
+    rb.onclick = () => this.modal('Reset your skill ranks?', 'Every skill goes back to rank 1 and all points return to spend again. Free once per day, only in a town.', [{ label: 'Reset', fn: () => g.respecSkills() }, { label: 'Cancel', cls: 'gray' }]);
     head.appendChild(rb); body.appendChild(head);
-    const cols = h('div', 'st-cols');
-    tree.forEach((br, b) => {
-      const col = h('div', 'st-col'), bs = g.treeSpent(b); col.style.setProperty('--bc', br.color);
-      col.appendChild(h('div', 'st-bname', `${esc(br.name)}<small>${bs} point${bs === 1 ? '' : 's'}</small>`));
-      for (let t = 1; t <= 5; t++) {
-        const row = h('div', 'st-tier' + (bs >= TIER_PTS[t] ? '' : ' locked'));
-        if (bs < TIER_PTS[t]) row.dataset.need = `${TIER_PTS[t]} pts`;
-        for (const n of br.nodes.filter((x) => x.t === t)) {
-          const r = g.treeRank(n.id);
-          const btn = h('button', 'st-node' + (r ? ' on' : '') + (r >= n.max ? ' max' : '') + (n.t === 5 ? ' cap' : '') + (this.sel.stNode === n.id ? ' sel' : '') + (!g.treeBlock(n.id) ? ' can' : ''), `${ico(n.icon)}<span class="st-r">${r}/${n.max}</span>`);
-          btn.setAttribute('aria-label', `${n.n} ${r} of ${n.max}`);
-          btn.onclick = () => { this.sel.stNode = n.id; this.renderPanel(); };
-          btn.ondblclick = () => g.learnNode(n.id);
-          this.tip(btn, () => `<b>${esc(n.n)}</b>${esc(nodeText(n, r || 1))}`);
-          row.appendChild(btn);
-        }
-        col.appendChild(row);
+    // loadout: six actives and the ultimate
+    const lo = h('div', 'sk-load');
+    lo.appendChild(h('div', 'sk-ll', 'Loadout<small>6 active skills + 1 ultimate. Select a slot, then a skill.</small>'));
+    const slots = h('div', 'sk-slots');
+    const mk = (key, id, label) => {
+      const sk = id && SKILL_BY_ID[id];
+      const b = h('button', 'sk-slot' + (this.sel.skSlot === key ? ' sel' : '') + (key === 'ult' ? ' ult' : ''), `${sk ? ico(sk.id) : ''}<span class="k">${label}</span>`);
+      b.setAttribute('aria-label', `Slot ${label}: ${sk ? sk.name : 'empty'}`);
+      b.onclick = () => { this.sel.skSlot = this.sel.skSlot === key ? null : key; this.renderPanel(); };
+      if (sk) this.tip(b, () => this.skillTip(sk));
+      slots.appendChild(b);
+    };
+    S.loadout.forEach((id, i) => mk(i, id, String(i + 1)));
+    mk('ult', S.ult, '7');
+    lo.appendChild(slots); body.appendChild(lo);
+    // which branch to show
+    const pn = C.paths;
+    const tab = this.tabs(body, 'skTab', [['core', 'Core · Lv 1-90'], ['p0', `${pn[0]}${S.awaken === 0 ? ' (your path)' : ''}`], ['p1', `${pn[1]}${S.awaken === 1 ? ' (your path)' : ''}`]]);
+    const list = tab === 'core' ? T.core : T.paths[tab === 'p0' ? 0 : 1];
+    if (tab !== 'core') {
+      const pi = tab === 'p0' ? 0 : 1;
+      const box = h('div', 'sk-path', `<b>${esc(pn[pi])}</b> <span class="muted">${esc(C.pathRole[pi])} · awakening path (Lv 100-200)</span>`);
+      if (S.awaken === pi) box.appendChild(h('span', 'good', ' · your path'));
+      else {
+        const cb = h('button', 'btn small' + (S.level >= 100 ? ' green' : ' gray'), S.awaken == null ? 'Choose this path' : 'Switch (Trial Sigil)');
+        cb.disabled = S.level < 100;
+        cb.title = S.level < 100 ? 'Awakening opens at Lv 100' : '';
+        cb.onclick = () => this.modal(`Awaken as ${pn[pi]}?`, S.awaken == null ? `${esc(C.name)} awakens into ${esc(pn[pi])}: a new skill every 10 levels up to the ultimate at Lv 200.` : 'Switching your awakening path costs one Trial Sigil. Your other path\'s skills are forgotten.', [{ label: 'Awaken', fn: () => g.chooseAwaken(pi) }, { label: 'Cancel', cls: 'gray' }]);
+        box.appendChild(cb);
       }
-      cols.appendChild(col);
-    });
-    body.appendChild(cols);
-    const n = TREE_NODES[this.sel.stNode]?.cls === S.cls ? TREE_NODES[this.sel.stNode] : tree[0].nodes[0];
-    const r = g.treeRank(n.id), why = g.treeBlock(n.id);
+      body.appendChild(box);
+    }
+    const grid = h('div', 'sk-list');
+    for (const sk of list) {
+      const r = g.rk(sk), open = g.skillUnlocked(sk);
+      const row = h('button', 'sk-row' + (open ? '' : ' locked') + (this.sel.skId === sk.id ? ' sel' : '') + ' t-' + sk.type);
+      row.innerHTML = `<span class="sk-lv">Lv ${sk.lv}</span><span class="sk-ic">${ico(sk.id)}</span><span class="sk-tx"><b>${esc(sk.name)}</b><small>${sk.type === 'passive' ? 'Passive' : sk.type === 'ultimate' ? 'Ultimate' : 'Active'} · ${esc(sk.desc)}</small></span><span class="sk-r">${open ? `${r}/10` : '—'}</span>`;
+      row.onclick = () => {
+        // with a loadout slot selected, a click puts the skill there
+        const slot = this.sel.skSlot;
+        if (slot != null && open && ((slot === 'ult' && sk.type === 'ultimate') || (slot !== 'ult' && sk.type === 'active'))) { g.setLoadout(slot, sk.id); this.sel.skSlot = null; }
+        this.sel.skId = sk.id; this.renderPanel();
+      };
+      row.ondblclick = () => g.rankUp(sk.id);
+      grid.appendChild(row);
+    }
+    body.appendChild(grid);
+    // details of the selected skill
+    const sk = (this.sel.skId && SKILL_BY_ID[this.sel.skId]?.cls === S.cls && list.includes(SKILL_BY_ID[this.sel.skId])) ? SKILL_BY_ID[this.sel.skId] : list[0];
+    const r = g.rk(sk), why = g.rankBlock(sk);
     const det = h('div', 'st-det');
-    det.innerHTML = `<div class="st-di">${ico(n.icon)}</div><div class="st-dt"><b>${esc(n.n)}</b> <span class="muted">${esc(tree[n.branch].name)} · ${n.t === 5 ? 'Capstone' : `Tier ${n.t}`} · Rank ${r}/${n.max}</span>
-      <div>${esc(nodeText(n, r || 1))}</div>${r && r < n.max ? `<div class="good">Next rank: ${esc(nodeText(n, r + 1))}</div>` : ''}${why && r < n.max ? `<div style="color:#ffb08a">${esc(why)}</div>` : ''}</div>`;
-    const lb = h('button', 'btn green small', r >= n.max ? 'Mastered' : r ? 'Learn +1' : 'Learn'); lb.disabled = !!why; lb.onclick = () => g.learnNode(n.id);
-    det.appendChild(lb); body.appendChild(det);
+    det.innerHTML = `<div class="st-di">${ico(sk.id)}</div><div class="st-dt"><b>${esc(sk.name)}</b> <span class="muted">${sk.type === 'passive' ? 'Passive' : sk.type === 'ultimate' ? 'Ultimate' : 'Active'} · Lv ${sk.lv} · Rank ${r}/10</span>
+      <div>${esc(sk.desc)}.</div><div class="muted">${esc(this.skillNumbers(sk, Math.max(1, r)))}</div>${r && r < 10 ? `<div class="good">Rank ${r + 1}: ${esc(this.skillNumbers(sk, r + 1))}</div>` : ''}${why && r < 10 ? `<div style="color:#ffb08a">${esc(why)}</div>` : ''}</div>`;
+    const acts = h('div', 'sk-acts');
+    const lb = h('button', 'btn green small', r >= 10 ? 'Mastered' : 'Rank up'); lb.disabled = !!why; lb.onclick = () => g.rankUp(sk.id); acts.appendChild(lb);
+    if (sk.type !== 'passive' && g.skillUnlocked(sk)) {
+      const inUse = sk.type === 'ultimate' ? S.ult === sk.id : S.loadout.includes(sk.id);
+      const eb = h('button', 'btn small' + (inUse ? ' gray' : ''), inUse ? 'In loadout' : 'Equip');
+      eb.disabled = inUse;
+      eb.onclick = () => { if (sk.type === 'ultimate') g.setLoadout('ult', sk.id); else { const i = typeof this.sel.skSlot === 'number' ? this.sel.skSlot : Math.max(0, S.loadout.indexOf(null)); g.setLoadout(i, sk.id); } this.sel.skSlot = null; };
+      acts.appendChild(eb);
+    }
+    det.appendChild(acts); body.appendChild(det);
+  }
+  // the numbers of a skill at a rank, for tooltips and the Skills window
+  skillNumbers(sk, r) {
+    const k = rankMult(r), pct = (v) => `${Math.round(v * 100)}%`, out = [];
+    if (sk.type === 'passive') {
+      const p = sk.p;
+      if (p.stat) for (const [key, v] of Object.entries(p.stat)) out.push(`${key === 'summonSlots' ? `+${v}` : `+${(v * k).toFixed(1).replace(/\.0$/, '')}${key === 'statShare' || key === 'summonCrit' ? '%' : '%'}`} ${STAT_WORD[key] || key}`);
+      if (p.cond) out.push(`+${(p.cond.v * k).toFixed(1).replace(/\.0$/, '')}% ${p.cond.key === 'crit' ? 'critical chance' : p.cond.key === 'critDmg' ? 'critical damage' : p.cond.key === 'aspd' ? 'attack speed' : 'damage'} when it applies`);
+      if (p.onKill?.heal) out.push(`heal ${(p.onKill.heal * k).toFixed(1)}% HP per kill`);
+      if (p.onKill?.atkStack) out.push(`+${(p.onKill.atkStack[0] * k).toFixed(1)}% attack per stack`);
+      if (p.onHurt?.atkStack) out.push(`+${(p.onHurt.atkStack[0] * k).toFixed(1)}% attack per stack`);
+      if (p.onHurt?.reflectM) out.push(`${pct(p.onHurt.reflectM * k)} attack as lightning`);
+      if (p.onHit?.stunChance) out.push(`${(p.onHit.stunChance * k).toFixed(1)}% stun chance`);
+      if (p.onHit?.manaOnCrit) out.push(`${(p.onHit.manaOnCrit * k).toFixed(1)}% mana per critical`);
+      if (p.onHit?.healAllies) out.push(`heal allies ${(p.onHit.healAllies * k).toFixed(1)}%`);
+      if (p.skillMod) { const m = p.skillMod; if (m.cd) out.push(`${SKILL_BY_ID[m.id].name} cooldown ${Math.max(-60, m.cd * k).toFixed(0)}%`); if (m.dur) out.push(`${SKILL_BY_ID[m.id].name} lasts +${(m.dur * k).toFixed(0)}%`); if (m.area) out.push(`${SKILL_BY_ID[m.id].name} area +${(m.area * k).toFixed(0)}%`); if (m.charge) out.push(`charges ${Math.abs(m.charge * k).toFixed(0)}% faster`); }
+      if (p.secondWind) out.push(`heal ${(p.secondWind.heal * k).toFixed(1)}% · ${p.secondWind.cd} s cooldown`);
+      return out.join(' · ') || 'Always on';
+    }
+    if (sk.m) out.push(`${pct(sk.m * k)}${sk.hits > 1 ? ` x${sk.hits}` : ''}${sk.k === 'zone' || sk.k === 'channel' ? ' per tick' : ''} attack damage`);
+    if (sk.pct) out.push(`heal ${pct(sk.pct * (1 + 0.06 * (r - 1)))} max HP`);
+    if (sk.shieldPct) out.push(`shield ${pct(sk.shieldPct * k)} max HP`);
+    if (sk.heal) out.push(`heal ${pct(sk.heal * (1 + 0.06 * (r - 1)))} per tick`);
+    if (sk.mods) for (const [key, v] of Object.entries(sk.mods)) out.push(key === 'dmgTaken' ? `${v < 1 ? '-' : '+'}${Math.round(Math.abs(1 - v) * 100 * (v < 1 ? Math.min(1.6, k) : 1))}% damage taken` : `+${Math.round((v - 1) * 100 * k)}% ${STAT_WORD[key] || key}`);
+    if (sk.dur) out.push(`${sk.dur} s`);
+    if (sk.stun) out.push(`stun ${sk.stun} s`);
+    if (sk.cd) out.push(`MP ${sk.mp} · cooldown ${sk.cd} s`);
+    return out.join(' · ');
   }
 
   panel_pets(body) {

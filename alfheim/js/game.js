@@ -1,7 +1,7 @@
 // Core game: entities, input, camera, combat, AI, quests, inventory, loot, dungeons, pets, mounts and saving.
 import * as THREE from 'three';
 import {
-  CLASSES, SKILLS, MONSTERS, SPAWNS, ZONES, PETS, SPRITES, CLASS_SPRITE, MOUNTS, ITEMS, NPCS, TELEPORTS, QUESTS, BOUNTY_TARGETS, SIGNIN, ONLINE_GIFTS, MALL, DUNGEONS,
+  CLASSES, MONSTERS, SPAWNS, ZONES, PETS, SPRITES, CLASS_SPRITE, MOUNTS, ITEMS, NPCS, TELEPORTS, QUESTS, BOUNTY_TARGETS, SIGNIN, ONLINE_GIFTS, MALL, DUNGEONS,
   TITLES,
 } from './data.js';
 import { ARENA, TELEPORT_CIRCLE } from './world.js';
@@ -23,12 +23,15 @@ import { MAX_LEVEL, curveStats, DUNGEON_RULES, RELIC_SETS } from './data-world.j
 import { CHAPTERS } from './data-story.js';
 import { setOfDungeon } from './data-sets.js';
 import { PET_ABILITIES, PET_MAX_LV, petAbilityValue } from './data-pets.js';
-import { installSkillTree } from './skilltree.js';
+import { installCombat } from './combat.js';
+import { installCombatWorld } from './combat-world.js';
+import { installProgress, xpNext, expScale } from './progress.js';
+import { heroLook } from './models.js';
+import { rankMult } from './data-classes.js';
 import { installGather } from './gather.js';
 import { installTailor } from './tailor.js';
 import { installDangerZone, DZ_ZONE } from './dz.js';
 import { STARTER_TOOLS } from './data-crafting.js';
-import { skillPoints } from './data-skills.js';
 import { activeEvent } from './systems-data.js';
 import { Dungeon } from './dungeon.js';
 import {
@@ -46,16 +49,17 @@ const angLerp = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= Math.PI *
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
+const rankMultOf = (g, id) => rankMult(g.S.skills?.[id] || 1);
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 const POTION_TIERS = { hp: [['potion_hp3', 0.7], ['potion_hp2', 0.5], ['hp_potion', 0.35]], mp: [['potion_mp3', 0.7], ['potion_mp2', 0.5], ['mp_potion', 0.35]] };
 export const PET_TIER = [1, 2, 3, 5]; // pet rarity (Common, Rare, Special, Legendary) -> item tier colors
 
-export function newSave({ name, cls, gender, hair, eye }) {
+export function newSave({ name, cls, gender, hair, eye, app }) {
   return migrateSave({
-    v: 2, name, cls, gender, hair, eye, level: 1, exp: 0, gold: 200, diamonds: 20,
+    v: 2, name, cls, gender, hair, eye, app, level: 1, exp: 0, gold: 200, diamonds: 20,
     bag: [{ id: 'hp_potion', qty: 5 }, { id: 'mp_potion', qty: 5 }, ...STARTER_TOOLS.map((id) => ({ id, qty: 1 }))], toolsGiven: true, equip: {}, pets: {}, activePet: null,
     sprites: [], activeSprite: null, mounts: [], activeMount: null, wings: false,
-    quest: { id: 'q1', status: 'available', prog: 0 }, bounty: null, talent: 0, skillLv: {}, tree: {},
+    quest: { id: 'q1', status: 'available', prog: 0 }, bounty: null, skills: {}, loadout: [null, null, null, null, null, null], ult: null, awaken: null,
     signin: { count: 0, last: '' }, gift: { idx: 0, t: 0 }, pos: null, kills: {}, title: 0, uid: 1,
     settings: { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true },
   });
@@ -77,7 +81,11 @@ export function migrateSave(S) {
   if (!S) return S;
   S.settings = { others: true, autoPotion: true, autoLoot: true, shadows: true, sound: true, ...(S.settings || {}) };
   S.dgn = S.dgn || { date: '', used: {}, best: {}, clears: {} };
-  S.tree = S.tree || {};
+  // heroes from before races and appearance sliders become Sylvans (they always had elf ears)
+  if (!S.app) S.app = { race: 'sylvan', body: S.gender === 'm' ? 'a' : 'b', hair: S.hair || '#6a4024', eye: S.eye || '#3a2a20', skin: '#f2cdb4', face: 'round', build: 0.5, height: 0.5, helm: true };
+  S.skills = S.skills || {}; if (!Array.isArray(S.loadout) || S.loadout.length !== 6) S.loadout = [null, null, null, null, null, null];
+  if (S.awaken === undefined) S.awaken = null; if (S.ult === undefined) S.ult = null;
+  delete S.tree; delete S.talent; delete S.skillLv;
   for (const b of S.bag || []) if (b.eq) normalizeItem(b.eq, S.cls);
   for (const k of Object.keys(S.equip || {})) if (S.equip[k]) normalizeItem(S.equip[k], S.cls);
   S.bag = (S.bag || []).filter((b) => b.eq || ITEMS[b.id]);
@@ -86,7 +94,7 @@ export function migrateSave(S) {
   S.v = 3;
   return S;
 }
-export function needExp(l) { return Math.floor(70 * Math.pow(l, 1.6) + 30); }
+export function needExp(l) { return xpNext(l); }
 
 export class Game {
   constructor(o) {
@@ -100,13 +108,14 @@ export class Game {
     this.layer = document.getElementById('world-ui');
     this.ray = new THREE.Raycaster();
     this.map = this.world; this.dg = null;
-    this.mods = { stats: {}, effects: new Set() }; this.hitCount = 0; this.phoenixCD = 0; this.novaT = 8; this.procCD = {}; this.treeCasts = 0; this.treeHits = 0;
+    this.mods = { stats: {}, effects: new Set() }; this.hitCount = 0; this.phoenixCD = 0; this.novaT = 8; this.procCD = {}; this.chg = {}; this.runes = 0; this.runeT = 0; this.summons = []; this.zones = []; this.traps = []; this.stillT = 0;
     this.war = null; this.wb = null; this.event = activeEvent();
   }
 
   // ============================================================== setup
   start() {
     const S = this.S;
+    this.initProgress();
     this.createPlayer();
     this.dzInit();
     let p = S.pos || { x: 0, z: 9 };
@@ -175,7 +184,7 @@ export class Game {
     e.np = el; e.npHb = hp ? el.querySelector('.hb i') : null;
   }
 
-  playerLook() { const S = this.S; return classLook(S.cls, S.gender, S.hair, S.eye, { wings: S.wings, ...(S.wingColor ? { wingColor: S.wingColor } : {}) }); }
+  playerLook() { return this.lookFor ? this.lookFor(this.S) : heroLook(this.S.cls, this.S.app, { wings: this.S.wings }); }
 
   createPlayer() {
     const S = this.S;
@@ -293,8 +302,6 @@ export class Game {
     let crit = C.base.crit, critDmg = 0.6, speed = C.speed, heal = 1, cdr = 0;
     const G = aggregateEquip(S.equip || {}), gs = G.stats || {}, fxs = new Set(G.effects || []);
     hp += gs.hp || 0; atk += gs.atk || 0; def += gs.def || 0; crit += gs.crit || 0; critDmg += (gs.critDmg || 0) / 100;
-    const T = C.talents[S.talent].mods;
-    hp *= T.hp || 1; mp *= T.mp || 1; atk *= T.atk || 1; def *= T.def || 1; crit += T.crit || 0; critDmg += T.critDmg || 0; heal *= T.heal || 1; cdr += T.cdr || 0;
     let petBR = 0;
     if (S.activePet) { const pd = PETS.find((x) => x.id === S.activePet), lv = S.pets[S.activePet]?.lv || 1; hp += pd.hp * (1 + 0.15 * (lv - 1)); petBR = (pd.atk * 12 + pd.hp) * (1 + 0.15 * (lv - 1)); }
     let spBR = 0;
@@ -319,10 +326,13 @@ export class Game {
       else if (PA.kind === 'cdr') cdr += v;
       else if (PA.kind === 'dragon') { atk *= 1 + v; critDmg += v * 2; }
     }
-    // skill tree stat nodes
-    const TA = this.tAgg = this.treeAgg(), ts = TA.stat;
-    hp *= 1 + (ts.hpPct || 0) / 100; mp *= 1 + (ts.mpPct || 0) / 100; atk *= 1 + (ts.atkPct || 0) / 100; def *= 1 + (ts.defPct || 0) / 100;
-    crit += ts.crit || 0; critDmg += (ts.critDmg || 0) / 100; speed *= 1 + (ts.speedPct || 0) / 100; cdr += (ts.cdr || 0) / 100; heal *= 1 + (ts.healPct || 0) / 100;
+    // passive class skills and race bonuses
+    if (this.syncSkills().length && this.ui?.refreshSkills) this.ui.refreshSkills();
+    const PA2 = this.pAgg = this.passiveAgg(), ps = PA2.stat;
+    hp *= 1 + (ps.hpPct || 0) / 100; mp *= 1 + (ps.mpPct || 0) / 100; atk *= 1 + (ps.atkPct || 0) / 100; def *= 1 + (ps.defPct || 0) / 100;
+    crit += ps.crit || 0; critDmg += (ps.critDmg || 0) / 100; speed *= 1 + (ps.speedPct || 0) / 100; heal *= 1 + (ps.healPct || 0) / 100;
+    // Battle Hardened: +1% attack per 5% of defense above the class base
+    if (PA2.rules.has('battleHardened')) { const d0 = C.base.def + C.grow.def * (L - 1); atk *= 1 + Math.max(0, (def / d0 - 1) * 100) / 500 * rankMultOf(this, 'gd_hardened'); }
     speed *= 1 + (gs.speed || 0) / 100;
     if (fxs.has('swift')) speed *= 1.12;
     cdr = Math.min(0.5, cdr + (gs.cdr || 0) / 100);
@@ -334,7 +344,7 @@ export class Game {
     this.healMod = heal; this.cdr = cdr;
     const extras = (gs.critDmg || 0) * 4 + (gs.speed || 0) * 10 + (gs.lifesteal || 0) * 25 + (gs.cdr || 0) * 20 + (gs.expGain || 0) * 3 + (gs.goldFind || 0) * 2
       + (gs.thorns || 0) * 6 + (gs.regen || 0) * 8 + (gs.manaCost || 0) * 6 + [...fxs].reduce((a, id) => a + (EFFECTS[id]?.tier === 'legendary' ? 900 : EFFECTS[id]?.tier === 'set' ? 700 : EFFECTS[id]?.tier === 'ancient' ? 1100 : 350), 0);
-    this.br = Math.round(p.maxHp * 0.55 + atk * 9 + def * 7 + crit * 14 + petBR + spBR + mountBR + (S.wings ? 300 : 0) + extras + X.br + this.treeSpent() * 40);
+    this.br = Math.round(p.maxHp * 0.55 + atk * 9 + def * 7 + crit * 14 + petBR + spBR + mountBR + (S.wings ? 300 : 0) + extras + X.br + this.skillPtsSpent() * 40);
     this.ui.refreshPlayer && this.ui.refreshPlayer();
   }
   hasFx(id) { return this.mods.effects.has(id); }
@@ -345,17 +355,15 @@ export class Game {
   }
   petIs(kind) { return this.petFx?.kind === kind; }
   stat(k) { return this.mods.stats[k] || 0; }
-  mpCost(sk) { if (this.treeFreeCast && this.treeFreeCast(sk)) return 0; let c = sk.mp * (1 - Math.min(60, this.stat('manaCost')) / 100); if (this.hasFx('mana_font')) c *= 0.7; return Math.round(c); }
+  mpCost(sk) { let c = sk.mp * (1 - Math.min(60, this.stat('manaCost')) / 100); if (this.hasFx('mana_font')) c *= 0.7; return Math.round(c); }
   buffMod(e, key) { let m = 1; for (const b of e.buffs) if (b.mods && b.mods[key] && key !== 'crit') m *= b.mods[key]; return m; }
   atkOf(e) { return e.atk * this.buffMod(e, 'atk'); }
-  defOf(e) { return e.def * this.buffMod(e, 'def'); }
+  defOf(e) { return e.def * this.buffMod(e, 'def') * (e === this.player ? this.defStanceMult() : e.kind === 'monster' ? this.monsterDefMult(e) : 1); }
   critOf(e) { let c = e.crit; for (const b of e.buffs) if (b.mods && b.mods.crit) c += b.mods.crit; return c; }
   speedOf(e) {
-    if (e === this.player) return e.baseSpeed * this.buffMod(e, 'speed') * (this.mounted ? (MOUNTS.find((m) => m.id === this.S.activeMount)?.speed || 1.4) : 1);
+    if (e === this.player) return e.baseSpeed * this.buffMod(e, 'speed') * (this.rule('nightwalker') && this.pflag('stealth') ? 1.3 : 1) * (this.mounted ? (MOUNTS.find((m) => m.id === this.S.activeMount)?.speed || 1.4) : 1);
     return e.speed * (e.mounted ? e.mountSpeed : 1);
   }
-  skillList() { return SKILLS[this.S.cls]; }
-  skillLevel(id) { return this.S.skillLv[id] || 1; }
 
   // ============================================================== input
   bindInput() {
@@ -418,14 +426,15 @@ export class Game {
     if (!down) return;
     if (this.player.dead && k !== 'escape') return;
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { this.player.path = []; this.autoPathing = false; this.pendingTalk = null; this.pendingPortal = null; this.pendingLife = null; this.ui.setAutoPath(false); if (k.startsWith('arrow')) e.preventDefault(); return; }
-    if (k >= '1' && k <= '6') { this.useSkill(+k); return; }
+    if (k >= '1' && k <= '7') { this.useSkill(+k); return; }
     switch (k) {
       case 'q': this.usePotion('hp_potion'); break;
       case 'e': this.usePotion('mp_potion'); break;
       case 'r': this.toggleMount(); break;
       case 't': this.toggleAuto(); break;
       case 'f': { const n = this.npcs.filter((x) => flat(x.pos, this.player.pos) < 6).sort((a, b) => flat(a.pos, this.player.pos) - flat(b.pos, this.player.pos))[0]; if (n) this.talkTo(n); break; }
-      case ' ': e.preventDefault(); this.jump(); break;
+      case ' ': e.preventDefault(); this.roll(); break;
+      case 'shift': this.startBlock(); break;
       case 'tab': e.preventDefault(); this.cycleTarget(); break;
       case 'enter': e.preventDefault(); this.ui.focusChat(); break;
       case 'escape': if (!this.ui.closeTop()) { this.setTarget(null); this.engage = false; } break;
@@ -546,129 +555,6 @@ export class Game {
   }
 
   // ============================================================== skills & combat
-  useSkill(idx) {
-    const p = this.player; if (p.dead) return;
-    const sk = this.skillList()[idx]; if (!sk) return;
-    if (this.S.level < sk.lvl) { this.ui.toast(`Unlocks at Lv ${sk.lvl}`, 'warn'); this.sfx.play('error'); return; }
-    if ((this.cd[sk.id] || 0) > this.time) { this.ui.toast('Skill is cooling down', 'warn'); return; }
-    if (p.mp < this.mpCost(sk)) { this.ui.toast('Not enough MP', 'warn'); this.sfx.play('error'); return; }
-    if (p.stun > 0) return;
-    const needsTarget = ['target', 'dash', 'proj', 'aoeTarget'].includes(sk.kind);
-    if (needsTarget) {
-      if (!p.target || p.target.dead || (p.target.kind !== 'monster' && !this.pvpFoe(p.target))) {
-        const n = this.nearestEnemy(25);
-        if (!n) { this.ui.toast('No target nearby', 'warn'); return; }
-        this.setTarget(n);
-      }
-      this.engage = true;
-      const d = flat(p.pos, p.target.pos) - p.target.radius;
-      if (d > (sk.range || 3)) { this.pendingSkill = idx; p.path = []; return; }
-    }
-    this.castSkill(sk);
-  }
-
-  castSkill(sk) {
-    const p = this.player, t = p.target;
-    if (this.mounted) this.dismount(true);
-    p.path = []; this.pendingSkill = null;
-    if (t && ['target', 'dash', 'proj', 'aoeTarget'].includes(sk.kind)) p.yaw = p.yawT = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
-    p.mp -= this.mpCost(sk);
-    if (!sk.basic) this.track('skill');
-    if (!sk.basic && this.hasFx('set_riptide')) p.mp = Math.min(p.maxMp, p.mp + p.maxMp * 0.03);
-    if (!sk.basic && this.petIs('bloom')) this.heal(p, p.maxHp * this.petFx.v / 100);
-    this.treeOnCast(sk);
-    this.cd[sk.id] = this.time + sk.cd * (sk.basic ? (this.hasFx('swift') ? 0.88 : 1) : (1 - this.cdr) * this.treeCdMult(sk));
-    const ranged = CLASSES[this.S.cls].ranged || ['buff', 'heal', 'zone'].includes(sk.kind);
-    p.state = ranged ? 'cast' : 'attack'; p.actDur = p.actT = sk.basic ? 0.42 : 0.5;
-    p.attackCD = this.cd[sk.id] - this.time;
-    this.lastCombat = this.time;
-    if (!sk.basic) { this.sfx.play('cast'); this.fx.emit(p.pos.clone().setY(p.pos.y + 1), { count: 12, color: CLASSES[this.S.cls].elemColor, speed: 2, life: 0.5, size: 0.5, up: 1 }); }
-    this.after(sk.basic ? 0.16 : 0.2, () => this.applySkill(sk, t));
-    this.ui.refreshSkillCD && this.ui.refreshSkillCD();
-  }
-
-  applySkill(sk, t) {
-    const p = this.player; if (p.dead) return;
-    const lv = 1 + 0.08 * (this.skillLevel(sk.id) - 1);
-    let mult = (sk.mult || 0) * lv;
-    if (!sk.basic && this.hasFx('set_riptide')) mult *= 1.18;
-    if (!sk.basic && mult > 0 && this.hasFx('set_constellation') && (this.procCD.constel || 0) <= this.time) {
-      this.procCD.constel = this.time + 10; mult *= 2;
-      this.fx.text(this.player.pos.clone().setY(this.player.pos.y + this.player.height + 0.5), 'Constellation!', 'crit');
-    }
-    if (mult > 0) mult *= this.treeSkillMult(sk);
-    const elem = CLASSES[this.S.cls].elemColor;
-    const hits = sk.hits || 1;
-    const hand = p.pos.clone().add(new THREE.Vector3(Math.sin(p.yaw) * 0.6, 1.3, Math.cos(p.yaw) * 0.6));
-    switch (sk.kind) {
-      case 'target':
-        if (!t || t.dead) return;
-        for (let i = 0; i < hits; i++) this.after(i * 0.13, () => {
-          if (t.dead) return;
-          this.skillFx(sk.fx, t.pos, i);
-          this.damage(p, t, mult, { sk });
-          if (sk.stun) { t.stun = sk.stun; this.fx.text(t.pos.clone().setY(t.pos.y + t.height), 'Stunned', 'miss'); }
-          if (sk.dot) this.addDot(t, sk.dot, mult);
-        });
-        break;
-      case 'dash': {
-        if (!t || t.dead) return;
-        const from = p.pos.clone();
-        const dir = new THREE.Vector3(t.pos.x - p.pos.x, 0, t.pos.z - p.pos.z).normalize();
-        const dest = t.pos.clone().addScaledVector(dir, -(t.radius + 1.0));
-        for (let i = 0; i <= 8; i++) this.fx.emit(from.clone().lerp(dest, i / 8).setY(this.map.heightAt(from.x, from.z) + 1), { count: 6, color: 0xa87aff, speed: 1, life: 0.5, size: 0.8 });
-        if (!this.map.isBlocked(dest.x, dest.z)) { p.pos.x = dest.x; p.pos.z = dest.z; }
-        this.skillFx('slash2', t.pos, 0); this.damage(p, t, mult, { sk });
-        break;
-      }
-      case 'proj':
-        if (!t || t.dead) return;
-        this.skillFx(sk.fx, hand, 0, t, () => {
-          this.damage(p, t, mult, { sk });
-          if (sk.stun && !t.dead) { t.stun = sk.stun; this.fx.bubble(t, sk.stun); }
-        });
-        break;
-      case 'aoeTarget': {
-        if (!t) return;
-        const c = t.pos.clone();
-        if (sk.fx === 'meteor') { this.fx.meteor(c, 0xff7a2a, sk.delay || 0.8, () => { this.sfx.play('boom'); this.aoe(c, sk.radius, mult, 0, false, sk); }); break; }
-        for (let i = 0; i < hits; i++) this.after((sk.delay || 0.05) + i * 0.4, () => {
-          if (sk.fx === 'inferno') {
-            const o = c.clone().add(new THREE.Vector3(rnd(-3, 3), 0, rnd(-3, 3))); o.y = this.map.heightAt(o.x, o.z);
-            this.fx.meteor(o, 0xff5a1a, 0.45, () => { this.sfx.play('boom'); this.aoe(c, sk.radius, mult, 0, false, sk); });
-          } else { this.skillFx(sk.fx, c, i, null, null, sk.radius); this.aoe(c, sk.radius, mult, sk.stun, false, sk); }
-        });
-        break;
-      }
-      case 'aoeSelf':
-        for (let i = 0; i < hits; i++) this.after(i * 0.16, () => { this.skillFx(sk.fx, p.pos.clone(), i, null, null, sk.radius); this.aoe(p.pos.clone(), sk.radius, mult, sk.stun, false, sk); });
-        break;
-      case 'buff': {
-        const b = { id: sk.id, icon: sk.id, until: this.time + sk.dur, mods: sk.buff || null };
-        p.buffs = p.buffs.filter((x) => x.id !== sk.id); p.buffs.push(b);
-        if (sk.healPct) this.heal(p, p.maxHp * sk.healPct);
-        if (sk.shieldPct) { p.shield = p.maxHp * sk.shieldPct; b.shield = true; }
-        this.fx.buff(p, elem);
-        this.sfx.play('heal');
-        break;
-      }
-      case 'heal':
-        this.heal(p, p.maxHp * sk.healPct * this.healMod); this.fx.heal(p); this.sfx.play('heal');
-        break;
-      case 'zone': {
-        const c = p.pos.clone();
-        this.fx.circle(c, '#9ae8ff', sk.radius, sk.ticks + 0.3);
-        this.fx.pillar(c, 0x8ad8ff, sk.radius * 0.8, 6, 0.8);
-        for (let i = 0; i < sk.ticks; i++) this.after(i + 0.3, () => {
-          if (flat(p.pos, c) < sk.radius) { this.heal(p, p.maxHp * sk.healPct * this.healMod); }
-          this.fx.emit(c.clone().setY(c.y + 0.3), { count: 30, colors: [0x9ae8ff, 0xffffff], speed: 1, life: 1, size: 0.6, up: 3, jitter: sk.radius * 1.5 });
-          this.aoe(c, sk.radius, mult, 0, false, sk);
-        });
-        break;
-      }
-    }
-  }
-
   aoe(c, r, mult, stun, proc = false, sk = null) {
     let n = 0;
     for (const m of [...this.monsters]) {
@@ -680,69 +566,38 @@ export class Game {
     return n;
   }
 
-  addDot(t, dot, mult) {
-    const amp = 1 + this.tp('dotAmp') / 100;
-    t.poisonedT = Math.max(t.poisonedT || 0, this.time + dot.ticks);
-    for (let i = 1; i <= dot.ticks; i++) this.after(i, () => {
-      if (t.dead) return;
-      this.fx.emit(t.pos.clone().setY(t.pos.y + t.height * 0.6), { count: 8, color: 0x7aff5a, speed: 1.5, life: 0.5, size: 0.5, up: 1 });
-      this.damage(this.player, t, dot.mult * (mult / 1.2) * amp, { canCrit: false, cls: 'pet' });
-    });
-  }
-
-  skillFx(kind, pos, i = 0, target = null, onHit = null, radius = 4) {
-    const p = this.player, fx = this.fx;
-    switch (kind) {
-      case 'slash': fx.slash(p.pos, p.yaw, 0xffffff, 1.7, 0.3); break;
-      case 'bigslash': fx.slash(p.pos, p.yaw, 0xffb04a, 2.4, -0.4, 0.35); fx.emit(pos.clone().setY(pos.y + 1), { count: 30, colors: [0xffb04a, 0xffffff], speed: 7, life: 0.5, size: 0.6 }); fx.shake(0.2); break;
-      case 'bash': fx.emit(pos.clone().setY(pos.y + 1.2), { count: 26, color: 0xffe07a, speed: 6, life: 0.5, size: 0.7 }); fx.ring(pos, 0xffe07a, 2.5, 0.35); fx.shake(0.15); break;
-      case 'slash2': fx.slash(p.pos, p.yaw, 0x7affd0, 1.5, i % 2 ? 0.6 : -0.6, 0.22); break;
-      case 'venom': fx.slash(p.pos, p.yaw, 0x8aff5a, 1.6, 0.4); fx.emit(pos.clone().setY(pos.y + 1), { count: 24, color: 0x6aff3a, speed: 3, life: 0.8, size: 0.6, up: 1 }); break;
-      case 'spin': fx.spin(p.pos, 0xffe07a, radius); break;
-      case 'quake': fx.quake(pos, radius); this.sfx.play('boom'); break;
-      case 'titan': fx.pillar(p.pos, 0xffc84a, 3, 14, 1.0); fx.quake(p.pos, radius); this.sfx.play('boom'); break;
-      case 'gale': fx.ring(pos, 0x7affb0, radius, 0.5); fx.emit(pos.clone().setY(pos.y + 1), { count: 50, colors: [0x7affb0, 0xffffff], speed: 7, life: 0.6, size: 0.5, spread: 1.2 }); break;
-      case 'tempest': fx.slash(p.pos, i * 1.05, 0x7affd0, radius * 0.6, (i % 3 - 1) * 0.5, 0.25); if (i === 0) fx.ring(p.pos, 0x7affb0, radius, 0.6); fx.emit(p.pos.clone().setY(p.pos.y + 1), { count: 16, color: 0x7affd0, speed: 6, life: 0.4, size: 0.5 }); break;
-      case 'firebolt': fx.projectile(pos, target, { color: 0xff7a2a, size: 0.3, onHit }); break;
-      case 'fireball': fx.projectile(pos, target, { color: 0xff5a1a, size: 0.55, speed: 22, onHit }); break;
-      case 'waterbolt': fx.projectile(pos, target, { color: 0x4ab8ff, size: 0.3, onHit }); break;
-      case 'aquaorb': fx.projectile(pos, target, { color: 0x3a9aff, size: 0.55, speed: 22, onHit }); break;
-      case 'prison': fx.projectile(pos, target, { color: 0x8ad8ff, size: 0.5, speed: 20, onHit }); break;
-      case 'pillar': fx.pillar(pos, 0xff6a2a, radius * 0.6, 10, 0.9); fx.emit(pos.clone().setY(pos.y + 1), { count: 40, colors: [0xff6a2a, 0xffd04a], speed: 4, life: 0.8, size: 0.8, up: 6 }); this.sfx.play('boom'); break;
-      case 'ring': fx.ring(p.pos, 0xff7a2a, radius, 0.5); fx.emit(p.pos.clone().setY(p.pos.y + 0.6), { count: 50, colors: [0xff6a2a, 0xffd04a], speed: 9, life: 0.5, size: 0.7, spread: 1 }); break;
-      case 'tidal': fx.ring(pos, 0x4ab8ff, radius, 0.6); fx.pillar(pos, 0x6ad0ff, radius * 0.7, 4, 0.7); fx.emit(pos.clone().setY(pos.y + 0.5), { count: 50, colors: [0x6ad0ff, 0xffffff], speed: 6, life: 0.8, size: 0.7, up: 5, gravity: -12 }); break;
-    }
-  }
-
   damage(src, dst, mult, o = {}) {
     if (dst.dead) return 0;
     if (dst.kind === 'rp') return this.pvpStrike(src, dst, mult, o);
     const canCrit = o.canCrit !== false && o.fixed == null;
     let base = this.atkOf(src) * mult * rnd(0.9, 1.1);
-    const crit = canCrit && Math.random() * 100 < this.critOf(src);
-    if (crit) { let cd = src.critDmg ?? 0.6; for (const b of src.buffs || []) if (b.mods?.critDmg) cd += b.mods.critDmg; base *= 1 + cd; }
-    if (src.kind === 'monster' && o.fixed == null && Math.random() < 0.05) {
+    let critB = 0, cdB = 0;
+    if (src === this.player && o.fixed == null) { const X = this.cbOut(dst, o); base *= X.m; critB = X.crit; cdB = X.cd; }
+    const crit = canCrit && Math.random() * 100 < this.critOf(src) + critB;
+    if (crit) { let cd = (src.critDmg ?? 0.6) + cdB; for (const b of src.buffs || []) if (b.mods?.critDmg) cd += b.mods.critDmg; base *= 1 + cd; }
+    if (src.kind === 'monster' && o.fixed == null && (Math.random() < 0.05 || this.monsterBlind(src))) {
       if (dst === this.player) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Miss', 'miss');
       return 0;
     }
-    if (dst === this.player && src.kind === 'monster' && o.fixed == null && ((this.petIs('dodge') && Math.random() * 100 < this.petFx.v) || this.treeDodge())) {
+    if (src.kind === 'monster') base *= this.monsterOutMult(src);
+    if (dst === this.player && src.kind === 'monster' && o.fixed == null && this.petIs('dodge') && Math.random() * 100 < this.petFx.v) {
       this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Dodge', 'miss');
       return 0;
     }
+    if (dst === this.player && src !== this.player) { const R = this.cbIn(src, { ...o, raw: base }); if (R.cancel) return 0; base *= R.m; }
     if (src === this.player && o.fixed == null) {
       if (this.hasFx('giant_slayer') && (dst.def0?.elite || dst.def0?.boss || dst.wb)) base *= 1.2;
       if (this.hasFx('executioner') && dst.maxHp && dst.hp < dst.maxHp * 0.3) base *= 1.4;
       if (this.hasFx('set_entangle') && dst.rootedT > this.time) base *= 1.15;
       if (this.hasFx('set_shatter') && dst.frozenT > this.time) base *= 1.3;
-      base *= this.treeDealMult(dst);
       if (this.hasFx('anc_king') && (dst.def0?.elite || dst.def0?.boss || dst.wb)) base *= 1.3;
     }
     if (dst === this.player && o.fixed == null && this.hasFx('anc_dread')) base *= 0.8;
     if (this.hasFx('set_covenant') && o.fixed == null) { if (src === this.player || src.kind === 'pet') base *= 1.15; else if (dst === this.player) base *= 0.85; }
     if (dst === this.player && o.fixed == null && (this.petIs('guard') || this.petIs('guardian'))) base *= 1 - this.petFx.v / 100;
-    if (dst === this.player && o.fixed == null) base *= this.treeTakeMult();
     const K = 50 + 8 * (src.level || 1); // armor matters relative to the attacker's level, so it scales to Lv 200
     let dmg = o.fixed != null ? Math.max(1, Math.round(o.fixed)) : Math.max(1, Math.round(base * K / (K + this.defOf(dst))));
+    if (dst === this.player && dmg > 0) dmg = Math.round(this.manaShield(dmg));
     if (dst.shield > 0) {
       const ab = Math.min(dst.shield, dmg); dst.shield -= ab; dmg -= ab;
       if (dst === this.player && ab > 0) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Absorb', 'miss');
@@ -751,7 +606,7 @@ export class Game {
     dst.hp -= dmg;
     const head = dst.pos.clone().setY(dst.pos.y + dst.height * 0.9);
     const mine = src === this.player || src.kind === 'pet';
-    if (dst === this.player) { if (dmg) this.fx.text(head, '-' + dmg, 'hurt'); this.sfx.play('hurt'); this.lastCombat = this.time; if (dmg > 0) { this.setPowersHurt(src); this.treeHurt(); } }
+    if (dst === this.player) { if (dmg) this.fx.text(head, '-' + dmg, 'hurt'); this.sfx.play('hurt'); this.lastCombat = this.time; if (dmg > 0) { this.setPowersHurt(src); this.cbHurt(src, dmg); } }
     else if (mine) {
       this.fx.text(head, String(dmg), o.cls || (src.kind === 'pet' ? 'pet' : crit ? 'crit' : 'dmg'));
       if (!o.proc) this.sfx.play(crit ? 'crit' : 'hit');
@@ -774,7 +629,6 @@ export class Game {
       let back = dmg * Math.min(60, this.stat('thorns')) / 100;
       if (this.hasFx('thorn_aura')) back += this.defOf(this.player) * 0.4;
       if (this.petIs('reflect')) back += dmg * this.petFx.v / 100;
-      back += dmg * this.tp('reflect') / 100;
       if (back >= 1) this.after(0.05, () => { if (!src.dead) this.damage(this.player, src, 0, { fixed: back, proc: true, cls: 'pet' }); });
     }
     if (dst.hp <= 0) {
@@ -791,10 +645,11 @@ export class Game {
         this.ui.toast(`${this.pet?.data.name || 'Your pet'}'s Rebirth! You rise again.`, 'good'); this.sfx.play('level');
         return dmg;
       }
-      if (dst === this.player && this.treeOnDeath()) return dmg;
+      if (dst === this.player && this.cbCannotDie()) return dmg;
       if (dst.kind === 'monster') this.killMonster(dst);
       else if (dst === this.player) this.playerDied(src);
       else if (dst.kind === 'ally') this.allyDown(dst);
+      else if (dst.kind === 'summon') this.summonDown(dst);
     }
     return dmg;
   }
@@ -802,15 +657,13 @@ export class Game {
   // On-hit item effects for the player's own direct hits (procs never trigger procs).
   onPlayerHit(dst, dmg, crit, sk = null) {
     const p = this.player;
-    this.treeOnHit(dst, dmg, crit, sk);
+    this.cbOnHit(dst, dmg, crit, sk);
     if (this.hasFx('anc_void') && !dst.dead && (this.procCD.void || 0) <= this.time) {
       this.procCD.void = this.time + 8; const c = dst.pos.clone();
       this.fx.ring(c, 0x9a4aff, 5, 0.5); this.fx.emit(c.clone().setY(c.y + 1), { count: 40, colors: [0x9a4aff, 0x3a1a6a, 0xffffff], speed: 6, life: 0.6, size: 0.6 });
       this.sfx.play('boom'); this.aoe(c, 5, 4, 0, true);
     }
     if (this.hasFx('double_strike') && Math.random() < 0.15) this.after(0.12, () => { if (!dst.dead) this.damage(p, dst, 0, { fixed: dmg * 0.7, proc: true, cls: 'crit' }); });
-    const ls = Math.min(25, this.stat('lifesteal') + (this.petIs('vampire') ? this.petFx.v : 0) + (this.tAgg?.stat.lifesteal || 0));
-    if (ls > 0) p.hp = Math.min(p.maxHp, p.hp + dmg * ls / 100);
     if (crit && this.hasFx('crit_heal') && (this.procCD.critHeal || 0) <= this.time) { this.procCD.critHeal = this.time + 0.4; this.heal(p, p.maxHp * 0.04); }
     if (this.hasFx('chain') && Math.random() < 0.18) this.chainLightning(dst);
     if (this.petIs('foxfire') && !dst.dead && Math.random() < 0.2) this.petFoxFire(dst);
@@ -865,9 +718,16 @@ export class Game {
   }
 
   heal(e, amt) {
+    if (e === this.player) amt *= 1 + this.ps('healRecv') / 100; // Sanguine Veins
     amt = Math.round(amt);
     const before = e.hp; e.hp = Math.min(e.maxHp, e.hp + amt);
-    if (e === this.player && before + amt > e.maxHp) this.treeOverheal(before + amt - e.maxHp);
+    // Flow: overhealing becomes a shield (Overflow makes it 50% stronger)
+    if (e === this.player && before + amt > e.maxHp && this.rule('flow')) {
+      const k = this.rule('overflow') ? 1.5 : 1, cap = e.maxHp * 0.2 * k;
+      e.shield = Math.min(cap, (e.shield || 0) + (before + amt - e.maxHp) * k);
+      const b = e.buffs.find((x) => x.id === 'flow');
+      if (b) b.until = this.time + 8; else e.buffs.push({ id: 'flow', icon: 'tw_flow', until: this.time + 8, shield: true });
+    }
     if (e === this.player && e.hp > before) this.fx.text(e.pos.clone().setY(e.pos.y + e.height), '+' + (e.hp - before), 'heal');
   }
 
@@ -887,15 +747,16 @@ export class Game {
     // exp
     const cs = d.curve ? curveStats(m.level, d.curve) : null;
     const EL = this.elixirMods ? this.elixirMods() : {}, LB = liveBoost();
-    const exp = this.personalExp(this.partyShareExp(m, cs ? cs.exp : d.exp * K.exp), m.level);
-    this.after(0.3, () => { this.fx.text(p.pos.clone().setY(p.pos.y + p.height + 0.3), `+${exp} EXP`, 'exp'); this.gainExp(exp); });
+    const exp = this.killExp(m, this.personalExp(this.partyShareExp(m, (cs ? cs.exp : d.exp * K.exp) * expScale(m.level)), m.level));
+    if (exp > 0) this.after(0.3, () => { this.fx.text(p.pos.clone().setY(p.pos.y + p.height + 0.3), `+${fmt(exp)} EXP`, 'exp'); this.gainExp(exp); });
+    this.gainMastery('weapon', 2, m); // finishing blow
     // gold
     const gold = Math.round((cs ? rnd(cs.gold[0], cs.gold[1]) : rnd(d.gold[0], d.gold[1]) * K.gold) * (1 + this.stat('goldFind') / 100 + (EL.gold || 0) + (this.petIs('gold') ? this.petFx.v / 100 : 0)) * (LB ? LB.gold : 1));
     this.fx.coins(m.pos, p, Math.min(8, 2 + (gold / 15) | 0), () => { this.S.gold += gold; this.sfx.play('coin'); this.ui.refreshWallet(); this.fx.text(p.pos.clone().setY(p.pos.y + p.height), `+${gold} Gold`, 'gold', 0.5); this.track('gold', gold); });
     this.S.kills[m.type] = (this.S.kills[m.type] || 0) + 1;
     if (this.hasFx('frenzy')) this.addFrenzy();
     if (this.hasFx('set_mossmend')) this.heal(p, p.maxHp * 0.03);
-    this.treeOnKill(m);
+    this.cbOnKill(m);
     if (this.hasFx('set_soulharvest')) {
       let b = p.buffs.find((x) => x.id === 'soulharvest');
       if (!b) { b = { id: 'soulharvest', icon: 'a5', stacks: 0, mods: { atk: 1, critDmg: 0 } }; p.buffs.push(b); }
@@ -1013,27 +874,35 @@ export class Game {
     this.ui.toast(`Obtained [${name}]`, 'item');
   }
 
-  // EXP from a monster of level lvl after your level penalty, EXP Gain, elixirs and live events (also used for party shares)
+  // EXP from a monster of level lvl after EXP Gain, elixirs and live events (also used for party shares; the level gap,
+  // diminishing returns and rested XP are applied by killExp)
   personalExp(base, lvl) {
     const EL = this.elixirMods ? this.elixirMods() : {}, LB = liveBoost();
-    if (this.S.level - lvl > 4) base *= 0.4;
     return Math.round(base * (1 + this.stat('expGain') / 100 + (EL.exp || 0) + (this.petIs('exp') ? this.petFx.v / 100 : 0)) * (LB ? LB.exp : 1));
   }
+  // a full XP bar only levels up once all three masteries meet the bracket minimum and the trial wall is cleared;
+  // until then the bar stays full and further XP is not banked
   gainExp(n) {
     const S = this.S;
     if (S.level >= MAX_LEVEL) return;
-    S.exp += n;
-    let leveled = false;
-    while (S.level < MAX_LEVEL && S.exp >= needExp(S.level)) { S.exp -= needExp(S.level); S.level++; leveled = true; }
+    S.exp += Math.max(0, n);
+    let leveled = false, block = null;
+    while (S.level < MAX_LEVEL && S.exp >= needExp(S.level)) {
+      block = this.levelBlock(S.level);
+      if (block) { S.exp = needExp(S.level); break; }
+      S.exp -= needExp(S.level); S.level++; leveled = true;
+    }
+    if (block && n > 0) this.levelBlockNotice(block);
     if (leveled) {
       this.recalc(true);
       this.fx.levelUp(this.player); this.sfx.play('level');
       this.ui.banner('LEVEL UP!', `You reached Level ${S.level}`);
       this.ui.chat('system', `Congratulations! You reached <b>Level ${S.level}</b>.`);
       this.logEvent('level', `Reached Lv ${S.level}`, S.level % 10 === 0);
-      const unlocked = this.skillList().filter((s) => s.lvl === S.level && !s.basic);
-      for (const s of unlocked) { this.ui.toast(`New skill unlocked: ${s.name}`, 'good'); this.ui.chat('system', `New skill unlocked: <b>${esc(s.name)}</b>`); }
-      if (this.treePointsLeft() > 0) { this.ui.markMenu('skills'); if (skillPoints(S.level) > skillPoints(S.level - 1)) this.ui.toast('Skill point earned: spend it in the Skill Tree (K)', 'good'); }
+      const fresh = this.syncSkills(true);
+      for (const s of fresh) this.ui.toast(`New skill: ${s.name}`, 'good');
+      if (S.level === 100 && S.awaken == null) { this.ui.banner('AWAKENING', 'Choose your path in the Skills window (K)', 'level'); this.ui.markMenu('skills'); }
+      if (this.skillPtsLeft() > 0) this.ui.markMenu('skills');
       if (S.level >= 10 && S.title < 3) { S.title = 3; this.refreshPlayerPlate(); }
       this.questLevelUp();
       if (S.level >= MAX_LEVEL) { this.unlockTitle('Legend of Aetherheim'); this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached the maximum level ${MAX_LEVEL}!`); }
@@ -1048,6 +917,7 @@ export class Game {
     const p = this.player;
     p.hp = 0; p.dead = true; p.state = 'dead'; this.auto = false; this.ui.setAutoBattle(false);
     this.engage = false; p.path = []; this.setTarget(null);
+    this.clearCombatWorld(); this.rolling = null; this.blocking = null; this.endStealth();
     if (this.mounted) this.dismount(true);
     for (const m of this.monsters) if (m.target === p) { m.target = null; m.returning = true; }
     this.ui.chat('system', `You were defeated by ${esc(src?.name || src?.def0?.name || 'a monster')}.`);
@@ -1059,6 +929,9 @@ export class Game {
       return;
     }
     if (this.war) { this.warPlayerDown(); return; }
+    if (this.trial) { this.trialPlayerDown(); return; }
+    const lost = this.dropSoul();
+    if (lost) this.ui.chat('system', `You dropped <b>${fmt(lost)} EXP</b> as a soul marker${this.dg ? ' at the dungeon entrance' : ' where you fell'}. Reach it within 10 minutes to take it back; dying again first loses it.`);
     if (this.dg) {
       this.dg.deaths++;
       if (this.dg.deaths > DUNGEON_RULES.deathLimit) { this.failDungeon('deaths'); return; }
@@ -1149,7 +1022,7 @@ export class Game {
     }
     if (b.id === 'dungeon_ticket') { this.ui.toast('Tickets are used automatically when your free dungeon entries run out', 'good'); return; }
     if (this.useSystemItem(b.id)) return;
-    if (b.id === 'exp_scroll') { this.removeItem('exp_scroll', 1); this.gainExp(Math.round(needExp(S.level) * 0.25)); this.fx.buff(this.player, '#c8ff6a'); return; }
+    if (b.id === 'exp_scroll') { this.removeItem('exp_scroll', 1); this.gainExp(Math.round(needExp(S.level) * 0.05)); this.fx.buff(this.player, '#c8ff6a'); return; }
     if (it.type === 'quest') this.ui.toast('Quest item — bring it to the right person', 'warn');
   }
   equip(i) {
@@ -1276,10 +1149,11 @@ export class Game {
   }
 
   toggleAuto(force) {
+    if ((force === undefined ? !this.auto : force) && !this.autoAllowed()) { this.ui.toast('Auto-hit is off in dungeons and trials: every attack, dodge and skill is yours', 'warn'); return; }
     this.auto = force !== undefined ? force : !this.auto;
     this.ui.setAutoBattle(this.auto);
-    if (this.auto) { this.autoAnchor = this.player.pos.clone(); this.engage = true; this.ui.toast('Auto Battle ON', 'good'); }
-    else { this.autoPref = null; this.ui.toast('Auto Battle OFF'); }
+    if (this.auto) { this.autoAnchor = this.player.pos.clone(); this.engage = true; this.ui.toast('Auto-hit ON: attacks enemies within reach, never moves you', 'good'); }
+    else { this.autoPref = null; this.ui.toast('Auto-hit OFF'); }
   }
 
   // ============================================================== quests
@@ -1330,10 +1204,10 @@ export class Game {
       if (q.status === 'available' && q.def.giver === n.id && q.def.minLv > S.level) {
         qname = q.def.name; text = `${q.def.text} (You must be Lv ${q.def.minLv} to take this on. Come back when you are stronger.)`;
       } else if (q.status === 'available' && q.def.giver === n.id) {
-        qname = q.def.name; text = q.def.text; rewards = q.def.type === 'end' ? null : { ...q.def.rewards, equipQ: this.questEquipQ(q.def) };
+        qname = q.def.name; text = q.def.text; rewards = q.def.type === 'end' ? null : { ...q.def.rewards, exp: this.questExp(q.def.rewards?.exp || 0), equipQ: this.questEquipQ(q.def) };
         btns.push({ label: q.def.type === 'end' ? 'Farewell' : 'Accept', fn: () => this.acceptQuest() });
       } else if (q.status === 'complete' && q.def.turnin === n.id) {
-        qname = q.def.name; text = q.def.done; rewards = { ...q.def.rewards, equipQ: this.questEquipQ(q.def) };
+        qname = q.def.name; text = q.def.done; rewards = { ...q.def.rewards, exp: this.questExp(q.def.rewards?.exp || 0), equipQ: this.questEquipQ(q.def) };
         btns.push({ label: 'Complete', cls: 'green', fn: () => this.completeQuest(n) });
       } else if (q.status === 'active' && q.def.turnin === n.id) {
         qname = q.def.name; text = `Still working on it? ${this.questObjective()}.`;
@@ -1406,7 +1280,7 @@ export class Game {
     if (r.wings) { S.wings = true; this.rebuildPlayerModel(); if (this.mounted) { this.dismount(true); this.mount(true); } S.title = Math.max(S.title, 5); this.refreshPlayerPlate(); this.fx.levelUp(this.player); }
     if (d.id === 'q2') S.title = Math.max(S.title, 1);
     if (d.id === 'q4') { S.title = Math.max(S.title, 2); this.refreshPlayerPlate(); }
-    if (r.exp) this.gainExp(r.exp);
+    if (r.exp) this.gainExp(this.questExp(r.exp));
     this.ui.refreshWallet();
     S.quest = d.next ? { id: d.next, status: 'available', prog: 0 } : { id: null, status: 'done', prog: 0 };
     const nd = d.next && QUESTS.find((x) => x.id === d.next), ch = CHAPTERS.find((c) => c.n === (nd?.ch || 1));
@@ -1478,7 +1352,7 @@ export class Game {
   }
   completeBounty() {
     const S = this.S, B = S.bounty; if (!B || B.status !== 'complete') return;
-    const exp = Math.round(needExp(S.level) * 0.3), gold = 150 + S.level * 40;
+    const exp = this.questExp(0, 0.06), gold = 150 + S.level * 40;
     S.gold += gold; S.diamonds += 10; S.bounty = null;
     this.track('bounty');
     this.sfx.play('quest'); this.ui.banner('Bounty Complete', `+${fmt(exp)} EXP · +${fmt(gold)} Gold · +10 Diamonds`);
@@ -1565,22 +1439,6 @@ export class Game {
     if (m.kind === 'mount') this.gainMount(m.id, true);
     this.sfx.play('coin'); this.ui.refreshWallet(); this.ui.refreshPanel(); this.save();
   }
-  upgradeSkill(id) {
-    const S = this.S, lv = this.skillLevel(id), cost = 120 * lv * lv;
-    const sk = this.skillList().find((s) => s.id === id);
-    if (S.level < sk.lvl) return;
-    const cap = Math.min(30, Math.floor(S.level / 2) + 1);
-    if (lv >= cap) { this.ui.toast(`Reach Lv ${lv * 2} to upgrade further`, 'warn'); return; }
-    if (S.gold < cost) { this.ui.toast('Not enough Gold', 'warn'); this.sfx.play('error'); return; }
-    S.gold -= cost; S.skillLv[id] = lv + 1;
-    this.sfx.play('level'); this.ui.toast(`${sk.name} upgraded to Lv ${lv + 1}`, 'good');
-    this.ui.refreshWallet(); this.ui.refreshPanel(); this.recalc();
-  }
-  setTalent(i) {
-    if (this.S.talent === i) return;
-    this.S.talent = i; this.recalc(); this.fx.buff(this.player, CLASSES[this.S.cls].elemColor);
-    this.ui.toast(`Talent switched to ${CLASSES[this.S.cls].talents[i].name}`, 'good'); this.ui.refreshPanel();
-  }
   setSetting(k, v) {
     this.S.settings[k] = v;
     if (k === 'shadows') { this.renderer.shadowMap.enabled = v; this.sun.castShadow = v; this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }
@@ -1638,7 +1496,8 @@ export class Game {
     for (let i = this.timers.length - 1; i >= 0; i--) if (this.timers[i].t <= this.time) { const f = this.timers[i].fn; this.timers.splice(i, 1); f(); }
     this.updatePlayer(dt);
     this.updatePet(dt);
-    this.treeTick(dt);
+    this.updateCombat(dt);
+    this.updateSoul(dt); this.updateFog();
     this.dzUpdate(dt);
     this.updateSprite(dt);
     for (const m of this.monsters) this.updateMonster(m, dt);
@@ -1667,7 +1526,10 @@ export class Game {
       if (flat(p.pos, c) > 0.5 || this.keys.w || this.keys.a || this.keys.s || this.keys.d || this.stick.x || this.stick.y) { this.casting = null; this.ui.cancelCast(); c.onEnd?.(); this.ui.toast('Interrupted', 'warn'); }
       else if (c.t >= c.dur) { this.casting = null; this.ui.cancelCast(); c.onEnd?.(); c.done(); }
     }
-    let moving = false;
+    // dodge rolls, leaps and dashes move the hero by themselves
+    const rolled = this.updateRoll(dt) || !!this.tween;
+    let moving = rolled;
+    if (!rolled) {
     // keyboard
     let kx = 0, kz = 0;
     if (this.keys.w || this.keys.arrowup) kz -= 1; if (this.keys.s || this.keys.arrowdown) kz += 1;
@@ -1684,11 +1546,11 @@ export class Game {
     // pending skill: approach
     const t = p.target;
     if (!moving && this.pendingSkill != null) {
-      const sk = this.skillList()[this.pendingSkill];
+      const sk = this.pendingSkill;
       if (!t || t.dead) this.pendingSkill = null;
       else {
         const d = flat(p.pos, t.pos) - t.radius;
-        if (d <= (sk.range || 3)) { if (p.actT <= 0) this.castSkill(sk); }
+        if (d <= this.skRange(sk)) { if (p.actT <= 0) this.castSkill(sk); }
         else { this.moveEnt(p, t.pos.x, t.pos.z, speed, dt); moving = true; }
       }
     }
@@ -1696,12 +1558,13 @@ export class Game {
     if (this.auto && !moving && this.pendingSkill == null) this.autoBattle(dt);
     // engage basic attacks
     if (!moving && this.pendingSkill == null && this.engage && t && (t.kind === 'monster' || this.pvpFoe(t)) && !t.dead) {
-      const basic = this.skillList()[0];
+      const basic = this.basicSkill();
       const d = flat(p.pos, t.pos) - t.radius;
-      if (d > basic.range) {
-        if (this.map.lineClear(p.pos.x, p.pos.z, t.pos.x, t.pos.z)) { this.moveEnt(p, t.pos.x, t.pos.z, speed, dt); moving = true; }
+      if (d > this.skRange(basic)) {
+        if (this.auto) { /* auto-hit never moves your hero */ }
+        else if (this.map.lineClear(p.pos.x, p.pos.z, t.pos.x, t.pos.z)) { this.moveEnt(p, t.pos.x, t.pos.z, speed, dt); moving = true; }
         else if (!p.path.length) p.path = this.map.findPath(p.pos.x, p.pos.z, t.pos.x, t.pos.z);
-      } else if (p.actT <= 0 && (this.cd[basic.id] || 0) <= this.time) {
+      } else if (p.actT <= 0 && this.skillReady(basic) && !this.casting && !this.channel) {
         p.path = []; this.castSkill(basic);
       } else p.yawT = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
     }
@@ -1720,6 +1583,7 @@ export class Game {
         this.autoPathing = false; this.ui.setAutoPath(false);
         if (this.arriveAuto) { const a = this.arriveAuto; this.arriveAuto = null; this.autoPref = a.type; this.auto = false; this.toggleAuto(true); this.autoAnchor = new THREE.Vector3(a.x, 0, a.z); }
       }
+    }
     }
     if (this.pendingTalk && flat(p.pos, this.pendingTalk.pos) < 4.5) { const n = this.pendingTalk; this.talkTo(n); }
     if (this.pendingPortal && flat(p.pos, this.pendingPortal.pos) < 4) this.goToPortal(this.pendingPortal);
@@ -1910,6 +1774,8 @@ export class Game {
     }
     if (m.warUnit) { this.updateWarUnit(m, dt); return; }
     m.actT = Math.max(0, m.actT - dt); m.attackCD -= dt; m.hitT = Math.max(0, (m.hitT || 0) - dt);
+    if (this.mStatus(m, dt)) return; // knockbacks, fear, damage over time (combat-world.js)
+    if (m.target === this.player && this.pflag('stealth') && !(m.tauntT > this.time)) m.target = null;
     if (m.stun > 0) { m.stun -= dt; m.moving = false; if (Math.random() < dt * 8) this.fx.emit(m.pos.clone().setY(m.pos.y + m.height + 0.2), { count: 1, color: 0xffe07a, speed: 1, life: 0.5, size: 0.4 }); return; }
     const home = m.home;
     let moving = false;
@@ -1919,7 +1785,7 @@ export class Game {
       if (!m.wb) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.25 * dt); // the world boss keeps its wounds until it retreats
       if (r === true || flat(m.pos, home) < 1 || r === 'blocked') { m.returning = false; if (!m.wb) m.hp = m.maxHp; }
     } else {
-      if (!m.target && d.aggressive && !this.player.dead) {
+      if (!m.target && d.aggressive && !this.player.dead && !this.pflag('stealth')) {
         const ar = d.boss ? 13 : 9;
         if (flat(m.pos, this.player.pos) < ar && !(this.zone && this.zone.safe)) m.target = this.player;
       }
@@ -1940,7 +1806,7 @@ export class Game {
               }
             });
           }
-          if (d.boss) this.bossSkills(m, t, dt);
+          if (d.boss && !(m.silT > this.time)) this.bossSkills(m, t, dt);
         }
       } else {
         m.wanderT -= dt;
@@ -1970,6 +1836,8 @@ export class Game {
     m.skillT -= dt;
     if (m.skillT > 0) return;
     const d = m.def0, W = m.map || this.world;
+    // Spellbreaker interrupts: a telegraph only lands if the boss was not interrupted meanwhile
+    const seq0 = m.castSeq || 0, tg = (c, r, dur, fn) => this.fx.telegraph(c, r, dur, () => { if ((m.castSeq || 0) !== seq0) return; fn(); });
     const near = W === this.map && flat(m.pos, this.player.pos) < 45;
     const warn = (msg) => { if (near) this.ui.toast(msg, 'warn'); };
     const boom = () => { if (near) this.sfx.play('boom'); };
@@ -1985,12 +1853,12 @@ export class Game {
       const c = m.pos.clone().add(new THREE.Vector3(Math.sin(m.yaw) * 3, 0, Math.cos(m.yaw) * 3)); c.y = gy(c.x, c.z);
       warn(`${d.name} raises up — get out of the red circle!`);
       m.state = 'attack'; m.actT = m.actDur = 1.6;
-      this.fx.telegraph(c, 7, 1.6, () => { if (m.dead) return; this.fx.quake(c, 7); boom(); hitIn(c, 7, 2.4); });
+      tg(c, 7, 1.6, () => { if (m.dead) return; this.fx.quake(c, 7); boom(); hitIn(c, 7, 2.4); });
     } else if (sk === 'roots') {
       warn('The ground splits beneath you!');
       for (let i = 0; i < (enraged ? 4 : 3); i++) {
         const c = t.pos.clone().add(new THREE.Vector3(rnd(-4, 4), 0, rnd(-4, 4))); c.y = gy(c.x, c.z);
-        this.fx.telegraph(c, 3.2, 1.4 + i * 0.15, () => {
+        tg(c, 3.2, 1.4 + i * 0.15, () => {
           if (m.dead) return;
           this.fx.emit(c.clone().setY(c.y + 0.5), { count: 30, colors: [0x7a3aa8, 0x5ac84a, 0x3a2a1a], speed: 6, life: 0.6, size: 0.8, up: 6, gravity: -14 });
           this.fx.pillar(c, 0x8a4ac8, 1.6, 4, 0.5);
@@ -2002,7 +1870,7 @@ export class Game {
       warn(`${d.name} gathers power — run away!`);
       m.state = 'cast'; m.actT = m.actDur = 2.2;
       this.fx.circle(c, '#ff6aa8', 4, 2.3);
-      this.fx.telegraph(c, 10, 2.2, () => {
+      tg(c, 10, 2.2, () => {
         if (m.dead) return;
         this.fx.ring(c, 0xff6aa8, 11, 0.6); this.fx.ring(c, 0xffffff, 8, 0.45);
         this.fx.emit(c.clone().setY(c.y + 1), { count: 80, colors: [0xff6aa8, 0xffffff, 0xb07aff], speed: 14, life: 0.7, size: 0.9, spread: 1 });
@@ -2014,7 +1882,7 @@ export class Game {
       warn(`${d.name} inhales deeply — dodge the breath!`);
       m.state = 'attack'; m.actT = m.actDur = 1.8;
       const zones = [[4.5, 3], [8.5, 3.8], [12.5, 4.6]].map(([dist, r]) => { const c = m.pos.clone().addScaledVector(dir, dist); c.y = gy(c.x, c.z); return [c, r]; });
-      zones.forEach(([c, r]) => this.fx.telegraph(c, r, 1.6));
+      zones.forEach(([c, r]) => tg(c, r, 1.6));
       this.after(1.6, () => {
         if (m.dead) return;
         for (let i = 0; i < 14; i++) this.after(i * 0.04, () => {
@@ -2047,7 +1915,7 @@ export class Game {
       targets.forEach((e, i) => {
         const c = e.pos.clone(); c.y = gy(c.x, c.z);
         this.fx.circle(c, col, 3, 1.5);
-        this.fx.telegraph(c, 3, 1.3 + i * 0.12, () => {
+        tg(c, 3, 1.3 + i * 0.12, () => {
           if (m.dead) return;
           this.fx.bolt(c.clone().setY(c.y + 18), c.clone().setY(c.y + 0.3), hex, 0.35);
           this.fx.emit(c.clone().setY(c.y + 0.5), { count: 26, colors: [hex, 0xffffff], speed: 7, life: 0.5, size: 0.7, up: 4 });
@@ -2074,6 +1942,7 @@ export class Game {
     return Math.max(0, def.entries - (D.used[def.id] || 0));
   }
   enterDungeon(id) {
+    this.clearCombatWorld(); this.auto = false; this.ui.setAutoBattle(false);
     const def = DUNGEONS.find((d) => d.id === id), S = this.S, p = this.player;
     if (!def || this.dg || this.war || p.dead) return false;
     if (S.level < def.lv - 2) { this.ui.toast(`Requires Lv ${def.lv - 2}`, 'warn'); this.sfx.play('error'); return false; }
@@ -2227,7 +2096,7 @@ export class Game {
     }
     const gold = Math.round(150 * dg.def.lv * (1 + dg.def.lv / 40) * ({ S: 1.6, A: 1.25, B: 1 }[dg.rating]));
     const diamonds = { S: 25, A: 15, B: 10 }[dg.rating];
-    const exp = Math.round(needExp(S.level) * ({ S: 0.25, A: 0.18, B: 0.12 }[dg.rating]));
+    const exp = Math.round(needExp(S.level) * ({ S: 0.1, A: 0.07, B: 0.05 }[dg.rating]));
     S.gold += gold; S.diamonds += diamonds;
     let ticket = false;
     if (Math.random() < (dg.rating === 'S' ? 0.35 : 0.15)) { this.addItem('dungeon_ticket', 1); ticket = true; }
@@ -2264,6 +2133,7 @@ export class Game {
     if (Math.random() < ch * (1 + ((this.elixirMods && this.elixirMods().luck) || 0))) this.addMat(pick(set.ids), 1);
   }
   leaveDungeon() {
+    this.clearCombatWorld();
     const dg = this.dg; if (!dg || dg.leaving) return;
     dg.leaving = true;
     for (const L of [...this.loots]) if (L.map === dg.map) this.pickupLoot(L, true);
@@ -2349,8 +2219,8 @@ export class Game {
   updatePlates() {
     const w = this.renderer.domElement.clientWidth, h = this.renderer.domElement.clientHeight;
     const v = new THREE.Vector3();
-    const range = { npc: 80, portal: 90, loot: 40, node: 42, plot: 45, rp: 100 };
-    for (const e of [...this.ents, ...this.loots, ...this.portals, ...(this.lifeEnts || []), ...(this.dzBags || [])]) {
+    const range = { npc: 80, portal: 90, loot: 40, node: 42, plot: 45, rp: 100, soul: 160 };
+    for (const e of [...this.ents, ...this.loots, ...this.portals, ...(this.lifeEnts || []), ...(this.dzBags || []), ...(this.soulEnt ? [this.soulEnt] : [])]) {
       if (!e.np) continue;
       let show = !(e.kind === 'monster' && e.dead) && (!e.map || e.map === this.map) && !(e.kind === 'portal' && (this.dg || this.war));
       if (show && e.kind !== 'portal') show = e.model.visible;
@@ -2385,10 +2255,13 @@ export class Game {
     const S = this.S, p = this.player;
     S.gift.t += dt;
     // zone
-    const z = this.map.isDungeon ? this.map.zone : this.dzInside() ? DZ_ZONE : (this.world.zoneAt(p.pos.x, p.pos.z, ZONES) || { name: 'Wilds of Carlyle', lv: '', x: 0, z: 0 });
+    const z = this.map.isDungeon ? this.map.zone : this.dzInside() ? DZ_ZONE : (this.world.zoneAt(p.pos.x, p.pos.z, ZONES) || { name: 'Wilds of Carlyle', lv: '', x: 0, z: 0, wild: true });
     if (!this.zone || z.name !== this.zone.name) {
       const first = !this.zone; this.zone = z; this.ui.setZone(z);
       if (!first && !z.dz) { this.ui.banner(z.name, z.lv ? `Carlyle · ${z.lv}` : 'Carlyle', 'zone'); } // the Danger Zone shows its own warning
+      // discovery: the first visit to a zone or dungeon is worth 2% of a level (the zone you start in just counts as seen)
+      const D = S.disc;
+      if (D && !z.wild && !this.war && !this.trial && !D.zones.includes(z.name)) { D.zones.push(z.name); if (!first) this.after(1.2, () => this.discoverXp('zone', `entered ${esc(z.name)}`)); }
     }
     this.saveT += dt;
     if (this.saveT > 15) { this.saveT = 0; this.save(); }
@@ -2396,6 +2269,7 @@ export class Game {
 
   save() {
     const S = this.S, p = this.player;
+    this.saveFog(); S.lastSeen = Date.now();
     if (this.dg || this.war) { const r = this.overworldReturn || { x: 0, z: 9 }; S.pos = { x: r.x, z: r.z }; }
     else if (p && !p.dead) S.pos = { x: Math.round(p.pos.x * 10) / 10, z: Math.round(p.pos.z * 10) / 10 };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch { /* storage unavailable */ }
@@ -2411,7 +2285,9 @@ installUpgrade(Game);
 installLive(Game);
 installMp(Game);
 installParty(Game);
-installSkillTree(Game);
+installCombat(Game);
+installCombatWorld(Game);
+installProgress(Game);
 installGather(Game);
 installTailor(Game);
 installDangerZone(Game);

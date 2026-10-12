@@ -94,7 +94,7 @@ export const LEGENDARY_ITEMS = [
 export const NAMED_LIST = [...UNIQUE_ITEMS.map((d) => ({ ...d, quality: 4 })), ...LEGENDARY_ITEMS.map((d) => ({ ...d, quality: 5 }))];
 const NAMED = new Map([...UNIQUE_ITEMS.map((d) => [d.id, { ...d, quality: 4 }]), ...LEGENDARY_ITEMS.map((d) => [d.id, { ...d, quality: 5 }])]);
 const PREFIX = [['Worn', 'Plain'], ['Sturdy', 'Fine'], ['Sylvan', 'Gleaming'], ['Elven', 'Runed']];
-const WEAPON_KEY = { knight: 'w_sword', assassin: 'w_daggers', mage: 'w_staff', priest: 'w_scepter' };
+const WEAPON_KEY = { knight: 'w_sword', assassin: 'w_daggers', mage: 'w_staff', priest: 'w_scepter', berserker: 'w_greataxe', ranger: 'w_bow', summoner: 'w_tome', spellblade: 'w_runesword' };
 const VALID_CLS = Object.keys(WEAPON_KEY);
 
 export function iconKey(slot, cls, quality) {

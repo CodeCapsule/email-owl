@@ -14,6 +14,7 @@ import { ico } from './icons.js';
 import { mp, mpEnabled, SERVERS, serverName } from './mp.js';
 import { TOOL_KINDS, TOOL_RECIPES, TOOL_TIERS, TOOL_FOR_NODE, DYES, costumeRecipe } from './data-crafting.js';
 import { CLASSES } from './data.js';
+import { buildCustomizer } from './customizer.js';
 
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
@@ -218,10 +219,34 @@ const P = {
   },
 
   // ------------------------------------------------------------ wardrobe
+  // re-customize the hero: free once a month, later changes cost gold (never diamonds)
+  changeLook(body) {
+    const g = this.g, S = g.S;
+    if (!this.lookDraft) this.lookDraft = { cls: S.cls, app: { ...S.app } };
+    const st = this.lookDraft;
+    const cost = g.lookCost();
+    const head = h('div', 'sk-head', `<span class="muted">${cost ? `Your free change this month is used: another one costs <b>${fmt(cost)}</b> Gold.` : 'Your free appearance change for this month is available.'} Race and body can change too; class cannot.</span>`);
+    body.appendChild(head);
+    const wrap = h('div', 'wd-wrap');
+    const pv = h('div', 'wd-prev');
+    const img = new Image(); img.alt = ''; pv.appendChild(img);
+    const redraw = () => { img.src = g.lookPreview(st.app); };
+    redraw();
+    wrap.appendChild(pv);
+    const cz = h('div', 'wd-cz'); wrap.appendChild(cz);
+    body.appendChild(wrap);
+    buildCustomizer(cz, st, () => redraw(), { showClass: false, sfx: g.sfx });
+    const acts = h('div', 'acts');
+    const save = h('button', 'btn green', cost ? `Save look · ${fmt(cost)} Gold` : 'Save look (free)');
+    save.onclick = () => { if (g.saveLook(st.app)) this.lookDraft = null; };
+    const reset = h('button', 'btn gray', 'Undo changes'); reset.onclick = () => { this.lookDraft = null; this.renderPanel(); };
+    acts.appendChild(save); acts.appendChild(reset); body.appendChild(acts);
+  },
   panel_wardrobe(body) {
     const g = this.g, S = g.S;
-    const tab = this.tabs(body, 'wdTab', [['outfit', 'Outfits'], ['head', 'Headwear'], ['back', 'Wings'], ['tailor', 'Tailoring']]);
+    const tab = this.tabs(body, 'wdTab', [['outfit', 'Outfits'], ['head', 'Headwear'], ['back', 'Wings'], ['tailor', 'Tailoring'], ['look', 'Change Look']]);
     if (tab === 'tailor') { this.tailoring(body); return; }
+    if (tab === 'look') { this.changeLook(body); return; }
     const wrap = h('div', 'wd-wrap');
     const pv = h('div', 'wd-prev', `<img src="${g.fullIcon()}" alt=""><small>Costumes are cosmetic only and never change your stats.</small>`);
     wrap.appendChild(pv);
