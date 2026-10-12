@@ -9,6 +9,8 @@ import { installSystemsUI } from './ui-systems.js';
 import { installLifeUI } from './ui-life.js';
 import { installTrialsUI } from './ui-trials.js';
 import { installPartyUI, partyMembers } from './party.js';
+import { installTradeUI } from './trade.js';
+import { installSocialUI } from './social.js';
 import { CHAPTERS } from './data-story.js';
 import { setOfDungeon } from './data-sets.js';
 import { PET_ABILITIES, PET_MAX_LV, petAbilityText } from './data-pets.js';
@@ -264,6 +266,9 @@ export class UI {
     this.refreshPartyBtn(t);
     if (!t || t.dead) { el.hidden = true; this.tgShown = null; return; }
     el.hidden = false;
+    el.classList.toggle('rp', t.kind === 'rp');
+    // another player's frame opens the player menu
+    if (!el.onclick) el.onclick = (ev) => { const tt = g.player.target; if (!tt || tt.kind !== 'rp' || ev.target.closest('button')) return; const r = el.getBoundingClientRect(); this.playerMenu(tt, r.left, r.bottom + 30); };
     if (this.tgShown !== t) {
       this.tgShown = t;
       el.classList.toggle('boss', !!(t.def0 && t.def0.boss));
@@ -626,6 +631,8 @@ export class UI {
   closeModal() { $('modal').hidden = true; }
   closeTop() {
     if (!$('modal').hidden && !this.modalPersistent) { this.closeModal(); return true; }
+    if (this.pmenuKey) { this.playerMenu(null); return true; }
+    if ($('inspect-win')) { this.inspectWin(null); return true; }
     if (!$('dialog').hidden) { this.closeDialog(); return true; }
     if (this.panel) { this.closePanels(); return true; }
     return false;
@@ -1230,6 +1237,8 @@ installSystemsUI(UI);
 installLifeUI(UI);
 installTrialsUI(UI);
 installPartyUI(UI);
+installTradeUI(UI);
+installSocialUI(UI);
 
 // the dungeon's set: pieces you own and its bonuses
 function setBlock(dungeonId, S) {
