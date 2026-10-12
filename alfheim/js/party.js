@@ -159,7 +159,7 @@ const G = {
   // ------------------------------------------------------------ shared EXP
   // called for each of our kills: returns the EXP we keep and queues the share for party members nearby
   partyShareExp(m, base) {
-    if (!mp.party.id || this.dg || this.war || mp.status !== 'online') return base;
+    if (!mp.party.id || this.dg || this.war || this.trial || mp.status !== 'online') return base;
     let near = 0, mentor = false;
     for (const x of partyMembers()) {
       if (x.me) continue;
@@ -181,7 +181,7 @@ const G = {
     return partyMembers().filter((x) => !x.me && x.pr.info.map === 'world' && x.pr.net.w && Math.hypot(x.pr.net.x - p.x, x.pr.net.z - p.z) <= PARTY_RANGE).map((x) => ({ level: x.pr.info.level, name: x.pr.info.name }));
   },
   partyGetExp(m) {
-    if (!mp.party.id || m.party !== mp.party.id || this.dg || this.war || this.player.dead) return;
+    if (!mp.party.id || m.party !== mp.party.id || this.dg || this.war || this.trial || this.player.dead) return;
     const x = num(m.x, -5200, 5200, 1e9), z = num(m.z, -5200, 5200, 1e9);
     if (Math.hypot(this.player.pos.x - x, this.player.pos.z - z) > PARTY_RANGE + 15) return;
     let total = 0;

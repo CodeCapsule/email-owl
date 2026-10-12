@@ -26,6 +26,8 @@ import { PET_ABILITIES, PET_MAX_LV, petAbilityValue } from './data-pets.js';
 import { installCombat } from './combat.js';
 import { installCombatWorld } from './combat-world.js';
 import { installProgress, xpNext, expScale } from './progress.js';
+import { installTrials } from './trials.js';
+import { installNavigation, WALK_MAX } from './nav-world.js';
 import { heroLook } from './models.js';
 import { rankMult } from './data-classes.js';
 import { installGather } from './gather.js';
@@ -95,6 +97,7 @@ export function migrateSave(S) {
   return S;
 }
 export function needExp(l) { return xpNext(l); }
+const BEASTS = /^(bunny|wolf|rootwolf|boar|frog|croc|yeti|stag|behemoth|drake)$/;
 
 export class Game {
   constructor(o) {
@@ -131,10 +134,14 @@ export class Game {
     this.initSystems();
     this.initLife();
     this.initEconomy();
+    this.initCampfires();
+    this.initNavigation();
+    this.prestigeInit();
     this.targetRing = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ map: targetRingTexture('#ff4a3a'), transparent: true, depthWrite: false }));
     this.targetRing.rotation.x = -Math.PI / 2; this.targetRing.visible = false; this.targetRing.renderOrder = 2;
     this.scene.add(this.targetRing);
     this.recalc(true);
+    this.applyAura(this.player, this.myAuraColor());
     this.syncPet(); this.syncSprite();
     this.cam.target.copy(this.player.pos);
     this.ui.bind(this);
@@ -339,6 +346,7 @@ export class Game {
     this.mods = { stats: gs, effects: fxs };
     const mountBR = S.mounts.reduce((a, id) => a + (MOUNTS.find((m) => m.id === id)?.br || 0), 0);
     const ratio = p.maxHp > 1 ? p.hp / p.maxHp : 1, mratio = p.maxMp > 1 ? p.mp / p.maxMp : 1;
+    if (this.trial) ({ hp, mp, atk, def, crit, critDmg, speed } = this.trialStats(ps)); // the same for every hero of the class
     p.maxHp = Math.round(hp); p.maxMp = Math.round(mp); p.atk = atk; p.def = def; p.crit = crit; p.critDmg = critDmg; p.baseSpeed = speed; p.level = L;
     p.hp = fill ? p.maxHp : Math.max(1, Math.round(p.maxHp * ratio)); p.mp = fill ? p.maxMp : Math.round(p.maxMp * mratio);
     this.healMod = heal; this.cdr = cdr;
@@ -467,7 +475,7 @@ export class Game {
     const x = sx - rect.left, y = sy - rect.top;
     let best = null, bd = Infinity;
     const focal = rect.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
-    const extra = this.dg ? [this.dg.chestEnt, this.dg.exitEnt].filter(Boolean) : this.war ? [] : [...this.portals, ...(this.lifeEnts || []), ...(this.dzBags || []), ...(this.S.settings.others ? this.rplayers || [] : []).filter((e) => !e.netHidden)];
+    const extra = this.trial ? this.trial.ents.filter((e) => e.model) : this.dg ? [this.dg.chestEnt, this.dg.exitEnt].filter(Boolean) : this.war ? [] : [...this.portals, ...(this.lifeEnts || []), ...(this.dzBags || []), ...(this.S.settings.others ? this.rplayers || [] : []).filter((e) => !e.netHidden)];
     const cands = [...this.monsters, ...this.npcs, ...this.loots.filter((l) => l.map === this.map), ...extra];
     for (const e of cands) {
       if (e.dead || !e.model.visible) continue;
@@ -510,14 +518,17 @@ export class Game {
       if (h.kind === 'dzbag') { this.engage = false; this.pendingTalk = null; this.pathTo(h.pos.x, h.pos.z, false); return; }
       if (h.kind === 'loot' || h.kind === 'chest' || h.kind === 'exit') { this.engage = false; this.pendingTalk = null; this.pathTo(h.pos.x, h.pos.z, false); return; }
       if (h.kind === 'portal') { this.goToPortal(h); return; }
-      if (h.kind === 'node' || h.kind === 'plot') { this.lifeClick(h); return; }
+      if (['node', 'plot', 'campfire', 'forage', 'lore', 'waystone'].includes(h.kind)) { this.lifeClick(h); return; }
     }
     const g = this.groundPoint(x, y);
     if (g) { this.engage = false; this.pendingSkill = null; this.pendingTalk = null; this.pendingPortal = null; this.pendingLife = null; this.pathTo(g.x, g.z, false); this.fx.clickMarker(g); }
   }
 
+  // click-to-move for what you can see; there is no auto-path across the map (find the way by landmarks)
   pathTo(x, z, auto = true) {
     const p = this.player;
+    if (flat(p.pos, { x, z }) > WALK_MAX) { p.path = []; this.autoPathing = false; this.ui.setAutoPath(false); this.ui.toast(`Too far to walk there in one go: it lies ${this.directionsTo(x, z, 'it').replace(/^Head /, '')}`, 'warn'); return false; }
+    auto = false;
     p.path = this.map.findPath(p.pos.x, p.pos.z, x, z);
     this.autoPathing = auto && flat(p.pos, { x, z }) > 12;
     this.ui.setAutoPath(this.autoPathing);
@@ -569,13 +580,14 @@ export class Game {
   damage(src, dst, mult, o = {}) {
     if (dst.dead) return 0;
     if (dst.kind === 'rp') return this.pvpStrike(src, dst, mult, o);
-    const canCrit = o.canCrit !== false && o.fixed == null;
-    let base = this.atkOf(src) * mult * rnd(0.9, 1.1);
+    const canCrit = o.canCrit !== false && o.fixed == null && o.pct == null;
+    // trial attacks are a share of your max HP (stats are normalized there), still dodged, blocked and parried as usual
+    let base = o.pct != null ? dst.maxHp * o.pct * (src.atkBuffT > this.time ? 1.25 : 1) : this.atkOf(src) * mult * rnd(0.9, 1.1);
     let critB = 0, cdB = 0;
     if (src === this.player && o.fixed == null) { const X = this.cbOut(dst, o); base *= X.m; critB = X.crit; cdB = X.cd; }
     const crit = canCrit && Math.random() * 100 < this.critOf(src) + critB;
     if (crit) { let cd = (src.critDmg ?? 0.6) + cdB; for (const b of src.buffs || []) if (b.mods?.critDmg) cd += b.mods.critDmg; base *= 1 + cd; }
-    if (src.kind === 'monster' && o.fixed == null && (Math.random() < 0.05 || this.monsterBlind(src))) {
+    if (src.kind === 'monster' && o.fixed == null && o.pct == null && (Math.random() < 0.05 || this.monsterBlind(src))) {
       if (dst === this.player) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Miss', 'miss');
       return 0;
     }
@@ -595,8 +607,9 @@ export class Game {
     if (dst === this.player && o.fixed == null && this.hasFx('anc_dread')) base *= 0.8;
     if (this.hasFx('set_covenant') && o.fixed == null) { if (src === this.player || src.kind === 'pet') base *= 1.15; else if (dst === this.player) base *= 0.85; }
     if (dst === this.player && o.fixed == null && (this.petIs('guard') || this.petIs('guardian'))) base *= 1 - this.petFx.v / 100;
+    if (dst.guard && src === this.player) base *= 0.25; // a Twin Blade on guard
     const K = 50 + 8 * (src.level || 1); // armor matters relative to the attacker's level, so it scales to Lv 200
-    let dmg = o.fixed != null ? Math.max(1, Math.round(o.fixed)) : Math.max(1, Math.round(base * K / (K + this.defOf(dst))));
+    let dmg = o.fixed != null ? Math.max(1, Math.round(o.fixed)) : o.pct != null ? Math.max(1, Math.round(base)) : Math.max(1, Math.round(base * K / (K + this.defOf(dst))));
     if (dst === this.player && dmg > 0) dmg = Math.round(this.manaShield(dmg));
     if (dst.shield > 0) {
       const ab = Math.min(dst.shield, dmg); dst.shield -= ab; dmg -= ab;
@@ -741,6 +754,7 @@ export class Game {
     if (m.dungeon && this.dg && m === this.dg.boss) this.completeDungeon();
     if (m.warUnit) this.onWarKill(m);
     if (m.wb) this.onWorldBossKilled(m);
+    if (m.trialMob) { this.cbOnKill(m); this.onTrialKill(m); return; }
     if (!m.tagged) return;
     m.tagged = false;
     const K = this.killScale(d, m.level);
@@ -763,6 +777,8 @@ export class Game {
       b.stacks = Math.min(5, b.stacks + 1); b.mods.atk = 1 + 0.04 * b.stacks; b.mods.critDmg = 0.04 * b.stacks; b.until = this.time + 10;
     }
     if (!d.structure && !d.war) { this.rollDrops(m); this.tailorDrop(m); this.dzKill(m); }
+    // beasts sometimes leave meat for the campfire
+    if (BEASTS.test(d.model) && !d.boss && Math.random() < 0.3) { this.addMat('raw_meat', 1, true); this.lootMsg('Raw Meat', '#ffffff'); }
     if (this.hasFx('anc_bloodthirst')) this.ancBloodthirst();
     this.onKillSystems(m);
     if (m.dungeon && this.dg) this.dungeonRelicDrop(m);
@@ -994,6 +1010,8 @@ export class Game {
   usePotion(id, exact = false) {
     const p = this.player;
     if (p.dead) return;
+    this.noteInput && this.noteInput('p' + id.length);
+    if (this.trial?.noPotions) { this.ui.toast('Potions do not work in this trial: cook food at the campfire', 'warn'); return; }
     if (this.potionCD > this.time) return;
     const kind = this.potionKind(id), tiers = POTION_TIERS[kind];
     const pick2 = exact ? tiers.find(([pid]) => pid === id) : tiers.find(([pid]) => this.countItem(pid) > 0);
@@ -1020,6 +1038,9 @@ export class Game {
       this.ui.modal('The egg hatched!', `A ${pd.species} named ${pd.name} wriggles out of the shell and looks up at you adoringly.`, [{ label: 'Summon it', fn: () => this.setPet(pd.id) }, { label: 'Later', cls: 'gray' }], false, this.petIcon(pd.id));
       return;
     }
+    if (it.type === 'food') { this.eatFood(b.id); return; }
+    if (it.type === 'survey') { this.readSurvey(b.id); return; }
+    if (it.type === 'sigil') { this.ui.toast('Bring the sigil to the Trial Warden in Sylvan Haven', 'good'); return; }
     if (b.id === 'dungeon_ticket') { this.ui.toast('Tickets are used automatically when your free dungeon entries run out', 'good'); return; }
     if (this.useSystemItem(b.id)) return;
     if (b.id === 'exp_scroll') { this.removeItem('exp_scroll', 1); this.gainExp(Math.round(needExp(S.level) * 0.05)); this.fx.buff(this.player, '#c8ff6a'); return; }
@@ -1165,12 +1186,14 @@ export class Game {
     const p = this.player;
     this.engage = false; this.pendingTalk = null;
     if (flat(p.pos, h.pos) < 4) { p.path = []; this.pendingPortal = null; this.ui.togglePanel('dungeons', true, h.def.id); return; }
-    this.pendingPortal = h; this.pathTo(h.pos.x, h.pos.z, flat(p.pos, h.pos) > 12);
+    if (flat(p.pos, h.pos) > WALK_MAX) { this.giveDirections(h.pos.x, h.pos.z, `the entrance of ${h.def.name}`); return; }
+    this.pendingPortal = h; this.pathTo(h.pos.x, h.pos.z, false);
   }
   talkTo(n) {
     const p = this.player;
-    if (this.dg || this.war) { this.ui.toast(this.war ? 'Finish the battle first' : 'Leave the dungeon first', 'warn'); return; }
-    if (flat(p.pos, n.pos) > 4.5) { this.pendingTalk = n; this.pathTo(n.pos.x, n.pos.z, flat(p.pos, n.pos) > 12); return; }
+    if (this.dg || this.war || this.trial) { this.ui.toast(this.war ? 'Finish the battle first' : this.trial ? 'Finish the trial first' : 'Leave the dungeon first', 'warn'); return; }
+    if (flat(p.pos, n.pos) > WALK_MAX) { this.pendingStation = null; this.giveDirections(n.pos.x, n.pos.z, `${n.data.name} the ${n.data.title}`); return; }
+    if (flat(p.pos, n.pos) > 4.5) { this.pendingTalk = n; this.pathTo(n.pos.x, n.pos.z, false); return; }
     const sent = this.pendingTalk === n, st = this.pendingStation;
     this.pendingTalk = null; this.pendingStation = null; p.path = []; this.autoPathing = false; this.ui.setAutoPath(false);
     n.yaw = Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z);
@@ -1183,12 +1206,12 @@ export class Game {
     const sel = this.ui.sel;
     if (name === 'forge') return sel.fgTab === 'gems' ? 'opal' : 'gorm';
     if (name === 'life') return { alchemy: 'vera', smithing: 'gorm', red: 'gorm' }[sel.lifeTab] || null;
-    return { market: 'mira', guild: 'aldric', wardrobe: 'coco', auction: 'grimsby' }[name] || null;
+    return { market: 'mira', guild: 'aldric', wardrobe: 'coco', auction: 'grimsby', trials: 'thalia' }[name] || null;
   }
   // walk to the NPC that runs a station and open it on arrival
   goToStation(name) {
     const id = this.stationFor(name), n = id && this.npcById(id); if (!n) return;
-    if (this.dg || this.war) { this.ui.toast(`Visit ${n.data.name} the ${n.data.title} in Sylvan Haven`, 'warn'); return; }
+    if (this.dg || this.war || this.trial) { this.ui.toast(`Visit ${n.data.name} the ${n.data.title} in Sylvan Haven`, 'warn'); return; }
     this.ui.closePanels(); this.ui.closeDialog();
     if (flat(this.player.pos, n.pos) <= 4.5) { this.ui.openStation(name, id); return; }
     this.ui.toast(`Heading to ${n.data.name} the ${n.data.title}`);
@@ -1223,7 +1246,7 @@ export class Game {
     btns.push(...this.serviceButtons(d));
     if (d.service === 'guild' && S.guild && S.level >= 10) btns.push({ label: `Guild War (${this.warEntriesLeft()} left)`, cls: 'green', fn: () => { this.ui.closeDialog(); this.startWar(); } });
     if (d.service === 'event' && this.event) text = `${d.greet} ${this.event.desc}`;
-    if (d.service === 'teleport') TELEPORTS.forEach((t, i) => btns.push({ label: `${t.name}`, cls: 'blue small', fn: () => this.teleport(i) }));
+    if (d.service === 'teleport') { TELEPORTS.forEach((t, i) => { if (this.waystoneOn(i)) btns.push({ label: `${t.name}`, cls: 'blue small', fn: () => this.teleport(i) }); }); const dark = TELEPORTS.filter((t, i) => !this.waystoneOn(i)).length; if (dark) text = `${d.greet} I can only send you to waystones you have awakened on foot: ${dark} still sleep out in the wilds.`; }
     btns.push({ label: 'Goodbye', cls: 'gray' });
     this.ui.dialog({ npc: n, qname, text, rewards, buttons: btns });
   }
@@ -1258,6 +1281,8 @@ export class Game {
     this.ui.toast(`Quest accepted: ${d.name}`, 'good');
     this.ui.chat('system', `Quest accepted: <b>${esc(d.name)}</b>`);
     this.ui.closeDialog();
+    // the giver tells you the way, and the journal keeps their words
+    { const T = this.questTarget(); if (T && T.what) this.giveDirections(T.x, T.z, T.what, this.npcName(d.giver)); }
     this.ui.refreshQuest(); this.save();
   }
 
@@ -1283,6 +1308,7 @@ export class Game {
     if (r.exp) this.gainExp(this.questExp(r.exp));
     this.ui.refreshWallet();
     S.quest = d.next ? { id: d.next, status: 'available', prog: 0 } : { id: null, status: 'done', prog: 0 };
+    { const T2 = this.questTarget(); if (T2 && T2.npc !== n && T2.what) this.after(0.6, () => this.giveDirections(T2.x, T2.z, T2.what, n?.data?.name)); }
     const nd = d.next && QUESTS.find((x) => x.id === d.next), ch = CHAPTERS.find((c) => c.n === (nd?.ch || 1));
     if (nd && (nd.ch || 1) !== (d.ch || 1) && ch) {
       setTimeout(() => this.ui.banner(`Chapter ${ROMAN[ch.n]}`, ch.name, 'clear'), 1600);
@@ -1359,32 +1385,15 @@ export class Game {
     this.gainExp(exp); this.ui.refreshWallet(); this.ui.refreshQuest(); this.ui.closeDialog(); this.save();
   }
 
+  // the quest tracker: spoken directions to the objective (there is no auto-path)
   autoQuest(which = 'main') {
     const p = this.player; if (p.dead) return;
-    let goal = null, npc = null, type = null;
-    if (which === 'bounty') {
-      const B = this.S.bounty; if (!B) return;
-      if (B.status === 'complete') npc = this.npcById('elena');
-      else type = B.target;
-    } else {
-      const q = this.quest(); if (!q || !q.def) return;
-      if (q.status === 'available' && q.def.minLv > this.S.level) { this.ui.toast(`Reach Lv ${q.def.minLv} to continue the story: try bounties, dungeons and the zone for your level`, 'warn'); return; }
-      if (q.status === 'available') npc = this.npcById(q.def.giver);
-      else if (q.status === 'complete') npc = this.npcById(q.def.turnin);
-      else if (q.def.type === 'kill' || q.def.type === 'collect') type = q.def.target;
-      else if (q.def.type === 'dungeon') { const h = this.portals.find((x) => x.def?.id === q.def.target); if (h) this.goToPortal(h); else this.ui.togglePanel('dungeons', true, q.def.target); return; }
-      else if (q.def.type === 'level') { this.ui.toast(`Reach Lv ${q.def.count}: try bounties, dungeons and the zone for your level`, 'warn'); return; }
-      else npc = this.npcById(q.def.turnin);
-    }
-    if (npc) { this.talkTo(npc); return; }
-    if (type) {
-      const sp = SPAWNS.find((s) => s.type === type);
-      const near = this.nearestEnemy(30, type);
-      if (near) { this.autoPref = type; this.auto = false; this.toggleAuto(true); this.autoAnchor = new THREE.Vector3(sp.x, 0, sp.z); return; }
-      goal = { x: sp.x, z: sp.z };
-      this.pathTo(goal.x, goal.z, true);
-      this.arriveAuto = { type, x: sp.x, z: sp.z };
-    }
+    const q = this.quest();
+    if (which === 'main' && q?.def && q.status === 'available' && q.def.minLv > this.S.level) { this.ui.toast(`Reach Lv ${q.def.minLv} to continue the story: try bounties, dungeons and the zone for your level`, 'warn'); return; }
+    if (which === 'main' && q?.def?.type === 'level' && q.status === 'active') { this.ui.toast(`Reach Lv ${q.def.count}: try bounties, dungeons and the zone for your level`, 'warn'); return; }
+    const T = this.questTarget(which); if (!T) return;
+    if (T.npc && flat(p.pos, T.npc.pos) <= 4.5) { this.talkTo(T.npc); return; }
+    this.giveDirections(T.x, T.z, T.what);
   }
 
   teleport(i) {
@@ -1497,13 +1506,14 @@ export class Game {
     this.updatePlayer(dt);
     this.updatePet(dt);
     this.updateCombat(dt);
-    this.updateSoul(dt); this.updateFog();
+    this.updateSoul(dt); this.updateFog(); this.updateNavigation(dt);
     this.dzUpdate(dt);
     this.updateSprite(dt);
     for (const m of this.monsters) this.updateMonster(m, dt);
     for (const n of this.npcs) this.updateNPC(n, dt);
     this.updateLoot(dt);
     this.updateDungeon(dt);
+    this.updateTrial(dt); this.animateAuras();
     this.updateSystems(dt);
     this.animateAll(dt);
     this.updateCamera(dt);
@@ -1581,7 +1591,6 @@ export class Game {
       } else if (r !== 'blocked') p.blockedN = 0;
       if (!p.path.length) {
         this.autoPathing = false; this.ui.setAutoPath(false);
-        if (this.arriveAuto) { const a = this.arriveAuto; this.arriveAuto = null; this.autoPref = a.type; this.auto = false; this.toggleAuto(true); this.autoAnchor = new THREE.Vector3(a.x, 0, a.z); }
       }
     }
     }
@@ -1596,7 +1605,7 @@ export class Game {
     // regen
     const ooc = this.time - this.lastCombat > 5;
     const zoneSafe = this.zone && this.zone.safe;
-    const rate = ooc ? (zoneSafe ? 0.06 : 0.025) : 0;
+    const rate = ooc && !this.trial ? (zoneSafe ? 0.06 : 0.025) : 0; // no resting inside a trial
     if (rate) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * rate * dt); }
     p.mp = Math.min(p.maxMp, p.mp + p.maxMp * (ooc ? 0.03 : 0.012) * dt);
     if (S.settings.autoPotion && p.hp < p.maxHp * 0.35 && this.countPotions('hp_potion') && this.potionCD <= this.time) this.usePotion('hp_potion');
@@ -1777,9 +1786,10 @@ export class Game {
     if (this.mStatus(m, dt)) return; // knockbacks, fear, damage over time (combat-world.js)
     if (m.target === this.player && this.pflag('stealth') && !(m.tauntT > this.time)) m.target = null;
     if (m.stun > 0) { m.stun -= dt; m.moving = false; if (Math.random() < dt * 8) this.fx.emit(m.pos.clone().setY(m.pos.y + m.height + 0.2), { count: 1, color: 0xffe07a, speed: 1, life: 0.5, size: 0.4 }); return; }
+    if (m.trialAI) { this.updateTrialMonster(m, dt); return; } // trials.js
     const home = m.home;
     let moving = false;
-    if (m.target && (m.target.dead || flat(m.pos, home) > (d.boss ? 30 : 38) || (m.target === this.player && this.player.dead))) { m.target = null; m.returning = true; }
+    if (m.target && (m.target.dead || (!m.noLeash && flat(m.pos, home) > (d.boss ? 30 : 38)) || (m.target === this.player && this.player.dead))) { m.target = null; m.returning = true; }
     if (m.returning) {
       const r = this.moveEnt(m, home.x, home.z, m.speed * 1.8, dt); moving = true;
       if (!m.wb) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.25 * dt); // the world boss keeps its wounds until it retreats
@@ -1927,14 +1937,11 @@ export class Game {
   }
 
   // ============================================================== dungeons
+  // the dungeon tracker: say what is left (no auto-path)
   dungeonGo() {
     const dg = this.dg; if (!dg) return;
-    const P = this.dungeonProgress(), rooms = dg.map.rooms;
-    if (P.done) { const t = dg.opened ? dg.exitEnt.pos : dg.chestEnt.pos; this.engage = false; this.pathTo(t.x, t.z, true); return; }
-    const room = rooms[P.cur];
-    if (this.nearestEnemy(30)) { this.autoPref = null; this.auto = false; this.toggleAuto(true); this.autoAnchor = new THREE.Vector3(room.x, 0, room.z); return; }
-    this.pathTo(room.x, room.z, true);
-    this.arriveAuto = { type: null, x: room.x, z: room.z };
+    const P = this.dungeonProgress();
+    this.ui.toast(P.done ? (dg.opened ? 'Step into the exit portal' : 'Open the treasure chest') : P.cur === P.total - 1 ? 'The boss waits in the last chamber' : `Chamber ${P.cur + 1}/${P.total}: defeat all foes (${P.count - P.alive}/${P.count})`);
   }
   dungeonEntries(def) {
     const D = this.S.dgn;
@@ -1944,7 +1951,7 @@ export class Game {
   enterDungeon(id) {
     this.clearCombatWorld(); this.auto = false; this.ui.setAutoBattle(false);
     const def = DUNGEONS.find((d) => d.id === id), S = this.S, p = this.player;
-    if (!def || this.dg || this.war || p.dead) return false;
+    if (!def || this.dg || this.war || this.trial || p.dead) return false;
     if (S.level < def.lv - 2) { this.ui.toast(`Requires Lv ${def.lv - 2}`, 'warn'); this.sfx.play('error'); return false; }
     if (this.dungeonEntries(def) > 0) S.dgn.used[def.id] = (S.dgn.used[def.id] || 0) + 1;
     else if (this.countItem('dungeon_ticket') > 0) this.removeItem('dungeon_ticket', 1);
@@ -2172,7 +2179,7 @@ export class Game {
       n.markChar = mark;
       if (mark) { n.marker.material.map = textTexture(mark, mark === '…' ? { color: '#c8d0e0', stroke: '#2a2a3a' } : {}); n.marker.material.needsUpdate = true; }
     }
-    n.marker.visible = !!mark && d < 120;
+    n.marker.visible = !!mark && d < 10; // no quest markers to steer by: you see it once you have found them
     n.marker.position.set(n.pos.x, n.pos.y + n.height * (n.data.look === 'brom' ? 1.12 : n.data.look === 'sylphie' ? 0.85 : 1) + 1.55 + Math.sin(this.time * 3) * 0.12, n.pos.z);
   }
 
@@ -2220,9 +2227,9 @@ export class Game {
     const w = this.renderer.domElement.clientWidth, h = this.renderer.domElement.clientHeight;
     const v = new THREE.Vector3();
     const range = { npc: 80, portal: 90, loot: 40, node: 42, plot: 45, rp: 100, soul: 160 };
-    for (const e of [...this.ents, ...this.loots, ...this.portals, ...(this.lifeEnts || []), ...(this.dzBags || []), ...(this.soulEnt ? [this.soulEnt] : [])]) {
+    for (const e of [...this.ents, ...this.loots, ...this.portals, ...(this.lifeEnts || []), ...(this.dzBags || []), ...(this.soulEnt ? [this.soulEnt] : []), ...(this.trial ? this.trial.ents.filter((e) => e.np) : [])]) {
       if (!e.np) continue;
-      let show = !(e.kind === 'monster' && e.dead) && (!e.map || e.map === this.map) && !(e.kind === 'portal' && (this.dg || this.war));
+      let show = !(e.kind === 'monster' && e.dead) && (!e.map || e.map === this.map) && !(e.kind === 'portal' && (this.dg || this.war || this.trial));
       if (show && e.kind !== 'portal') show = e.model.visible;
       if (show) {
         v.copy(e.pos); v.y += e.npY ?? (e.height + 0.25);
@@ -2270,7 +2277,7 @@ export class Game {
   save() {
     const S = this.S, p = this.player;
     this.saveFog(); S.lastSeen = Date.now();
-    if (this.dg || this.war) { const r = this.overworldReturn || { x: 0, z: 9 }; S.pos = { x: r.x, z: r.z }; }
+    if (this.dg || this.war || this.trial) { const r = this.overworldReturn || { x: 0, z: 9 }; S.pos = { x: r.x, z: r.z }; }
     else if (p && !p.dead) S.pos = { x: Math.round(p.pos.x * 10) / 10, z: Math.round(p.pos.z * 10) / 10 };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch { /* storage unavailable */ }
   }
@@ -2288,6 +2295,8 @@ installParty(Game);
 installCombat(Game);
 installCombatWorld(Game);
 installProgress(Game);
+installTrials(Game);
+installNavigation(Game);
 installGather(Game);
 installTailor(Game);
 installDangerZone(Game);

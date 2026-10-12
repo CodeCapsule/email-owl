@@ -138,6 +138,7 @@ const E = {
     if (s === 'mounts') shop('stable', 'Stable Shop');
     if (s === 'enhance') { station('life', 'Smithing', { lifeTab: 'smithing' }); station('life', 'Crimson Forge', { lifeTab: 'red' }); }
     if (s === 'market') station('auction', 'Auction House', { aucTab: 'browse' });
+    if (s === 'trials') { station('trials', 'Breakthrough Trials'); panel('prestige', 'Hall of Firsts'); }
     return out;
   },
 

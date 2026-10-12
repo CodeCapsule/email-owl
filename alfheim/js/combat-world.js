@@ -36,7 +36,13 @@ const W = {
     const p = this.player; if (p.dead) return;
     if (t && t.dead) t = null;
     if (sk.basic) return this.basicHit(sk, t);
-    const m = (sk.m || 0) * this.rm(sk);
+    let m = (sk.m || 0) * this.rm(sk);
+    // dungeon set powers: Riptide (+18% skill damage) and Constellation (every 10 s the next skill hits twice as hard)
+    if (m > 0 && this.hasFx('set_riptide')) m *= 1.18;
+    if (m > 0 && this.hasFx('set_constellation') && (this.procCD.constel || 0) <= this.time) {
+      this.procCD.constel = this.time + 10; m *= 2;
+      this.fx.text(p.pos.clone().setY(p.pos.y + p.height + 0.5), 'Constellation!', 'crit');
+    }
     const fn = this['k_' + sk.k];
     if (fn) fn.call(this, sk, t, m);
     // Overcharge: the next damaging spells also chain to extra targets

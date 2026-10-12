@@ -2,6 +2,7 @@
 // seasons, festival events and leaderboards. Pure data + small pure helpers (no three.js, no DOM).
 import { NEW_MATERIALS, RELICS, NEW_MONSTERS, DUNGEON_MONSTERS, GATHER } from './data-world.js';
 import { TAILOR_MATS } from './data-crafting.js';
+import { RAW_MEAT } from './data-trials.js';
 
 // ---------------------------------------------------------------- time keys (UTC, so every reset happens at 00:00 UTC)
 export const dayKey = (d = new Date()) => d.toISOString().slice(0, 10);
@@ -111,6 +112,7 @@ MATERIALS.enh_stone3 = { name: 'Divine Enhancement Stone', icon: 'enh_stone3', q
 const MAT_DESC = { ore: 'Ore mined from a vein. Smelted into gear by Smithing.', herb: 'A wild herb for Alchemy.', wood: 'A log for Smithing.', crop: 'Farm produce for Alchemy and cooking.' };
 for (const [id, [name, quality, price]] of Object.entries(NEW_MATERIALS)) MATERIALS[id] = { name, icon: id, quality, price, desc: MAT_DESC[id.split('_')[0]] || '' };
 for (const [id, [name, quality, price, desc]] of Object.entries(TAILOR_MATS)) MATERIALS[id] = { name, icon: id, quality, price, desc };
+MATERIALS.raw_meat = RAW_MEAT;
 for (const [id, r] of Object.entries(RELICS)) MATERIALS[id] = { name: r.name, icon: id, quality: 5, price: 4000, relic: r.dungeon, desc: 'A dungeon collection relic. Register it in the Collection and combine a full set of four into Red gear at the Forge.' };
 
 // [material, chance, min, max] rolled when a tagged monster dies

@@ -392,7 +392,7 @@ const M = {
     const S = this.S, p = this.player, G = S.guild;
     if (!G) { this.ui.toast('Join a guild to fight in Guild Wars', 'warn'); return false; }
     if (S.level < WAR.lv) { this.ui.toast(`Guild Wars unlock at Lv ${WAR.lv}`, 'warn'); return false; }
-    if (this.dg || this.war || p.dead) { this.ui.toast('Not available right now', 'warn'); return false; }
+    if (this.dg || this.war || this.trial || p.dead) { this.ui.toast('Not available right now', 'warn'); return false; }
     if (this.warEntriesLeft() <= 0) { this.ui.toast('No Guild War entries left today', 'warn'); return false; }
     G.warUsed++;
     const opp = pick(GUILD_LIST.filter((g) => g.name !== G.name));
@@ -714,18 +714,10 @@ const M = {
     this.ui.refreshQuest(); this.save();
   },
   goToWorldBoss() {
-    if (this.dg || this.war) { this.ui.toast('Leave the instance first', 'warn'); return; }
-    const s = WORLD_BOSS.site, p = this.player;
+    if (this.dg || this.war || this.trial) { this.ui.toast('Leave the instance first', 'warn'); return; }
+    const s = WORLD_BOSS.site;
     this.ui.closePanels();
-    if (flat(p.pos, s) > 60) {
-      this.castBar(`Teleporting to the ${WORLD_BOSS.name}`, 1.4, () => {
-        const [x, z] = this.world.nearestFree(s.x - 10, s.z + 12);
-        this.fx.pillar(p.pos, 0x7ad8ff, 1.6, 10, 0.8);
-        p.pos.set(x, this.world.heightAt(x, z), z); p.path = []; this.cam.target.copy(p.pos);
-        if (this.pet) this.pet.pos.set(x - 1.5, p.pos.y, z - 1);
-        this.fx.pillar(p.pos, 0x7ad8ff, 1.6, 10, 1.0); this.sfx.play('cast');
-      });
-    } else this.pathTo(s.x - 6, s.z + 8, true);
+    this.giveDirections(s.x, s.z, `the ${WORLD_BOSS.name}`, null, false);
   },
 
   // ============================================================ crafting, salvage, gems, gear progression

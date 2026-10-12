@@ -7,6 +7,7 @@ import { RARITY, LEGENDARY_ITEMS, EFFECTS, itemLines, itemScore, namedBySource }
 import { ico, iconCanvas } from './icons.js';
 import { installSystemsUI } from './ui-systems.js';
 import { installLifeUI } from './ui-life.js';
+import { installTrialsUI } from './ui-trials.js';
 import { installPartyUI, partyMembers } from './party.js';
 import { CHAPTERS } from './data-story.js';
 import { setOfDungeon } from './data-sets.js';
@@ -15,7 +16,8 @@ import { CLASS_SKILLS, SKILL_BY_ID, rankMult, RACES } from './data-classes.js';
 import { MAX_LEVEL, SHOPS, DUNGEON_RULES } from './data-world.js';
 import { WORLD_BOSS, MATERIALS } from './systems-data.js';
 import { DZ } from './data-dz.js';
-import { MASTERY, MASTERY_MAX, masteryNeed, minMastery } from './progress.js';
+import { MASTERY, MASTERY_MAX, masteryNeed, minMastery, FOG } from './progress.js';
+import { SURVEY_MIN_MASTERY, SURVEY_COVER } from './data-nav.js';
 import { trialLabel } from './data-trials.js';
 
 const $ = (id) => document.getElementById(id);
@@ -344,16 +346,19 @@ export class UI {
     this.frameN = (this.frameN || 0) + 1;
     if (this.frameN % 2 === 0) this.drawMinimap();
     if (g.dg && this.frameN % 10 === 0) this.updateDungeonHUD();
+    if (g.trial && this.frameN % 10 === 0) this.updateTrialHUD();
     if (this.panelName === 'map' && this.frameN % 15 === 0) this.drawWorldMap();
     this.frameSys();
   }
 
   drawMinimap() {
     const g = this.g, c = this.mm, p = g.player.pos, mm = g.map.minimap || g.world.minimap;
+    if (g.map.noMap) { this.drawCompass(); return; }
     const ppu = mm.canvas.width / mm.size;
     const R = g.map.isDungeon ? 45 : 60, S = 150, k = S / (R * 2);
     c.fillStyle = g.map.isDungeon ? '#0c0f1c' : '#2a4a2a'; c.fillRect(0, 0, S, S);
     c.drawImage(mm.canvas, (p.x - mm.minX - R) * ppu, (p.z - mm.minZ - R) * ppu, R * 2 * ppu, R * 2 * ppu, 0, 0, S, S);
+    if (!g.map.isDungeon) this.drawFog(c, p.x - R, p.z - R, R * 2, S, S);
     const dot = (x, z, col, r = 2.5) => { const sx = (x - p.x + R) * k, sy = (z - p.z + R) * k; if (sx < 0 || sy < 0 || sx > S || sy > S) return; c.fillStyle = col; c.beginPath(); c.arc(sx, sy, r, 0, Math.PI * 2); c.fill(); };
     for (const m of g.monsters) if (!m.dead && (m.map || g.world) === g.map) dot(m.pos.x, m.pos.z, m.def0.boss ? '#ff3aa8' : m.def0.aggressive ? '#ff4a3a' : '#ff9a6a', m.def0.boss ? 5 : 2.2);
     for (const L of g.loots) if (L.map === g.map) dot(L.pos.x, L.pos.z, RARITY[L.q].color, 2.4);
@@ -362,7 +367,6 @@ export class UI {
       for (const n of g.npcs) {
         const sx = (n.pos.x - p.x + R) * k, sy = (n.pos.z - p.z + R) * k, pin = this.npcPin(n.data.icon);
         if (pin) { if (sx > -8 && sy > -8 && sx < S + 8 && sy < S + 8) c.drawImage(pin, sx - 8, sy - 8, 16, 16); } else dot(n.pos.x, n.pos.z, '#ffe066', 3);
-        if (n.markChar && n.markChar !== '…') { c.font = 'bold 13px sans-serif'; c.fillStyle = '#ffd84a'; c.strokeStyle = '#000'; c.lineWidth = 3; c.strokeText(n.markChar, sx + 3, sy - 6); c.fillText(n.markChar, sx + 3, sy - 6); }
       }
       dot(WORLD_BOSS.site.x, WORLD_BOSS.site.z, g.wb && !g.wb.e.dead ? '#ff3aa8' : '#7ad8ff', 3.5);
       // the Danger Zone border and any loot sacks in it
@@ -386,9 +390,46 @@ export class UI {
     c.restore();
   }
 
+  // the explored map: ground you have not walked stays dark (one pixel per 16 m cell, smoothed when drawn)
+  fogChanged() { this.fogStale = true; }
+  fogCanvas() {
+    const g = this.g, n = FOG.n;
+    if (!this.fogCv) { this.fogCv = document.createElement('canvas'); this.fogCv.width = this.fogCv.height = n; this.fogStale = true; }
+    if (this.fogStale && g.fogBits) {
+      this.fogStale = false;
+      const x = this.fogCv.getContext('2d'), img = x.createImageData(n, n);
+      for (let k = 0; k < n * n; k++) { const o = k * 4; img.data[o] = 10; img.data[o + 1] = 13; img.data[o + 2] = 22; img.data[o + 3] = g.fogBits[k] ? 0 : 240; }
+      x.putImageData(img, 0, 0);
+    }
+    return this.fogCv;
+  }
+  drawFog(c, x0, z0, size, dw, dh) {
+    const f = this.fogCanvas(), k = 1 / FOG.cell, sx = (x0 + FOG.size / 2) * k, sz = (z0 + FOG.size / 2) * k, sw = size * k;
+    // clip the source to the grid so every browser scales it the same way
+    const cx0 = Math.max(0, sx), cz0 = Math.max(0, sz), cx1 = Math.min(FOG.n, sx + sw), cz1 = Math.min(FOG.n, sz + sw);
+    if (cx1 <= cx0 || cz1 <= cz0) return;
+    const s = dw / sw;
+    c.save(); c.imageSmoothingEnabled = true;
+    c.drawImage(f, cx0, cz0, cx1 - cx0, cz1 - cz0, (cx0 - sx) * s, (cz0 - sz) * s, (cx1 - cx0) * s, (cz1 - cz0) * (dh / sw));
+    c.restore();
+  }
+  // no map in this trial: only a compass that points north
+  drawCompass() {
+    const c = this.mm, S = 150, yaw = this.g.player.yaw;
+    c.fillStyle = '#141a14'; c.fillRect(0, 0, S, S);
+    c.save(); c.translate(S / 2, S / 2);
+    c.strokeStyle = 'rgba(243,199,91,.55)'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 58, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#ff5a4a'; c.beginPath(); c.moveTo(0, -54); c.lineTo(9, -30); c.lineTo(-9, -30); c.closePath(); c.fill();
+    c.font = 'bold 16px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#fff1c8'; c.fillText('N', 0, -14);
+    c.rotate(Math.PI - yaw); c.fillStyle = '#fff'; c.strokeStyle = '#1a3a1a';
+    c.beginPath(); c.moveTo(0, -10); c.lineTo(7, 8); c.lineTo(0, 4); c.lineTo(-7, 8); c.closePath(); c.fill(); c.stroke();
+    c.restore();
+  }
+
   // ------------------------------------------------------------ quest tracker
   refreshQuest() {
     const g = this.g; if (!g) return;
+    if (g.trial) { this.renderTrialTracker(); return; }
     if (g.dg) { this.renderDungeonTracker(); return; }
     if (g.war) { this.renderWarTracker(); return; }
     const S = g.S, list = $('qt-list'); list.innerHTML = '';
@@ -397,7 +438,7 @@ export class UI {
       const done = q.status === 'complete';
       const obj = g.questObjective(q);
       const it = h('div', 'qt-item', `<span class="qtag main">Main</span><span class="qn">${esc(q.def.name)}</span><div class="qo ${done ? 'done' : ''}">${linkify(obj)}</div>`);
-      it.onclick = () => { g.sfx.play('click'); g.autoQuest('main'); };
+      it.title = 'Click for directions'; it.onclick = () => { g.sfx.play('click'); g.autoQuest('main'); };
       it.title = 'Click to auto-path';
       list.appendChild(it);
     } else {
@@ -419,7 +460,7 @@ export class UI {
   renderDungeonTracker() {
     const g = this.g, dg = g.dg, list = $('qt-list'); list.innerHTML = '';
     const it = h('div', 'qt-item', `<span class="qtag dungeon">Dungeon</span><span class="qn">${esc(dg.def.name)}</span><div class="qo"><u id="dg-obj"></u></div><div class="dg-meta"><span id="dg-time"></span><span id="dg-deaths"></span></div>`);
-    it.title = 'Click to auto-path'; it.onclick = () => { g.sfx.play('click'); g.dungeonGo(); };
+    it.title = 'What is left'; it.onclick = () => { g.sfx.play('click'); g.dungeonGo(); };
     list.appendChild(it);
     const leave = h('button', 'btn small gray', 'Leave Dungeon'); leave.style.margin = '4px 0 0 4px';
     leave.onclick = () => this.modal(dg.done ? 'Return to Carlyle?' : 'Leave the dungeon?', dg.done ? 'Any loot left on the floor will be collected for you.' : 'This run ends and the entry stays used.', [{ label: 'Leave', fn: () => { g.leaveDungeon(); } }, { label: 'Stay', cls: 'gray' }]);
@@ -593,8 +634,8 @@ export class UI {
     const dot = this.menuBtns[name]?.querySelector('.dotn'); if (dot) dot.remove();
     const titles = { char: 'Character', bag: 'Bag', skills: 'Skills', pets: 'Pets & Sprites', mounts: 'Mount Stable', quests: 'Quest Log', map: this.g.dg ? this.g.dg.def.name : this.g.war ? 'Spirit Crystal Arena' : 'World Map of Carlyle', settings: 'Settings', mall: 'Mall', signin: 'Daily Sign-In', gift: 'Online Gifts', rank: 'Leaderboards', dungeons: 'Dungeons',
       online: 'Players Online', life: 'Professions', collect: 'Relic Collection', wardrobe: 'Wardrobe', shop: SHOPS[this.sel.shop]?.name || 'Shop', auction: 'Auction House',
-      missions: 'Daily & Weekly Missions', guild: this.g.S.guild ? `Guild · ${this.g.S.guild.name}` : 'Guilds of Carlyle', market: 'Carlyle Market', forge: this.stationNext?.npc === 'opal' || this.station?.npc === 'opal' ? "Opal's Gem Workshop" : "Gorm's Forge", codex: 'Legendary Codex', season: 'Season Pass', event: this.g.event ? this.g.event.name : 'Festivals', worldboss: 'World Boss' };
-    const widths = { char: 600, bag: 760, skills: 720, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 560, dungeons: 620, missions: 600, guild: 600, market: 620, forge: 600, codex: 620, season: 660, event: 600, worldboss: 600, online: 520, life: 620, collect: 600, wardrobe: 600, shop: 560, auction: 640, trade: 640 };
+      missions: 'Daily & Weekly Missions', guild: this.g.S.guild ? `Guild · ${this.g.S.guild.name}` : 'Guilds of Carlyle', market: 'Carlyle Market', forge: this.stationNext?.npc === 'opal' || this.station?.npc === 'opal' ? "Opal's Gem Workshop" : "Gorm's Forge", codex: 'Legendary Codex', season: 'Season Pass', event: this.g.event ? this.g.event.name : 'Festivals', worldboss: 'World Boss', trials: 'Breakthrough Trials', cooking: 'Campfire Cooking', prestige: 'Hall of Firsts' };
+    const widths = { char: 600, bag: 760, skills: 720, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 560, dungeons: 620, missions: 600, guild: 600, market: 620, forge: 600, codex: 620, season: 660, event: 600, worldboss: 600, online: 520, life: 620, collect: 600, wardrobe: 600, shop: 560, auction: 640, trade: 640, trials: 680, cooking: 540, prestige: 520 };
     const p = h('div', 'panel frame');
     p.style.width = `min(${widths[name]}px, calc(100vw - 24px))`;
     p.innerHTML = `<div class="ptitle">${titles[name]}</div><button class="x-close" aria-label="Close"></button><div class="pbody"></div>`;
@@ -726,7 +767,7 @@ export class UI {
     if (b) {
       const it = b.eq ? null : ITEMS[b.id];
       det.innerHTML = b.eq ? this.equipTip(b.eq) + this.compare(b.eq) : `<b style="color:${RARITY[it.quality].color}">${esc(it.name)}</b><div>${esc(it.desc)}</div>`;
-      if (b.eq || it.type !== 'quest') { const bu = h('button', 'btn green small', b.eq ? 'Equip' : it.type === 'egg' ? 'Hatch' : 'Use'); bu.onclick = () => { const i = this.sel.bagIdx; this.sel.bagIdx = null; g.useBagItem(i); }; acts.appendChild(bu); }
+      if (b.eq || it.type !== 'quest') { const bu = h('button', 'btn green small', b.eq ? 'Equip' : it.type === 'egg' ? 'Hatch' : it.type === 'food' ? 'Eat' : 'Use'); bu.onclick = () => { const i = this.sel.bagIdx; this.sel.bagIdx = null; g.useBagItem(i); }; acts.appendChild(bu); }
       if (!it || it.type !== 'quest') { const bs = h('button', 'btn gray small', 'Sell'); bs.onclick = () => { const i = this.sel.bagIdx; this.sel.bagIdx = null; g.sell(i); }; acts.appendChild(bs); }
       if (b.eq) { const bl = h('button', 'btn gray small', b.eq.lock ? 'Unlock' : 'Lock'); bl.onclick = () => g.toggleLock(this.sel.bagIdx); acts.appendChild(bl); }
     } else if (worn) {
@@ -925,7 +966,7 @@ export class UI {
       const cur = i === idx;
       const r = h('div', 'row');
       r.innerHTML = `<div class="ic">${ico(cur ? 'quests' : 'star')}</div><div class="tx"><b style="color:${cur ? '#ffe066' : 'var(--muted)'}">${esc(qd.name)}</b>${cur ? `${esc(qd.text)}<br><span style="color:#7aff7a">${esc(g.questObjective(q))}</span>` : 'Completed'}</div>`;
-      if (cur) { const b = h('button', 'btn small blue', 'Go'); b.onclick = () => { this.closePanels(); g.autoQuest('main'); }; r.appendChild(b); }
+      if (cur) { const b = h('button', 'btn small blue', 'Directions'); b.onclick = () => g.autoQuest('main'); r.appendChild(b); }
       list.appendChild(r);
     });
     if (idx >= QUESTS.length) list.appendChild(h('div', 'row', '<div class="tx"><b>Your legend is complete!</b>The Spirits sing again. Keep conquering dungeons, world bosses and guild wars.</div>'));
@@ -933,6 +974,11 @@ export class UI {
     body.appendChild(h('div', 'lbl', '<br>Bounty'));
     const B = S.bounty;
     body.appendChild(h('div', 'row', `<div class="ic">${ico('bounty')}</div><div class="tx">${B ? `<b>Defeat ${B.count} ${esc(MONSTERS[B.target].name)}</b>Progress ${B.prog}/${B.count}${B.status === 'complete' ? ' — report to Captain Elena' : ''}` : g.bountyUnlocked() ? '<b>No active bounty</b>Captain Elena by the east gate has work for you.' : '<b>Locked</b>Bounties unlock after "Swift as the Wind".'}</div>`));
+    body.appendChild(h('div', 'lbl', '<br>Journal <span class="muted">· directions, word for word</span>'));
+    const J = h('div', 'journal');
+    if (!(S.journal || []).length) J.appendChild(h('div', 'muted', 'Nothing written yet. Quest givers tell you the way when you accept a task; ask the tracker for directions any time.'));
+    for (const j of (S.journal || []).slice(0, 12)) J.appendChild(h('div', 'jr', `<small>${new Date(j.t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>${esc(j.text)}`));
+    body.appendChild(J);
     body.appendChild(h('div', 'lbl', '<br>Party'));
     const mates = partyMembers().filter((x) => !x.me);
     if (mates.length) body.appendChild(h('div', 'row', `<div class="ic">${ico('cls_' + S.cls)}</div><div class="tx"><b>Party of ${mates.length + 1}</b>With ${mates.map((x) => esc(x.pr.info.name)).join(', ')}. Members nearby share EXP from kills.</div>`));
@@ -948,6 +994,7 @@ export class UI {
     const cv = document.createElement('canvas'); cv.width = 560; cv.height = 560; wrap.appendChild(cv);
     this.wmCanvas = cv; this.wmTown = town;
     if (!g.map.isDungeon && !town) for (const z of ZONES) {
+      if (!g.fogSeen(z.x, z.z) && g.zoneCoverage(z) < 0.05) continue;
       const l = h('div', 'wm-label stroke', `${esc(z.name)}<small>${esc(z.lv)}</small>`);
       l.style.left = ((z.x - mm.minX) / mm.size * 100) + '%'; l.style.top = ((z.z - mm.minZ) / mm.size * 100) + '%';
       wrap.appendChild(l);
@@ -964,9 +1011,9 @@ export class UI {
     cv.onclick = (e) => {
       const r = cv.getBoundingClientRect(), V2 = this.mapView(mm);
       const x = V2.x0 + (e.clientX - r.left) / r.width * V2.size, z = V2.z0 + (e.clientY - r.top) / r.height * V2.size;
-      const [fx, fz] = g.map.nearestFree(x, z);
-      if (Math.hypot(fx - x, fz - z) > 12) { this.toast('Cannot travel there', 'warn'); return; }
-      this.closePanels(); g.engage = false; g.pathTo(fx, fz, true);
+      if (g.map.isDungeon) return;
+      if (!g.fogSeen(x, z)) { this.toast('You have not been there yet', 'warn'); return; }
+      g.giveDirections(x, z, 'that spot', null, false);
     };
     body.appendChild(wrap);
     if (!g.map.isDungeon) {
@@ -975,12 +1022,24 @@ export class UI {
       for (const [id, what, name, sel] of SERVICES) {
         const n = g.npcById(id); if (!n) continue;
         const r = h('div', 'row slim', `<div class="ic">${ico(n.data.icon)}</div><div class="tx"><b>${esc(n.data.name)} <span class="muted">· ${esc(n.data.title)}</span></b>${esc(what)}</div>`);
-        const b = h('button', 'btn small blue', 'Go'); b.onclick = () => { Object.assign(this.sel, sel || {}); g.goToStation(name); };
+        const b = h('button', 'btn small blue', 'Find'); b.onclick = () => { Object.assign(this.sel, sel || {}); g.goToStation(name); };
         r.appendChild(b); L.appendChild(r);
       }
       body.appendChild(L);
+      // cartography: copy the zones you know onto parchment for other explorers
+      const sv = g.masteryLv('survival');
+      body.appendChild(h('div', 'lbl', `Cartography <span class="muted">· Survival mastery ${sv}${sv < SURVEY_MIN_MASTERY ? ` (copying needs ${SURVEY_MIN_MASTERY})` : ''} · Blank Parchment ${g.countItem('blank_parchment')}</span>`));
+      const CL = h('div', 'list carto');
+      for (const z of g.surveyZones()) {
+        const cov = g.zoneCoverage(z); if (cov < 0.05) continue;
+        const r = h('div', 'row slim', `<div class="ic">${ico('survey_map')}</div><div class="tx"><b>${esc(z.name)}</b>${Math.round(cov * 100)}% explored${cov < SURVEY_COVER ? ` · copy at ${Math.round(SURVEY_COVER * 100)}%` : ''}</div>`);
+        const b = h('button', 'btn small', 'Copy map'); b.disabled = cov < SURVEY_COVER || sv < SURVEY_MIN_MASTERY || !g.countItem('blank_parchment'); b.onclick = () => g.copySurvey(z.name);
+        r.appendChild(b); CL.appendChild(r);
+      }
+      if (!CL.children.length) CL.appendChild(h('div', 'muted', 'Explore a zone to copy its map.'));
+      body.appendChild(CL);
     }
-    body.appendChild(h('div', '', `<div style="margin-top:8px;font-size:12px;color:var(--muted)">${g.map.isDungeon ? 'Click a spot to walk there. Sealed chambers open once the room before them is cleared.' : town ? 'Tap a keeper to walk over and talk. Click anywhere else to walk there.' : 'Click anywhere on the map to auto-path there. Purple markers are dungeon entrances; gold pins are outpost traders. Talk to Nix at the north teleport circle for instant travel.'}</div>`));
+    body.appendChild(h('div', '', `<div style="margin-top:8px;font-size:12px;color:var(--muted)">${g.map.isDungeon ? 'Sealed chambers open once the room before them is cleared.' : town ? 'Tap a keeper to walk over and talk.' : 'Your map fills in only where you have walked. There is no auto-path: click a spot you have seen for directions by landmark. Blue stones are waystones: awaken them on foot, then travel between them (Nix in town).'}</div>`));
     this.drawWorldMap();
   }
   // the part of the world the map canvas shows: everything, or the town square
@@ -1007,17 +1066,25 @@ export class UI {
     c.fillStyle = '#0c0f1c'; c.fillRect(0, 0, cv.width, cv.height);
     c.imageSmoothingEnabled = true;
     c.drawImage(mm.canvas, (V.x0 - mm.minX) * ppu, (V.z0 - mm.minZ) * ppu, V.size * ppu, V.size * ppu, 0, 0, cv.width, cv.height);
+    if (!g.map.isDungeon) this.drawFog(c, V.x0, V.z0, V.size, cv.width, cv.height);
+    const seen = (x, z) => g.map.isDungeon || g.fogSeen(x, z);
     const P = (x, z) => [(x - V.x0) * k, (z - V.z0) * k];
     if (!g.map.isDungeon && !this.wmTown) {
       { const [x, y] = P(DZ.x, DZ.z); c.fillStyle = 'rgba(200,20,20,.28)'; c.strokeStyle = 'rgba(255,60,40,.9)'; c.lineWidth = 2; c.setLineDash([6, 4]); c.beginPath(); c.arc(x, y, DZ.r * k, 0, Math.PI * 2); c.fill(); c.stroke(); c.setLineDash([]);
         c.font = 'bold 12px Nunito, sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = '#2a0000'; c.fillStyle = '#ff8a7a'; c.strokeText('DANGER ZONE · PvP', x, y - 4); c.fillText('DANGER ZONE · PvP', x, y - 4); c.fillStyle = '#ffd0c8'; c.font = 'bold 10px Nunito, sans-serif'; c.strokeText(DZ.name, x, y + 9); c.fillText(DZ.name, x, y + 9); c.textAlign = 'left'; }
-      for (const sp of SPAWNS) { if (MONSTERS[sp.type].dz) continue; const [x, y] = P(sp.x, sp.z); c.fillStyle = MONSTERS[sp.type].boss ? 'rgba(255,60,160,.35)' : 'rgba(255,90,60,.22)'; c.beginPath(); c.arc(x, y, sp.r * k + (MONSTERS[sp.type].boss ? 10 : 0), 0, Math.PI * 2); c.fill(); c.fillStyle = '#fff'; c.font = 'bold 11px Nunito, sans-serif'; c.strokeStyle = '#000'; c.lineWidth = 3; const lbl = `${MONSTERS[sp.type].name} Lv${MONSTERS[sp.type].lvl[0]}`; c.strokeText(lbl, x - 30, y + 4); c.fillText(lbl, x - 30, y + 4); }
+      for (const sp of SPAWNS) { if (MONSTERS[sp.type].dz || !seen(sp.x, sp.z)) continue; const [x, y] = P(sp.x, sp.z); c.fillStyle = MONSTERS[sp.type].boss ? 'rgba(255,60,160,.35)' : 'rgba(255,90,60,.22)'; c.beginPath(); c.arc(x, y, sp.r * k + (MONSTERS[sp.type].boss ? 10 : 0), 0, Math.PI * 2); c.fill(); c.fillStyle = '#fff'; c.font = 'bold 11px Nunito, sans-serif'; c.strokeStyle = '#000'; c.lineWidth = 3; const lbl = `${MONSTERS[sp.type].name} Lv${MONSTERS[sp.type].lvl[0]}`; c.strokeText(lbl, x - 30, y + 4); c.fillText(lbl, x - 30, y + 4); }
       for (const n of g.npcs) {
+        if (!seen(n.pos.x, n.pos.z)) continue;
         const [x, y] = P(n.pos.x, n.pos.z), pin = !this.inTown(n.pos) && this.npcPin(n.data.icon);
         if (pin) c.drawImage(pin, x - 9, y - 9, 18, 18);
         else { c.fillStyle = '#ffe066'; c.beginPath(); c.arc(x, y, 3, 0, Math.PI * 2); c.fill(); }
       }
-      for (const pt of g.portals) { const [x, y] = P(pt.center.x, pt.center.z); c.fillStyle = '#fff'; c.font = 'bold 11px Nunito, sans-serif'; c.strokeStyle = '#2a1050'; c.lineWidth = 3; c.strokeText(pt.def.name, x - 30, y - 9); c.fillStyle = '#e8c8ff'; c.fillText(pt.def.name, x - 30, y - 9); }
+      // landmarks and waystones you have seen
+      c.textAlign = 'center';
+      for (const L of g.landmarks || []) { if (L.kind === 'none' || !seen(L.x, L.z)) continue; const [x, y] = P(L.x, L.z); c.fillStyle = '#' + (L.color ?? 0xffffff).toString(16).padStart(6, '0'); c.strokeStyle = '#1a1208'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y - 6); c.lineTo(x + 4, y); c.lineTo(x, y + 6); c.lineTo(x - 4, y); c.closePath(); c.fill(); c.stroke(); c.font = 'italic bold 10px Nunito, sans-serif'; c.lineWidth = 3; c.strokeStyle = '#000'; c.strokeText(L.name.replace(/^the /, ''), x, y + 16); c.fillStyle = '#f4ead0'; c.fillText(L.name.replace(/^the /, ''), x, y + 16); }
+      for (const e of g.waystoneEnts || []) { if (!seen(e.pos.x, e.pos.z)) continue; const [x, y] = P(e.pos.x, e.pos.z), on = g.waystoneOn(e.idx); c.fillStyle = on ? '#7ad8ff' : '#5a6070'; c.strokeStyle = '#0a1a2a'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 5, 0, Math.PI * 2); c.fill(); c.stroke(); }
+      c.textAlign = 'left';
+      for (const pt of g.portals) { if (!seen(pt.center.x, pt.center.z)) continue; const [x, y] = P(pt.center.x, pt.center.z); c.fillStyle = '#fff'; c.font = 'bold 11px Nunito, sans-serif'; c.strokeStyle = '#2a1050'; c.lineWidth = 3; c.strokeText(pt.def.name, x - 30, y - 9); c.fillStyle = '#e8c8ff'; c.fillText(pt.def.name, x - 30, y - 9); }
     } else if (g.map.isDungeon) {
       for (const m of g.monsters) if (!m.dead && m.map === g.map) { const [x, y] = P(m.pos.x, m.pos.z); c.fillStyle = m.def0.boss ? '#ff3aa8' : '#ff4a3a'; c.beginPath(); c.arc(x, y, m.def0.boss ? 6 : 3, 0, Math.PI * 2); c.fill(); }
     }
@@ -1061,7 +1128,7 @@ export class UI {
     enter.onclick = () => g.enterDungeon(cur.id);
     acts.appendChild(enter);
     const portal = g.portals.find((pt) => pt.def.id === cur.id);
-    if (portal && !g.dg) { const go = h('button', 'btn blue', 'Go to Entrance'); go.onclick = () => { this.closePanels(); g.goToPortal(portal); }; acts.appendChild(go); }
+    if (portal && !g.dg) { const go = h('button', 'btn blue', 'Directions'); go.onclick = () => { this.closePanels(); g.goToPortal(portal); }; acts.appendChild(go); }
     det.appendChild(acts);
     body.appendChild(det);
   }
@@ -1075,7 +1142,7 @@ export class UI {
       b.onclick = () => { g.setSetting(key, !S.settings[key]); this.refreshSound(); this.renderPanel(); };
       s.appendChild(b);
     };
-    row('Show other players', 'others'); row('Auto-use potions at low HP', 'autoPotion'); row('Auto-collect loot', 'autoLoot'); row('Real-time shadows', 'shadows'); row('Sound & music', 'sound');
+    row('Show other players', 'others'); row('Auto-use potions at low HP', 'autoPotion'); row('Auto-collect loot', 'autoLoot'); row('Real-time shadows', 'shadows'); row('Sound & music', 'sound'); row('Sound captions (trial cues as text)', 'captions');
     body.appendChild(s);
     const acts = h('div', 'acts'); acts.style.cssText = 'display:flex;gap:8px;margin-top:16px;flex-wrap:wrap';
     const sv = h('button', 'btn blue', 'Save Game'); sv.onclick = () => { g.save(); this.toast('Game saved', 'good'); }; acts.appendChild(sv);
@@ -1137,6 +1204,7 @@ export class UI {
 
 installSystemsUI(UI);
 installLifeUI(UI);
+installTrialsUI(UI);
 installPartyUI(UI);
 
 // the dungeon's set: pieces you own and its bonuses

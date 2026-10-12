@@ -427,7 +427,7 @@ const P = {
       const r = h('div', 'row slim' + (me ? ' me' : ''), `<div class="ic"><img class="ico" src="${me ? g.headIcon() : g.heroIcon({ name: info.name, look: g.rplayers.find((e) => e.peerId === key)?.look || g.playerLook() })}" alt=""></div>
         <div class="tx"><b>${esc(info.name)}${me ? ' <span class="muted">(you)</span>' : ''}</b>Lv ${info.level} ${esc(CLASSES[info.cls]?.name || '')}${info.guild ? ` · &lt;${esc(info.guild)}&gt;` : ''} · ${esc(info.zone || '')}${!me && g.partyHas(key) ? ' · <span class="good">Party</span>' : !me && info.party ? ' · <span class="muted">in a party</span>' : ''}</div>`);
       if (!me && !g.partyHas(key) && !info.party) { const b = h('button', 'btn small green', 'Invite'); b.disabled = mp.status !== 'online'; b.onclick = () => g.partyInvite(key); r.appendChild(b); }
-      if (!me) { const b = h('button', 'btn small blue', 'Go to'); b.disabled = info.map !== 'world' || !!g.dg || !!g.war; b.onclick = () => g.mpGoTo(key); r.appendChild(b); }
+      if (!me) { const b = h('button', 'btn small blue', 'Where?'); b.disabled = info.map !== 'world' || !!g.dg || !!g.war || !!g.trial; b.onclick = () => g.mpGoTo(key); r.appendChild(b); }
       L.appendChild(r);
     };
     row({ name: S.name, level: S.level, cls: S.cls, guild: S.guild?.name, zone: g.zone?.name }, true);

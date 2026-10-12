@@ -157,7 +157,7 @@ const P = {
   // seasonal catch-up: brackets most players have passed get +15% base XP (one more bracket each month)
   catchUp(L) {
     const d = new Date(), months = (d.getUTCFullYear() - 2026) * 12 + d.getUTCMonth() - 9;
-    return L < 20 * Math.max(1, months) ? 1.15 : 1;
+    return months >= 1 && L < 20 * months ? 1.15 : 1;
   },
   // the XP bar is full but a mastery or trial holds the level: say so now and then
   levelBlockNotice(b) {

@@ -36,6 +36,10 @@ export class Sfx {
       case 'crit': this.noise(0.14, { vol: 0.25, hp: 900 }); this.tone(520, 0.15, { type: 'sawtooth', vol: 0.06, slide: -300 }); break;
       case 'hurt': this.tone(160, 0.12, { type: 'square', vol: 0.06, slide: -60 }); this.grunt(0.55); break;
       case 'voice': this.grunt(1); break;
+      case 'rumble': this.noise(1.1, { vol: 0.35, hp: 60 }); this.tone(55, 1.1, { type: 'sine', vol: 0.32, slide: -15, attack: 0.15 }); break;
+      case 'chime': [1568, 2093].forEach((f, i) => this.tone(f, 0.7, { type: 'sine', vol: 0.14, delay: i * 0.12 })); break;
+      case 'hiss': this.noise(0.9, { vol: 0.22, hp: 5000 }); break;
+      case 'sizzle': this.noise(0.5, { vol: 0.12, hp: 3000 }); this.noise(0.3, { vol: 0.08, hp: 6000, delay: 0.2 }); break;
       case 'swish': this.noise(0.16, { vol: 0.1, hp: 2500 }); break;
       case 'upgrade': [660, 990, 1320].forEach((f, i) => this.tone(f, 0.18, { type: 'triangle', vol: 0.1, delay: i * 0.05 })); break;
       case 'cast': this.tone(600, 0.25, { type: 'sine', vol: 0.12, slide: 500 }); this.tone(900, 0.2, { type: 'triangle', vol: 0.06, delay: 0.05, slide: 400 }); break;

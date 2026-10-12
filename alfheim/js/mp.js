@@ -46,6 +46,13 @@ function loadLib() {
   return libPromise;
 }
 
+// first-clear times another player reports (trial t1..t10, Ancient items a<id>)
+function cleanFirsts(v) {
+  const out = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, t] of Object.entries(v).slice(0, 40)) if (/^(t\d{1,2}|a[a-z0-9_]{1,30})$/.test(k) && Number.isFinite(+t) && +t > 1.7e12 && +t < Date.now() + 864e5) out[k] = +t;
+  return out;
+}
 // sanitise what another browser sent us
 function cleanInfo(m) {
   if (!m || typeof m !== 'object') return null;
@@ -60,6 +67,7 @@ function cleanInfo(m) {
     zone: str(m.zone, 40), map: m.map === 'world' ? 'world' : 'away', br: num(m.br, 0, 1e9, 0) | 0,
     x: num(m.x, -400, 400, 0), z: num(m.z, -400, 400, 9),
     party: /^[a-z0-9]{4,16}$/.test(m.party) ? m.party : null, pj: num(m.pj, 0, 1e13, 0),
+    aura: /^#[0-9a-f]{6}$/i.test(m.aura) ? m.aura : null, pr: cleanFirsts(m.pr),
   };
 }
 
@@ -102,12 +110,12 @@ const M = {
   },
   mpInfo(stable = false) {
     const S = this.S, p = this.player;
-    const where = this.dg || this.war ? 'away' : 'world';
+    const where = this.dg || this.war || this.trial ? 'away' : 'world';
     const info = {
       id: mp.id, name: S.name, cls: S.cls, gender: S.gender, hair: S.hair, eye: S.eye, app: S.app, level: S.level, guild: S.guild?.name || null,
       wings: !!S.wings, wingColor: S.wingColor || null, costume: S.costume || {}, mount: this.mounted ? S.activeMount : null, pet: S.activePet || null,
-      zone: this.dg ? this.dg.def.name : this.war ? 'Guild War' : (this.zone?.name || 'Carlyle'), map: where, br: this.br || 0,
-      party: mp.party.id, pj: mp.party.pj,
+      zone: this.trial ? 'Breakthrough Trial' : this.dg ? this.dg.def.name : this.war ? 'Guild War' : (this.zone?.name || 'Carlyle'), map: where, br: this.br || 0,
+      party: mp.party.id, pj: mp.party.pj, aura: this.myAuraColor ? this.myAuraColor() : null, pr: this.prestigeInfo ? this.prestigeInfo() : {},
     };
     if (!stable) { info.x = Math.round(p.pos.x * 10) / 10; info.z = Math.round(p.pos.z * 10) / 10; }
     return info;
@@ -141,7 +149,7 @@ const M = {
     this.mpPrev = { x: p.pos.x, z: p.pos.z, t: now };
     const st = p.dead ? 4 : p.state === 'attack' ? 2 : p.state === 'cast' ? 3 : this.mpMoving ? 1 : 0;
     if (!mp.peers.size) { this.mpLastSent = null; return; } // alone on the server: nobody to tell
-    const w = this.dg || this.war ? 0 : 1, L = this.mpLastSent, gap = L ? now - L.t : Infinity;
+    const w = this.dg || this.war || this.trial ? 0 : 1, L = this.mpLastSent, gap = L ? now - L.t : Infinity;
     const hp = Math.round((100 * p.hp) / p.maxHp); // shown on party frames
     // hp goes out for party frames, and quickly inside the Danger Zone where others are fighting you
     let send = !L || gap > SEND_IDLE || w !== L.w || (st !== L.s && gap > 60) || (!!mp.party.id && Math.abs(hp - L.h) >= 8 && gap > 500) || (this.dzIn && Math.abs(hp - L.h) >= 3 && gap > 150);
@@ -171,6 +179,7 @@ const M = {
       if (key === mp.id || !metas || !metas.length) continue;
       const info = cleanInfo(metas[metas.length - 1]); if (!info) continue;
       info.id = key; seen.add(key);
+      this.prestigeFromPeer && this.prestigeFromPeer(info);
       const old = mp.peers.get(key);
       if (!old) { this.ui.chat('system', `<b>${esc(info.name)}</b> (Lv ${info.level} ${esc(CLASSES[info.cls].name)}) is online.`); this.mpLastSent = null; } // tell the newcomer where we are
       mp.peers.set(key, { ...(old || {}), info, net: old?.net || { x: info.x, z: info.z, y: 0, s: 0, w: info.map === 'world' ? 1 : 0, t: performance.now() } });
@@ -206,7 +215,7 @@ const M = {
   mpEnsure(key) {
     const pr = mp.peers.get(key); if (!pr) return;
     const info = pr.info;
-    const sig = JSON.stringify([info.cls, info.app, info.gender, info.hair, info.eye, info.wings, info.wingColor, info.costume, info.mount, info.pet, info.name, info.level, info.guild]);
+    const sig = JSON.stringify([info.cls, info.app, info.gender, info.hair, info.eye, info.wings, info.wingColor, info.costume, info.mount, info.pet, info.name, info.level, info.guild, info.aura]);
     let e = this.rplayers.find((x) => x.peerId === key);
     if (e && e.sig === sig) return;
     const keepPos = e ? { x: e.pos.x, z: e.pos.z, yaw: e.yaw } : null;
@@ -226,6 +235,7 @@ const M = {
     if (info.pet) { const pd = PETS.find((p) => p.id === info.pet); e.petModel = this.petBuild(pd.model); e.petModel.scale.multiplyScalar(0.9); e.petModel.position.copy(e.pos); this.scene.add(e.petModel); }
     const g = info.guild ? `<div class="g">&lt;${esc(info.guild)}&gt;</div>` : '';
     this.nameplate(e, `${g}<div class="n">${esc(info.name)}</div><div class="t">Lv ${info.level} ${esc(CLASSES[info.cls].name)}</div>`, 'rp');
+    if (info.aura && this.applyAura) this.applyAura(e, info.aura);
     this.rplayers.push(e);
   },
   mpRemove(key) {
@@ -237,7 +247,7 @@ const M = {
   },
   mpAnimate(e, dt) {
     const pr = mp.peers.get(e.peerId); if (!pr) return;
-    const n = pr.net, here = !this.dg && !this.war;
+    const n = pr.net, here = !this.dg && !this.war && !this.trial;
     e.netHidden = !here || !n.w || pr.info.map !== 'world';
     if (e.netHidden) { if (e.petModel) e.petModel.visible = false; return; }
     // dead reckoning: where the hero should be now, from the last update and its velocity
@@ -277,19 +287,12 @@ const M = {
     const b = document.createElement('div'); b.className = 'chat-bubble'; b.textContent = text.slice(0, 80);
     e.np?.prepend(b); e.bubble = b; e.bubbleT = 6;
   },
+  // where a friend is, in words (fast travel is only between waystones)
   mpGoTo(key) {
     const pr = mp.peers.get(key); if (!pr) return;
-    if (this.dg || this.war) { this.ui.toast('Leave the dungeon first', 'warn'); return; }
     if (pr.info.map !== 'world' || !pr.net.w) { this.ui.toast(`${pr.info.name} is in ${pr.info.zone}`, 'warn'); return; }
     this.ui.closePanels();
-    this.castBar(`Traveling to ${pr.info.name}`, 1.2, () => {
-      const p = this.player; const [x, z] = this.world.nearestFree(pr.net.x + 2, pr.net.z + 2);
-      this.fx.pillar(p.pos, 0x7ad8ff, 1.6, 10, 0.8);
-      if (this.mounted) this.dismount(true);
-      p.pos.set(x, this.world.heightAt(x, z), z); p.path = []; this.cam.target.copy(p.pos);
-      if (this.pet) this.pet.pos.set(x - 1.5, p.pos.y, z - 1);
-      this.fx.pillar(p.pos, 0x7ad8ff, 1.6, 10, 1.0); this.sfx.play('cast');
-    });
+    this.giveDirections(pr.net.x, pr.net.z, pr.info.name, null, false);
   },
   mpSwitchServer(s) {
     if (s === mp.server) return;

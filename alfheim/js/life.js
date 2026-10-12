@@ -152,6 +152,10 @@ const L = {
     this.pathTo(e.pos.x, e.pos.z, flat(p.pos, e.pos) > 12);
   },
   lifeAct(e) {
+    if (e.kind === 'campfire') { this.openCooking(); return; }
+    if (e.kind === 'forage') { this.forage(e); return; }
+    if (e.kind === 'lore') { this.readLore(e); return; }
+    if (e.kind === 'waystone') { this.useWaystone(e); return; }
     if (e.kind === 'node') this.gatherNode(e);
     else this.plotAct(e.idx);
   },
@@ -433,7 +437,7 @@ const L = {
     }
     if (id === 'bag_scroll') { this.expandBag(true); return true; }
     if (id === 'teleport_scroll') {
-      if (this.dg || this.war) { this.ui.toast('Cannot teleport from here', 'warn'); return true; }
+      if (this.dg || this.war || this.trial) { this.ui.toast('Cannot teleport from here', 'warn'); return true; }
       this.removeItem(id, 1); this.ui.closePanels();
       this.castBar('Homeward Scroll', 1.2, () => {
         const p = this.player; this.fx.pillar(p.pos, 0x7ad8ff, 1.6, 10, 0.8);

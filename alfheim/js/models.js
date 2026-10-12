@@ -163,6 +163,7 @@ export function classLook(cls, gender, hair, eye, extra = {}) {
 
 export function npcLook(look) {
   switch (look) {
+    case 'thalia': return { body: 'b', race: 'draken', skin: '#c8a890', hair: '#f0f0f8', eye: '#ffb030', hairStyle: 'braid', armor: true, gauntlets: true, pauldrons: true, weapon: 'spear', cape: 0x5a2a8a, hat: 'circlet', outfit: { main: 0x3a3a5a, accent: 0xe8c070, trim: 0xffd84a, skirt: 0x2a2a40 }, scale: 1.08, face: 'long' };
     case 'elder': return { body: 'a', race: 'sylvan', skin: '#eec0a0', hair: '#f4f4f4', eye: '#5a7a4a', mood: 'closed', robe: true, outfit: { main: 0x4a8a4a, accent: 0xe8d8a0, trim: 0xd8b04a, skirt: 0x3a6a3a }, beardStyle: 'full', beard: 0xf4f4f4, weapon: 'oldstaff', hairStyle: 'long', brow: '#e0e0e0', face: 'long' };
     case 'mimi': return { body: 'b', race: 'beastkin', beast: 'cat', skin: '#f7dcc8', hair: '#ff9ec7', eye: '#d89a2a', hairStyle: 'twin', apron: true, outfit: { main: 0xffffff, accent: 0xff7aa8, trim: 0xff7aa8, skirt: 0xffb6d2 }, skirt: true };
     case 'brom': return { body: 'a', race: 'human', skin: '#bd8460', hair: '#6a3a1a', eye: '#3a5a2a', hat: 'cowboy', hatColor: 0x7a4a2a, hairStyle: 'short', beardStyle: 'goatee', outfit: { main: 0x5a8a3a, accent: 0xc87a3a, trim: 0x7a4a2a, skirt: 0x6a4a2a }, strap: true, scale: 1.1, build: 0.9 };

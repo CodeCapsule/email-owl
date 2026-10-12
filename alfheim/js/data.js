@@ -5,6 +5,8 @@ import {
 import { TOOL_ITEMS } from './data-crafting.js';
 import { DZ_MONSTERS, DZ_SPAWNS } from './data-dz.js';
 import { STORY_QUESTS, STORY_ITEMS, STORY_TITLES } from './data-story.js';
+import { TRIALS, SIGIL_ITEMS, FOOD_ITEMS, TRIAL_MONSTER_DEFS } from './data-trials.js';
+import { zoneKey } from './data-nav.js';
 
 export { CLASSES, CLASS_ORDER, RACES } from './data-classes.js';
 
@@ -289,4 +291,12 @@ NPCS.push(...NEW_NPCS);
 TELEPORTS.push(...NEW_TELEPORTS);
 TITLES.push(...NEW_TITLES, ...STORY_TITLES);
 for (const [m, list] of Object.entries(NEW_DROPS)) if (MONSTERS[m]) MONSTERS[m].drops = [...(MONSTERS[m].drops || []), ...list.map(([id, chance]) => ({ id, chance }))];
+// ---- breakthrough trials (data-trials.js): the Trial Warden, sigils, food, trial foes and their titles
+NPCS.push({ id: 'thalia', icon: 'trial', name: 'Thalia', title: 'Trial Warden', x: 12, z: -34, look: 'thalia', face: -0.34, service: 'trials', greet: 'Every twentieth step of your climb ends at a wall, and I keep the gates. Bring me a sigil made from what grows and sleeps in your lands, and prove you have learned to fight, not just to grow strong.' });
+Object.assign(ITEMS, SIGIL_ITEMS, FOOD_ITEMS);
+for (const [id, d] of Object.entries(TRIAL_MONSTER_DEFS)) { const { from, look, ...rest } = d; MONSTERS[id] = { ...MONSTERS[from], ...rest, lvl: [1, 1], exp: 0, gold: [0, 0], drops: [], aggressive: true, dungeon: true, skills: rest.trialAI && rest.trialAI !== 'gauntlet' ? [] : MONSTERS[from].skills }; void look; }
+TITLES.push(...TRIALS.map((t) => t.title));
+// ---- navigation: survey maps cartographers copy (one per zone) and the parchment they are drawn on
+ITEMS.blank_parchment = { name: 'Blank Parchment', icon: 'parchment', type: 'material', quality: 0, stack: 99, price: 60, desc: 'Copy a zone you have explored onto it from the World Map (Survival mastery 20+).' };
+for (const z of ZONES) if (!z.safe && z.name !== 'Storm Altar') ITEMS['survey_' + zoneKey(z.name)] = { name: `Survey Map: ${z.name}`, icon: 'survey_map', type: 'survey', quality: 2, stack: 20, price: 450, desc: `A hand-drawn map of ${z.name}. Read it to add the whole zone to your own map.` };
 BOUNTY_TARGETS.push('sunsprite', 'tuskboar', 'bumblebuzz', 'bogcroaker', 'miresnapper', 'cinderimp', 'lavasala', 'snowboar', 'yeti', 'amethystbeetle', 'crystalstag', 'gloomboar', 'fenwraith', 'starling', 'celestag');

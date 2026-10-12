@@ -229,6 +229,7 @@ const CB = {
     this.trySkill(sk);
   },
   trySkill(sk, auto = false) {
+    if (!auto && this.noteInput) this.noteInput(sk.id);
     const p = this.player;
     if (p.dead || p.stun > 0 || this.rolling || (this.casting && !sk.basic)) return false;
     if (!this.skillUnlocked(sk)) { if (!auto) this.ui.toast(`Unlocks at Lv ${sk.lv}`, 'warn'); return false; }
@@ -488,6 +489,7 @@ const CB = {
   roll() {
     const p = this.player;
     if (p.dead || p.stun > 0 || this.rolling || this.casting) return;
+    this.noteInput && this.noteInput('r');
     if ((p.sta ?? 100) < ROLL.cost) { this.ui.toast('Too tired to roll', 'warn'); return; }
     if (this.mounted) this.dismount(true);
     p.sta = (p.sta ?? 100) - ROLL.cost;
@@ -509,7 +511,7 @@ const CB = {
   },
   updateRoll(dt) {
     const p = this.player, R = this.rolling;
-    p.sta = Math.min(100, (p.sta ?? 100) + 22 * (1 + this.ps('stamina') / 100) * dt * (this.rolling || this.blocking ? 0.3 : 1));
+    p.sta = Math.min(100, (p.sta ?? 100) + 22 * (1 + this.ps('stamina') / 100) * this.buffMod(p, 'staRegen') * dt * (this.rolling || this.blocking ? 0.3 : 1));
     if (this.blocking && (!this.keys.shift && !this.blockHold || p.dead || (p.sta ?? 0) <= 0)) { this.blocking = null; }
     if (this.blocking) { p.state = 'block'; p.actT = Math.max(p.actT, 0.05); }
     if (!R) return false;

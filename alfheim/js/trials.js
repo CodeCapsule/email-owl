@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { Dungeon } from './dungeon.js';
 import { TRIALS, SIGILS, trialLabel, COOKING, CAMPFIRES } from './data-trials.js';
 import { CLASSES, SKILL_BY_ID } from './data-classes.js';
-import { ITEMS } from './data.js';
+import { ITEMS, TITLES } from './data.js';
 import { heroLook } from './models.js';
 import { cleanApp } from './models-hero.js';
 import { mp } from './mp.js';
@@ -16,7 +16,6 @@ import { toon, glow, glowTexture, ringTexture } from './toon.js';
 
 const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const rnd = (a, b) => a + Math.random() * (b - a);
-const pick = (a) => a[(Math.random() * a.length) | 0];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const mulberry = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 export const mmss = (s) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
@@ -128,7 +127,7 @@ const T = {
   },
   switchToTrial(T0) {
     const p = this.player, M = MAPS[T0.kind];
-    const def = { id: 'tr' + T0.n, name: `${trialLabel(T0.n)} · ${T0.name}`, theme: M.theme || T0.theme || 'crypt', lv: T0.lv, origin: ORIGIN, rooms: [{ x: 0, z: 0, w: M.w, d: M.d }] };
+    const def = { id: 'tr' + T0.n, name: T0.n === 10 ? T0.name : `${trialLabel(T0.n)} · ${T0.name}`, theme: M.theme || T0.theme || 'crypt', lv: T0.lv, origin: ORIGIN, rooms: [{ x: 0, z: 0, w: M.w, d: M.d }], plain: ['road', 'maze', 'hunger'].includes(T0.kind) };
     const map = new Dungeon(this.scene, def).build();
     map.zone = { ...map.zone, lv: 'Breakthrough Trial', trial: true };
     if (['road', 'maze'].includes(T0.kind)) map.noMap = true; // no map and no markers: find the way yourself
@@ -198,7 +197,7 @@ const T = {
     S.trials[T0.n] = { t: Date.now(), secs };
     S.aura = T0.n;
     this.unlockTitle(T0.title);
-    const ti = (this.titleIndex ? this.titleIndex(T0.title) : -1); if (ti >= 0) S.title = ti;
+    const ti = TITLES.indexOf(T0.title); if (ti >= 0 && S.titles.includes(ti)) S.title = ti;
     this.refreshPlayerPlate && this.refreshPlayerPlate();
     this.fx.levelUp(this.player); this.sfx.play('legend');
     this.ui.banner('TRIAL CLEARED', `${trialLabel(T0.n)} · «${T0.title}»`, 'level');
@@ -233,7 +232,7 @@ const T = {
     const hits = o.hits ?? 10; // basic-attack-sized hits it takes to bring down
     const st = { level: L, hp: Math.round(p.atk * hits), atk: this.atkForPct(o.pct ?? 0.08, L), def: 0 };
     const m = this.createMonster({ type, x, z, r: 0 }, { map: tr.map, dungeon: true, exact: true, fixed: st, look: o.look });
-    m.trialMob = true; m.noLeash = true; m.tagged = false;
+    m.trialMob = true; m.noLeash = !o.leash; m.tagged = false;
     if (o.ai) { m.trialAI = o.ai; m.patT = o.delay ?? 2.5; m.busyT = 0; }
     if (o.name) { m.labelHtml = `${o.boss === false ? '' : '[Trial] '}${esc(o.name)}`; m.np.querySelector('.n').innerHTML = m.labelHtml; }
     if (o.speed) m.speed = o.speed;
@@ -453,12 +452,12 @@ const T = {
     for (let i = 0; i < 16; i++) {
       const x = c.minX + 12 + rng() * (c.w - 24), z = c.minZ + 12 + rng() * (c.d - 24);
       if (!clear(x, z) || map.isBlocked(x, z) || Math.hypot(x - p.pos.x, z - p.pos.z) < 22) continue;
-      const m = this.trialFoe(i % 3 ? 'tr_bog' : 'tr_snap', x, z, { hits: 9, pct: 0.07, name: i % 3 ? 'Valley Croaker' : 'Valley Snapper', boss: false });
+      const m = this.trialFoe(i % 3 ? 'tr_bog' : 'tr_snap', x, z, { hits: 9, pct: 0.07, name: i % 3 ? 'Valley Croaker' : 'Valley Snapper', boss: false, leash: true });
       m.target = null; m.home = { x, z };
     }
     tr.directions = 'Walk north from where you stand until you reach the Twin White Pillars. There, turn east and follow the line of red lanterns. At the Broken Tower with the red crown, bear north-east to the Drowned Arch; the shrine lies just beyond it. The grey statue in the north-west is no shrine, and black pillars mark a dead end.';
     tr.goal = 'Reach the shrine across the valley. There is no map and no marker: follow the directions in your journal.';
-    this.after(1.5, () => this.ui.modal('Directions', `<i>${esc(tr.directions)}</i><br><br>Your compass points north. You can read this again from the trial tracker.`, [{ label: 'Set off' }]));
+    this.after(1.5, () => this.ui.modal('Directions', `${tr.directions} (Your compass points north. Read this again from the trial tracker.)`, [{ label: 'Set off' }]));
   },
   tick_road(tr) {
     if (flat(this.player.pos, tr.shrine) < 4) this.clearTrial();
@@ -563,7 +562,7 @@ const T = {
     }
     for (let k = 0; k < 5; k++) {
       const i = 2 + ((Math.random() * (MAZE_N - 2)) | 0), j = (Math.random() * (MAZE_N - 2)) | 0, q = cellC(i, j);
-      const m = this.trialFoe('tr_ash', q.x, q.z, { hits: 12, pct: 0.08, name: 'Ash Wraith', boss: false });
+      const m = this.trialFoe('tr_ash', q.x, q.z, { hits: 12, pct: 0.08, name: 'Ash Wraith', boss: false, leash: true });
       m.target = null;
     }
     tr.goal = 'Find the hidden exit. The walls shift every so often; fire vents flare before they burst. The exit is marked only by a faint rune.';
@@ -583,7 +582,7 @@ const T = {
           if (!this.trial || tr.done) return;
           const c = new THREE.Vector3(v.x, 0.2, v.z);
           this.fx.pillar(c, 0xff6a2a, 1.4, 6, 0.5); this.fx.emit(c, { count: 20, colors: [0xff6a2a, 0xffd04a], speed: 4, life: 0.6, size: 0.8, up: 5 });
-          if (this.inShape(sh, p.pos) && !p.dead) this.damage({ name: 'Fire Vent', kind: 'trap', atk: 0, buffs: [], level: tr.T.lv }, p, 0, { pct: 0.15, canCrit: false });
+          if (this.inShape(sh, p.pos) && !p.dead) this.damage({ name: 'Fire Vent', kind: 'trap', atk: 0, buffs: [], level: tr.T.lv, pos: c, def0: { name: 'Fire Vent' } }, p, 0, { pct: 0.15, canCrit: false });
         });
       }
     }
@@ -640,10 +639,10 @@ const T = {
   setup_gauntlet(tr) {
     tr.order = ['tr_g1', 'tr_g2', 'tr_g3', 'tr_g4', 'tr_g5'];
     tr.goal = 'Defeat five bosses back to back. Nothing heals you between them, so spend potions and cooldowns wisely.';
-    this.after(2.5, () => this.gauntletNext());
+    this.after(2.5, () => this.gauntletNext(tr));
   },
-  gauntletNext() {
-    const tr = this.trial; if (!tr || tr.done) return;
+  gauntletNext(tr) {
+    if (!tr || tr !== this.trial || tr.done || tr.idx >= tr.order.length) return;
     const c = tr.map.rooms[0], type = tr.order[tr.idx];
     const m = this.trialFoe(type, c.x, c.z - 8, { hits: 55 + tr.idx * 6, pct: 0.09, name: null });
     m.labelHtml = `[Trial] ${esc(m.def0.name)}`; m.np.querySelector('.n').innerHTML = m.labelHtml;
@@ -706,7 +705,7 @@ const T = {
       tr.idx++;
       if (tr.idx >= tr.order.length) { this.clearTrial(); return; }
       this.ui.toast(`Boss ${tr.idx} down. The next one comes...`, 'good');
-      this.after(3, () => this.gauntletNext());
+      this.after(3, () => this.gauntletNext(tr));
       return;
     }
     if (m === tr.boss) this.clearTrial();
