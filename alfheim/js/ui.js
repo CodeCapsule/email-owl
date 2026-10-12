@@ -245,7 +245,9 @@ export class UI {
       if (t.kind === 'monster') {
         $('tg-img').src = g.monsterIcon(t.type);
         const tag = t.def0.boss ? '<em>BOSS</em>' : t.def0.elite ? '<em>ELITE</em>' : '';
-        $('tg-name').innerHTML = `Lv${t.level} ${esc(t.def0.name)}${tag}`;
+        // hunting one type over and over pays less: show what a kill is worth now
+        const dr = g.diminishInfo ? g.diminishInfo(t.type) : 1;
+        $('tg-name').innerHTML = `Lv${t.level} ${esc(t.def0.name)}${tag}${dr < 1 ? ` <small class="tg-dr" title="Repeated kills of this monster type give less EXP; it recovers while you hunt elsewhere">EXP ${Math.round(dr * 100)}%</small>` : ''}`;
       } else {
         $('tg-img').src = g.heroIcon(t);
         $('tg-name').innerHTML = `Lv${t.level} ${esc(t.name)} <em style="color:#9ad0ff">${CLASSES[t.cls]?.name || ''}</em>`;
@@ -618,7 +620,7 @@ export class UI {
     return `<b style="color:var(--gold-l)">${esc(sk.name)} <span style="color:var(--cyan)">Rank ${r}/10</span></b>${esc(sk.desc)}.<br><span class="ts">${esc(this.skillNumbers(sk, Math.max(1, r)))}</span>`;
   }
   equipTip(eq) {
-    const lines = itemLines(eq, this.g?.S?.equip);
+    const lines = itemLines(eq, this.g?.S?.equip, this.g?.gearCtx ? this.g.gearCtx() : null);
     return lines.map((l, i) => i === 0 ? `<b style="color:${l.color}">${esc(l.text)}</b>` : `<div style="color:${l.color || 'var(--muted)'}">${esc(l.text)}</div>`).join('');
   }
 
@@ -686,7 +688,7 @@ export class UI {
       const c = h('div', 'eq-col');
       for (const s of slots) {
         const eq = S.equip[s];
-        const b = h('button', 'cell ' + (eq ? 'q' + eq.quality : 'empty'), eq ? `${ico(eq.icon)}${eq.enh ? `<span class="enh">+${eq.enh}</span>` : ''}` : `<span class="ghost">${ico(slotIcon(s, S.cls))}</span>`);
+        const b = h('button', 'cell ' + (eq ? 'q' + eq.quality : 'empty'), eq ? `${ico(eq.icon)}${eq.enh ? `<span class="enh">+${eq.enh}</span>` : ''}${eq.dur === 0 ? '<span class="brk"></span>' : ''}` : `<span class="ghost">${ico(slotIcon(s, S.cls))}</span>`);
         b.setAttribute('aria-label', SLOT_INFO[s].label);
         if (this.sel.eqSlot === s) b.style.outline = '2px solid var(--gold)';
         b.onclick = () => { this.sel.eqSlot = s; this.renderPanel(); };
@@ -695,7 +697,7 @@ export class UI {
       }
       return c;
     };
-    wrap.appendChild(col(['weapon', 'helm', 'armor']));
+    wrap.appendChild(col(['weapon', 'helm', 'armor', 'gloves']));
     const port = h('div', 'char-portrait'); const img = new Image(); img.alt = ''; img.src = g.fullIcon(); port.appendChild(img);
     port.appendChild(h('div', 'cpn stroke', `Lv${S.level} ${esc(S.name)} · ${C.name}`));
     wrap.appendChild(port);

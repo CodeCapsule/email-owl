@@ -67,7 +67,7 @@ function cleanInfo(m) {
     zone: str(m.zone, 40), map: m.map === 'world' ? 'world' : 'away', br: num(m.br, 0, 1e9, 0) | 0,
     x: num(m.x, -400, 400, 0), z: num(m.z, -400, 400, 9),
     party: /^[a-z0-9]{4,16}$/.test(m.party) ? m.party : null, pj: num(m.pj, 0, 1e13, 0),
-    aura: /^#[0-9a-f]{6}$/i.test(m.aura) ? m.aura : null, pr: cleanFirsts(m.pr),
+    aura: /^#[0-9a-f]{6}$/i.test(m.aura) ? m.aura : null, pr: cleanFirsts(m.pr), gt: num(m.gt, 0, 7, 0) | 0, dawn: !!m.dawn,
   };
 }
 
@@ -115,7 +115,7 @@ const M = {
       id: mp.id, name: S.name, cls: S.cls, gender: S.gender, hair: S.hair, eye: S.eye, app: S.app, level: S.level, guild: S.guild?.name || null,
       wings: !!S.wings, wingColor: S.wingColor || null, costume: S.costume || {}, mount: this.mounted ? S.activeMount : null, pet: S.activePet || null,
       zone: this.trial ? 'Breakthrough Trial' : this.dg ? this.dg.def.name : this.war ? 'Guild War' : (this.zone?.name || 'Carlyle'), map: where, br: this.br || 0,
-      party: mp.party.id, pj: mp.party.pj, aura: this.myAuraColor ? this.myAuraColor() : null, pr: this.prestigeInfo ? this.prestigeInfo() : {},
+      party: mp.party.id, pj: mp.party.pj, aura: this.myAuraColor ? this.myAuraColor() : null, pr: this.prestigeInfo ? this.prestigeInfo() : {}, gt: this.gearGlowTier ? this.gearGlowTier() : 0, dawn: !!(this.hasFx && this.hasFx('six_dawn6')),
     };
     if (!stable) { info.x = Math.round(p.pos.x * 10) / 10; info.z = Math.round(p.pos.z * 10) / 10; }
     return info;
@@ -215,7 +215,7 @@ const M = {
   mpEnsure(key) {
     const pr = mp.peers.get(key); if (!pr) return;
     const info = pr.info;
-    const sig = JSON.stringify([info.cls, info.app, info.gender, info.hair, info.eye, info.wings, info.wingColor, info.costume, info.mount, info.pet, info.name, info.level, info.guild, info.aura]);
+    const sig = JSON.stringify([info.cls, info.app, info.gender, info.hair, info.eye, info.wings, info.wingColor, info.costume, info.mount, info.pet, info.name, info.level, info.guild, info.aura, info.gt]);
     let e = this.rplayers.find((x) => x.peerId === key);
     if (e && e.sig === sig) return;
     const keepPos = e ? { x: e.pos.x, z: e.pos.z, yaw: e.yaw } : null;
@@ -236,6 +236,7 @@ const M = {
     const g = info.guild ? `<div class="g">&lt;${esc(info.guild)}&gt;</div>` : '';
     this.nameplate(e, `${g}<div class="n">${esc(info.name)}</div><div class="t">Lv ${info.level} ${esc(CLASSES[info.cls].name)}</div>`, 'rp');
     if (info.aura && this.applyAura) this.applyAura(e, info.aura);
+    if (info.gt >= 5 && this.applyGearGlow) this.applyGearGlow(e, info.gt); // Legendary-and-up gear glows for everyone
     this.rplayers.push(e);
   },
   mpRemove(key) {

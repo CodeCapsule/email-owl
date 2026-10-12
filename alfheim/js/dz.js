@@ -91,7 +91,8 @@ const Z = {
     const ch = d.boss ? ANCIENT_DROP.boss : d.elite ? ANCIENT_DROP.elite : ANCIENT_DROP.normal;
     if (Math.random() < ch) {
       const sets = Object.keys(ANCIENT_SETS), id = sets[(Math.random() * sets.length) | 0], set = ANCIENT_SETS[id];
-      const eq = genSet(id, { slot: set.slots[(Math.random() * set.slots.length) | 0], lvl: m.level, cls: this.S.cls, uid: this.S.uid++ });
+      const eq = genSet(id, { slot: set.slots[(Math.random() * set.slots.length) | 0], lvl: m.level, cls: this.S.cls, uid: this.S.uid++, ancientOk: this.ancientAllowed() });
+      if (eq.quality === 7) this.noteAncient(eq);
       this.dropLoot({ eq }, m.pos);
       this.ui.chat('announce', `<b>[Announcement]</b> ${esc(this.S.name)} tore <span style="color:#ff6a3a">[${esc(eq.name)}]</span> from the Bloodmoon Wastes!`);
       this.logEvent && this.logEvent('set', `Ancient ${eq.name}`, true);
@@ -157,7 +158,7 @@ const Z = {
     const S = this.S, p = this.player;
     S.pk.deaths++;
     const gold = Math.floor(S.gold * DZ_DROP.goldPct); S.gold -= gold;
-    const cand = S.bag.map((b, i) => i).filter((i) => { const b = S.bag[i]; return b.eq ? !b.eq.lock : ITEMS[b.id] && ITEMS[b.id].type !== 'quest'; });
+    const cand = S.bag.map((b, i) => i).filter((i) => { const b = S.bag[i]; return b.eq ? !b.eq.lock && !this.isBound(b.eq) : ITEMS[b.id] && ITEMS[b.id].type !== 'quest'; });
     const pickIdx = [];
     while (pickIdx.length < DZ_DROP.items && cand.length) pickIdx.push(cand.splice((Math.random() * cand.length) | 0, 1)[0]);
     pickIdx.sort((a, b) => b - a);

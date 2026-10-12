@@ -20,7 +20,7 @@
   --panel: rgba(14, 22, 50, 0.93); --panel-2: rgba(30, 46, 92, 0.94); --panel-edge: #0a0f22;
   --ink: #fff6e0; --muted: #b6c2dc; --dim: #7d8aa8;
   --hp: #ff4a5a; --mp: #3aa0ff; --exp: #b8ec4a; --cyan: #6fe0ff; --green: #6cf06a; --red: #ff5a4a;
-  --q0: #e8e8e8; --q1: #5ee05a; --q2: #4aa8ff; --q3: #c46bff; --q4: #ff9a2e; --q5: #ffd84a; --q6: #ff3b3b;
+  --q0: #e8e8e8; --q1: #5ee05a; --q2: #4aa8ff; --q3: #c46bff; --q4: #ff9a2e; --q5: #ffd84a; --q6: #ff3b3b; --q7: #d8a060;
   --f-logo: 'Cinzel Decorative', 'Cinzel', Georgia, serif;
   --f-title: 'Cinzel', Georgia, serif;
   --f-ui: 'Nunito', 'Trebuchet MS', system-ui, sans-serif;
@@ -534,6 +534,10 @@ button { font-family: inherit; }
 .lcard.q1 { border-color: var(--q1); } .lcard.q2 { border-color: var(--q2); } .lcard.q3 { border-color: var(--q3); box-shadow: 0 0 10px rgba(196, 107, 255, .5); }
 .lcard.q4 { border-color: var(--q4); box-shadow: 0 0 14px rgba(255, 154, 46, .7); }
 .lcard.q5 { border-color: var(--q5); box-shadow: 0 0 18px rgba(255, 216, 74, .9); }
+.lcard.q7 { border-color: var(--q7); box-shadow: 0 0 26px rgba(216, 160, 96, 1), 0 0 8px #fff inset; }
+.cell.q7 { border-color: var(--q7); box-shadow: inset 0 0 18px rgba(216, 160, 96, .85), 0 0 14px rgba(255, 210, 150, .9); animation: legendGlow 1.2s ease-in-out infinite; }
+.row .ic.q7 { border-color: var(--q7); box-shadow: 0 0 10px rgba(216, 160, 96, .8); }
+.cell .brk { position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgba(255, 60, 40, .35) 0 4px, transparent 4px 9px); pointer-events: none; }
 .lc-ic { width: 64px; height: 64px; margin: 0 auto 6px; }
 .lc-n { font-size: 13px; line-height: 1.25; }
 .lc-r { font-size: 11px; color: var(--muted); margin-top: 3px; }
@@ -565,6 +569,7 @@ button { font-family: inherit; }
 .dg-note { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .qtag.dungeon { background: #8a3ac8; }
 .dg-meta { display: flex; gap: 10px; font-size: 11px; color: var(--muted); margin-top: 2px; }
+#tg-name .tg-dr { margin-left: 6px; font-size: 10.5px; color: #ffb35a; font-weight: 700; }
 .qtag.trial { background: linear-gradient(90deg, #a8701a, #e8c070); color: #2a1a08; }
 .journal { display: grid; gap: 5px; } .journal .jr { padding: 6px 9px; border-radius: 8px; background: rgba(8, 12, 30, .45); font-size: 12.5px; line-height: 1.45; font-style: italic; } .journal .jr small { display: block; font-style: normal; color: var(--muted); font-size: 10.5px; }
 .carto .row .tx { font-size: 12px; }

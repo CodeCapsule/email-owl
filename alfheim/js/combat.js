@@ -174,9 +174,9 @@ const CB = {
   cdOf(sk) {
     if (sk.basic) {
       const as = (1 + (this.ps('aspd') + this.condV('aspd')) / 100) * this.buffMod(this.player, 'aspd');
-      return (sk.cd / as) * (this.hasFx('swift') ? 0.88 : 1);
+      return (sk.cd / as / (1 + this.stat('atkSpeed') / 100)) * (this.hasFx('swift') ? 0.88 : 1);
     }
-    return sk.cd * (1 - this.cdr) * Math.max(0.4, 1 + this.smod(sk.id, 'cd') / 100);
+    return sk.cd * (1 - this.cdr) * Math.max(0.4, 1 + this.smod(sk.id, 'cd') / 100) * (this.awakened(sk) ? 0.7 : 1);
   },
   cdTotal(sk) { return sk ? this.cdOf(sk) : 1; },
   maxCharges(sk) { return Math.max(1, this.smod(sk.id, 'charges') || 1); },
@@ -203,6 +203,7 @@ const CB = {
     const C = CLASSES[this.S.cls];
     let r = sk.range ?? (sk.basic ? C.range : MELEE_KINDS.has(sk.k) ? C.range + 0.4 : sk.k === 'dash' ? sk.d : sk.k === 'leap' ? 10 : 3);
     if (this.S.cls === 'ranger') r *= 1 + this.ps('rangePct') / 100;
+    if (!sk.basic) r *= (1 + this.stat('skillRange') / 100) * (this.awakened(sk) ? 1.3 : 1);
     return r;
   },
   needsEnemy(sk) {
@@ -282,6 +283,7 @@ const CB = {
       this.track('skill');
       if (this.hasFx('set_riptide')) p.mp = Math.min(p.maxMp, p.mp + p.maxMp * 0.03);
       if (this.petIs('bloom')) this.heal(p, p.maxHp * this.petFx.v / 100);
+      this.gearOnCast(sk);
       // Elemental Flow: a spell of a different element than the last one comes back 20% sooner
       if (sk.el) {
         if (this.rule('elemFlow') && this.lastEl && this.lastEl !== sk.el) cdMult *= 0.8;
@@ -335,6 +337,7 @@ const CB = {
       if (sk && sk.stealthBonus) m *= 1 + sk.stealthBonus;
       if (this.rule('stealthCrit')) crit += 1000;
     }
+    const GO = this.gearOut(dst, o); m *= GO.m; crit += GO.crit; // gear: set powers, awakened skills
     return { m, crit, cd };
   },
   // a hit coming at the player: returns { cancel } or { m }
@@ -386,6 +389,7 @@ const CB = {
   cbHurt(src, dmg) {
     const p = this.player, A = this.pAgg;
     if (!A || dmg <= 0) return;
+    this.gearHurt(src, dmg);
     if (A.onHurt.atkStack) this.stackBuff('painfeeder', A.onHurt.atkStack, 'heart');
     if (A.onHurt.reflectM && src && src.kind === 'monster' && !src.dead && (this.procCD.storm || 0) <= this.time) {
       this.procCD.storm = this.time + 0.4;
@@ -416,6 +420,7 @@ const CB = {
   // passives and buffs that react to the player's own direct hit
   cbOnHit(dst, dmg, crit, sk) {
     const p = this.player, A = this.pAgg; if (!A || dst.dead && !dmg) return;
+    this.gearOnHit(dst, sk);
     const H = A.onHit;
     if (H.stunChance && dst.kind === 'monster' && !dst.dead && Math.random() * 100 < H.stunChance) this.st(dst, 'stun', 1);
     if (H.burnOnCrit && crit && dst.kind === 'monster' && !dst.dead) this.st(dst, 'burn', [0.3, 3]);
@@ -504,7 +509,7 @@ const CB = {
     const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
     p.path = []; this.pendingSkill = null;
     p.yaw = p.yawT = Math.atan2(dx, dz);
-    this.rolling = { t0: this.time, dx, dz, done: 0 };
+    this.rolling = { t0: this.time, dx, dz, done: 0, dist: this.rollDistance(ROLL.dist) };
     p.state = 'roll'; p.actDur = p.actT = ROLL.dur;
     this.sfx.play('swish');
     this.fx.emit(p.pos.clone().setY(p.pos.y + 0.3), { count: 10, color: 0xd8c8a8, speed: 2, life: 0.4, size: 0.5 });
@@ -516,7 +521,7 @@ const CB = {
     if (this.blocking) { p.state = 'block'; p.actT = Math.max(p.actT, 0.05); }
     if (!R) return false;
     const k = Math.min(1, (this.time - R.t0) / ROLL.dur);
-    const want = ROLL.dist * Math.sin(k * Math.PI / 2), step = want - R.done;
+    const want = (R.dist || ROLL.dist) * Math.sin(k * Math.PI / 2), step = want - R.done;
     if (step > 0) {
       const nx = p.pos.x + R.dx * step, nz = p.pos.z + R.dz * step;
       if (!this.map.isBlocked(nx, nz)) { p.pos.x = nx; p.pos.z = nz; }

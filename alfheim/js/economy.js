@@ -275,7 +275,7 @@ const E = {
       L = { kind: 'mat', id: src.mat, qty };
     } else {
       const b = S.bag[src.bag]; if (!b) return false;
-      if (b.eq) { if (b.eq.lock) { this.ui.toast('Unlock the item first', 'warn'); return false; } L = { kind: 'gear', eq: b.eq, qty: 1 }; S.bag.splice(src.bag, 1); }
+      if (b.eq) { if (b.eq.lock) { this.ui.toast('Unlock the item first', 'warn'); return false; } if (this.isBound(b.eq)) { this.ui.toast('Account-bound: Legendary and higher items cannot be traded', 'warn'); return false; } L = { kind: 'gear', eq: b.eq, qty: 1 }; S.bag.splice(src.bag, 1); }
       else {
         const it = ITEMS[b.id]; if (it.type === 'quest') { this.ui.toast('Quest items cannot be traded', 'warn'); return false; }
         qty = clamp(Math.round(qty), 1, b.qty);

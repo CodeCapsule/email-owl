@@ -152,14 +152,14 @@ export const RECIPES = [
 ];
 
 // ---------------------------------------------------------------- gear progression
-export const SOCKETS = [0, 1, 1, 2, 2, 3, 3]; // sockets per rarity tier
+export const SOCKETS = [0, 1, 1, 2, 2, 3, 3, 3]; // sockets per rarity tier (Common ... Ancient)
 export const GEM_COMBINE = [null, { gold: 300 }, { gold: 1200 }, { gold: 5000 }, { gold: 20000 }]; // 3x level n -> 1x level n+1 (index = n)
 export const ASCEND = [ // indexed by current quality
   { to: 1, mats: { spirit_dust: 4 }, gold: 200 },
   { to: 2, mats: { spirit_dust: 8, spirit_shard: 1 }, gold: 800 },
-  { to: 3, mats: { spirit_shard: 4, golem_core: 2 }, gold: 3000 },
-  { to: 4, mats: { spirit_shard: 10, star_essence: 3 }, gold: 15000 },
-  { to: 5, mats: { spirit_shard: 20, star_essence: 6 }, gold: 50000 },
+  { to: 3, mats: { spirit_shard: 4, golem_core: 2, ore_silver: 6 }, gold: 3000 }, // materials from the next tier's lands
+  { to: 4, mats: { spirit_shard: 10, star_essence: 3, ore_mithril: 6 }, gold: 15000 },
+  { to: 5, mats: { spirit_shard: 20, star_essence: 6, ore_starmetal: 8 }, gold: 50000 },
 ];
 export const reforgeCost = (eq) => ({ mats: { spirit_dust: 3 + eq.quality * 3, ...(eq.quality >= 4 ? { spirit_shard: eq.quality - 2 } : {}) }, gold: 150 * (eq.quality + 1) * (1 + eq.lvl / 10) | 0 });
 export const retemperCost = (eq, lvl) => ({ mats: { spirit_dust: Math.max(2, (lvl - eq.lvl) * 2) }, gold: Math.round(90 * (lvl - eq.lvl) * (eq.quality + 1)) });

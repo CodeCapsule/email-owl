@@ -81,7 +81,7 @@ const P = {
     } else if (enemy) return; // other players (PvP) do not train masteries
     else pts *= 1 + S.level / 20; // gathering, crafting, exploring: higher-level work is worth more
     if (type === 'survival') pts *= 1 + (RACES[S.app?.race]?.mods.survival || 0);
-    pts *= this.relicMasteryMult ? this.relicMasteryMult() : 1;
+    pts *= 1 + (this.stat ? this.stat('masteryPct') : 0) / 100;
     const m = this.masteryRec(type);
     if (m.r >= MASTERY_MAX) return;
     m.p += pts;
@@ -124,11 +124,8 @@ const P = {
     let xp = base * gapMult(S.level, m.level || 1);
     if (xp <= 0) return 0;
     // the same monster type within a rolling 2 hours: -5% each kill, down to 10%; it recovers 10% per 15 minutes away
-    const now = Date.now(), r = S.dr[m.type] || { n: 0, t: now };
-    const away = now - r.t;
-    if (away > 2 * 3600000) r.n = 0; else r.n = Math.max(0, r.n - 2 * Math.floor(away / 900000));
-    xp *= Math.max(0.1, 1 - 0.05 * r.n);
-    r.n++; r.t = now; S.dr[m.type] = r;
+    xp *= this.diminishInfo(m.type);
+    S.dr[m.type] = { n: this.drCount(m.type) + 1, t: Date.now() };
     // first kill of a rare or elite type
     if ((m.def0?.elite || m.def0?.boss) && !S.disc.elites.includes(m.type)) { S.disc.elites.push(m.type); this.after(0.6, () => this.discoverXp('elite', m.def0.name)); }
     xp *= this.catchUp(S.level);
@@ -136,19 +133,20 @@ const P = {
     if (S.rested > 0) { const bonus = Math.min(S.rested, xp); S.rested -= bonus; xp += bonus; }
     return Math.round(xp);
   },
-  diminishInfo(type) {
-    const r = this.S.dr[type]; if (!r) return 1;
+  // recent kills of a type, after recovery for time spent away (2 steps of 5% per 15 minutes; gone after 2 hours)
+  drCount(type) {
+    const r = this.S.dr[type]; if (!r) return 0;
     const away = Date.now() - r.t;
-    const n = away > 2 * 3600000 ? 0 : Math.max(0, r.n - 2 * Math.floor(away / 900000));
-    return Math.max(0.1, 1 - 0.05 * n);
+    return away > 2 * 3600000 ? 0 : Math.max(0, r.n - 2 * Math.floor(away / 900000));
   },
+  diminishInfo(type) { return Math.max(0.1, 1 - 0.05 * this.drCount(type)); },
   // quest XP keeps the same share of a level it had before the steeper curve, or is a share of the level (Humans +5%)
   questExp(xp, share = 0) {
     const L = this.S.level;
     return Math.round((share ? xpNext(L) * share : xp * expScale(L)) * (1 + (RACES[this.S.app?.race]?.mods.questExp || 0)));
   },
   discoverXp(kind, label) {
-    const xp = Math.round(xpNext(this.S.level) * DISCOVERY[kind]);
+    const xp = Math.round(xpNext(this.S.level) * DISCOVERY[kind] * (1 + (this.stat ? this.stat('discovery') : 0) / 100));
     const p = this.player;
     this.fx.text(p.pos.clone().setY(p.pos.y + p.height + 0.6), `Discovery +${fmt(xp)} EXP`, 'exp');
     this.ui.chat('system', `<b>Discovery:</b> ${label} · +${fmt(xp)} EXP`);
@@ -235,7 +233,6 @@ const P = {
     if (fresh) { this.fogDirty = true; this.gainMastery('survival', 0.6 * fresh); this.ui.fogChanged && this.ui.fogChanged(); }
   },
   saveFog() { if (this.fogDirty) { this.S.fog = encodeFog(this.fogBits); this.fogDirty = false; } },
-  revealAll(bits) { let n = 0; for (let k = 0; k < bits.length; k++) if (bits[k] && !this.fogBits[k]) { this.fogBits[k] = 1; n++; } if (n) { this.fogDirty = true; this.ui.fogChanged && this.ui.fogChanged(); } return n; },
 
   // ================================================================ Battle Rating (a guide only; content gates never use it)
   calcBR() {

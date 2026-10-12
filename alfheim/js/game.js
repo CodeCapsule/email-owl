@@ -28,6 +28,7 @@ import { installCombatWorld } from './combat-world.js';
 import { installProgress, xpNext, expScale } from './progress.js';
 import { installTrials } from './trials.js';
 import { installNavigation, WALK_MAX } from './nav-world.js';
+import { installGear } from './gear.js';
 import { heroLook } from './models.js';
 import { rankMult } from './data-classes.js';
 import { installGather } from './gather.js';
@@ -37,7 +38,7 @@ import { STARTER_TOOLS } from './data-crafting.js';
 import { activeEvent } from './systems-data.js';
 import { Dungeon } from './dungeon.js';
 import {
-  RARITY, EFFECTS, rollRarity, genEquip, genNamed, genSet, namedBySource, normalizeItem, aggregateEquip, sellPrice,
+  RARITY, EFFECTS, rollRarity, genEquip, genNamed, genSet, namedBySource, normalizeItem, aggregateEquip, sellPrice, tierFor,
 } from './loot.js';
 import { ico, iconCanvas } from './icons.js';
 import { shadowTexture, textTexture, targetRingTexture, beamTexture, ringTexture, glowTexture } from './toon.js';
@@ -151,7 +152,7 @@ export class Game {
     this.ui.chat('system', 'Welcome to <b>Carlyle</b>! Click the quest in the tracker on the right to auto-path to your goal.');
     this.ui.chat('system', 'Controls: click to move or attack · drag to turn the camera · scroll to zoom · 1–6 skills · R mount · T auto battle.');
     this.ui.chat('system', 'Daily & Weekly <b>Missions</b> (H), <b>World Bosses</b> every 15 minutes, the <b>Season Pass</b> and leaderboards. <b>Professions</b> (Z): gather ore, herbs and wood and farm the homestead west of town.');
-    this.ui.chat('system', 'Town services are run by their keepers in Sylvan Haven: <b>Gorm</b> (Forge), <b>Opal</b> (Gem Workshop), <b>Vera</b> (Alchemy), <b>Mira</b> (Market), <b>Grimsby</b> (Auction House), <b>Aldric</b> (Guilds) and <b>Coco</b> (Wardrobe). The World Map (M) lists them with a Go button.');
+    this.ui.chat('system', 'Town services are run by their keepers in Sylvan Haven: <b>Gorm</b> (Forge), <b>Opal</b> (Gem Workshop), <b>Vera</b> (Alchemy), <b>Mira</b> (Market), <b>Grimsby</b> (Auction House), <b>Aldric</b> (Guilds) and <b>Coco</b> (Wardrobe). Thalia the Trial Warden guards the walls every 20 levels. There is no auto-path: follow the landmarks and the directions in your journal.');
     if (this.event) this.ui.chat('announce', `<b>[Festival]</b> The <span style="color:${this.event.color}">${esc(this.event.name)}</span> is on! ${esc(this.event.desc)}`);
     if (S.level === 1 && S.quest.id === 'q1') setTimeout(() => this.ui.banner('Sylvan Haven', 'Carlyle · Town', 'zone'), 400);
     this.bindInput();
@@ -307,7 +308,8 @@ export class Game {
     const S = this.S, C = CLASSES[S.cls], L = S.level, p = this.player;
     let hp = C.base.hp + C.grow.hp * (L - 1), mp = C.base.mp + C.grow.mp * (L - 1), atk = C.base.atk + C.grow.atk * (L - 1), def = C.base.def + C.grow.def * (L - 1);
     let crit = C.base.crit, critDmg = 0.6, speed = C.speed, heal = 1, cdr = 0;
-    const G = aggregateEquip(S.equip || {}), gs = G.stats || {}, fxs = new Set(G.effects || []);
+    const G = aggregateEquip(S.equip || {}, this.gearCtx ? this.gearCtx() : null), gs = G.stats || {}, fxs = new Set(G.effects || []);
+    this.awakenIds = G.awaken || [];
     hp += gs.hp || 0; atk += gs.atk || 0; def += gs.def || 0; crit += gs.crit || 0; critDmg += (gs.critDmg || 0) / 100;
     let petBR = 0;
     if (S.activePet) { const pd = PETS.find((x) => x.id === S.activePet), lv = S.pets[S.activePet]?.lv || 1; hp += pd.hp * (1 + 0.15 * (lv - 1)); petBR = (pd.atk * 12 + pd.hp) * (1 + 0.15 * (lv - 1)); }
@@ -337,6 +339,8 @@ export class Game {
     if (this.syncSkills().length && this.ui?.refreshSkills) this.ui.refreshSkills();
     const PA2 = this.pAgg = this.passiveAgg(), ps = PA2.stat;
     hp *= 1 + (ps.hpPct || 0) / 100; mp *= 1 + (ps.mpPct || 0) / 100; atk *= 1 + (ps.atkPct || 0) / 100; def *= 1 + (ps.defPct || 0) / 100;
+    // gear percentages (set bonuses and Special passives)
+    hp *= 1 + ((gs.hpPct || 0) + (gs.allPct || 0)) / 100; atk *= 1 + ((gs.atkPct || 0) + (gs.allPct || 0)) / 100; def *= 1 + ((gs.defPct || 0) + (gs.allPct || 0)) / 100; heal *= 1 + (gs.healPct || 0) / 100;
     crit += ps.crit || 0; critDmg += (ps.critDmg || 0) / 100; speed *= 1 + (ps.speedPct || 0) / 100; heal *= 1 + (ps.healPct || 0) / 100;
     // Battle Hardened: +1% attack per 5% of defense above the class base
     if (PA2.rules.has('battleHardened')) { const d0 = C.base.def + C.grow.def * (L - 1); atk *= 1 + Math.max(0, (def / d0 - 1) * 100) / 500 * rankMultOf(this, 'gd_hardened'); }
@@ -352,7 +356,10 @@ export class Game {
     this.healMod = heal; this.cdr = cdr;
     const extras = (gs.critDmg || 0) * 4 + (gs.speed || 0) * 10 + (gs.lifesteal || 0) * 25 + (gs.cdr || 0) * 20 + (gs.expGain || 0) * 3 + (gs.goldFind || 0) * 2
       + (gs.thorns || 0) * 6 + (gs.regen || 0) * 8 + (gs.manaCost || 0) * 6 + [...fxs].reduce((a, id) => a + (EFFECTS[id]?.tier === 'legendary' ? 900 : EFFECTS[id]?.tier === 'set' ? 700 : EFFECTS[id]?.tier === 'ancient' ? 1100 : 350), 0);
-    this.br = Math.round(p.maxHp * 0.55 + atk * 9 + def * 7 + crit * 14 + petBR + spBR + mountBR + (S.wings ? 300 : 0) + extras + X.br + this.skillPtsSpent() * 40);
+    // Battle Rating (a guide only): level x 100 + item stats x tier multiplier + average mastery x 50
+    this.br = this.calcBR ? this.calcBR() : Math.round(p.maxHp * 0.55 + atk * 9 + def * 7);
+    void petBR; void spBR; void mountBR; void extras;
+    if (this.refreshGearGlow && this.player) this.refreshGearGlow();
     this.ui.refreshPlayer && this.ui.refreshPlayer();
   }
   hasFx(id) { return this.mods.effects.has(id); }
@@ -596,7 +603,7 @@ export class Game {
       this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Dodge', 'miss');
       return 0;
     }
-    if (dst === this.player && src !== this.player) { const R = this.cbIn(src, { ...o, raw: base }); if (R.cancel) return 0; base *= R.m; }
+    if (dst === this.player && src !== this.player) { const R = this.cbIn(src, { ...o, raw: base }); if (R.cancel) return 0; base *= R.m * this.gearInMult(); }
     if (src === this.player && o.fixed == null) {
       if (this.hasFx('giant_slayer') && (dst.def0?.elite || dst.def0?.boss || dst.wb)) base *= 1.2;
       if (this.hasFx('executioner') && dst.maxHp && dst.hp < dst.maxHp * 0.3) base *= 1.4;
@@ -658,7 +665,7 @@ export class Game {
         this.ui.toast(`${this.pet?.data.name || 'Your pet'}'s Rebirth! You rise again.`, 'good'); this.sfx.play('level');
         return dmg;
       }
-      if (dst === this.player && this.cbCannotDie()) return dmg;
+      if (dst === this.player && (this.cbCannotDie() || this.gearCannotDie())) return dmg;
       if (dst.kind === 'monster') this.killMonster(dst);
       else if (dst === this.player) this.playerDied(src);
       else if (dst.kind === 'ally') this.allyDown(dst);
@@ -742,6 +749,7 @@ export class Game {
       if (b) b.until = this.time + 8; else e.buffs.push({ id: 'flow', icon: 'tw_flow', until: this.time + 8, shield: true });
     }
     if (e === this.player && e.hp > before) this.fx.text(e.pos.clone().setY(e.pos.y + e.height), '+' + (e.hp - before), 'heal');
+    if (e === this.player && amt > 0 && this.hasFx('six_tide4') && (this.procCD.tideward || 0) <= this.time) { this.procCD.tideward = this.time + 1; e.shield = Math.max(e.shield || 0, e.maxHp * 0.05); }
   }
 
   killMonster(m) {
@@ -754,7 +762,7 @@ export class Game {
     if (m.dungeon && this.dg && m === this.dg.boss) this.completeDungeon();
     if (m.warUnit) this.onWarKill(m);
     if (m.wb) this.onWorldBossKilled(m);
-    if (m.trialMob) { this.cbOnKill(m); this.onTrialKill(m); return; }
+    if (m.trialMob) { this.cbOnKill(m); this.gearOnKill(m); this.onTrialKill(m); return; }
     if (!m.tagged) return;
     m.tagged = false;
     const K = this.killScale(d, m.level);
@@ -770,13 +778,13 @@ export class Game {
     this.S.kills[m.type] = (this.S.kills[m.type] || 0) + 1;
     if (this.hasFx('frenzy')) this.addFrenzy();
     if (this.hasFx('set_mossmend')) this.heal(p, p.maxHp * 0.03);
-    this.cbOnKill(m);
+    this.cbOnKill(m); this.gearOnKill(m);
     if (this.hasFx('set_soulharvest')) {
       let b = p.buffs.find((x) => x.id === 'soulharvest');
       if (!b) { b = { id: 'soulharvest', icon: 'a5', stacks: 0, mods: { atk: 1, critDmg: 0 } }; p.buffs.push(b); }
       b.stacks = Math.min(5, b.stacks + 1); b.mods.atk = 1 + 0.04 * b.stacks; b.mods.critDmg = 0.04 * b.stacks; b.until = this.time + 10;
     }
-    if (!d.structure && !d.war) { this.rollDrops(m); this.tailorDrop(m); this.dzKill(m); }
+    if (!d.structure && !d.war) { this.rollDrops(m); this.tailorDrop(m); this.dzKill(m); this.sixWorldDrop(m); }
     // beasts sometimes leave meat for the campfire
     if (BEASTS.test(d.model) && !d.boss && Math.random() < 0.3) { this.addMat('raw_meat', 1, true); this.lootMsg('Raw Meat', '#ffffff'); }
     if (this.hasFx('anc_bloodthirst')) this.ancBloodthirst();
@@ -788,7 +796,7 @@ export class Game {
   rollDrops(m) {
     const d = m.def0, S = this.S;
     const luck = this.petIs('luck') ? this.petFx.v : 0; // Lucky Paw: more gear drops and better rarity
-    const ctx = { elite: !!d.elite, boss: !!d.boss, dungeon: !!m.dungeon, luck: Math.min(0.6, this.stat('goldFind') / 200 + ((this.elixirMods && this.elixirMods().luck) || 0) + luck / 200) };
+    const ctx = { lvl: m.level || 1, elite: !!d.elite, boss: !!d.boss, dungeon: !!m.dungeon, luck: Math.min(0.6, this.stat('goldFind') / 200 + ((this.elixirMods && this.elixirMods().luck) || 0) + luck / 200) };
     const rolls = d.boss ? (m.dungeon ? 1 : 2) : 1;
     const chance = (d.boss ? 1 : d.elite ? 0.55 : m.dungeon ? 0.24 : 0.12) * (1 + luck / 100);
     for (let i = 0; i < rolls; i++) {
@@ -946,6 +954,7 @@ export class Game {
     }
     if (this.war) { this.warPlayerDown(); return; }
     if (this.trial) { this.trialPlayerDown(); return; }
+    this.wearOnDeath();
     const lost = this.dropSoul();
     if (lost) this.ui.chat('system', `You dropped <b>${fmt(lost)} EXP</b> as a soul marker${this.dg ? ' at the dungeon entrance' : ' where you fell'}. Reach it within 10 minutes to take it back; dying again first loses it.`);
     if (this.dg) {
@@ -1050,6 +1059,7 @@ export class Game {
     const S = this.S, b = S.bag[i]; if (!b || !b.eq) return;
     const eq = b.eq;
     if (eq.lvl > S.level + 5) { this.ui.toast(`Requires Lv ${eq.lvl - 5}`, 'warn'); return; }
+    { const why = this.equipBlock(eq); if (why) { this.ui.toast(why, 'warn'); this.sfx.play('error'); return; } }
     S.bag.splice(i, 1);
     if (S.equip[eq.slot]) S.bag.push({ eq: S.equip[eq.slot] });
     S.equip[eq.slot] = eq;
@@ -1506,7 +1516,7 @@ export class Game {
     this.updatePlayer(dt);
     this.updatePet(dt);
     this.updateCombat(dt);
-    this.updateSoul(dt); this.updateFog(); this.updateNavigation(dt);
+    this.updateSoul(dt); this.updateFog(); this.updateNavigation(dt); this.gearTick(dt);
     this.dzUpdate(dt);
     this.updateSprite(dt);
     for (const m of this.monsters) this.updateMonster(m, dt);
@@ -2086,9 +2096,10 @@ export class Game {
     const luck = { S: 0.35, A: 0.18, B: 0 }[dg.rating];
     const items = [];
     for (let i = 0; i < n; i++) {
-      let q = rollRarity({ boss: true, dungeon: true, luck });
+      let q = rollRarity({ boss: true, dungeon: true, luck, lvl });
       if (i === 0) q = Math.max(q, 3);
       if (i === 0 && dg.firstClear) q = Math.max(q, 4);
+      q = Math.min(q, tierFor(lvl)); // a tier never drops below its minimum level
       const nd = q >= 4 && named.length && Math.random() < 0.5 ? pick(named) : null;
       items.push(nd ? genNamed(nd.id, { lvl, cls: S.cls, uid: S.uid++ }) : this.makeEquip(null, lvl, q));
     }
@@ -2101,6 +2112,7 @@ export class Game {
       items.push(piece);
       this.logEvent('set', `Found ${piece.name} (${set.name} set)`, true);
     }
+    { const six = this.sixDungeonDrop(dg.def.id, dg.rating); if (six) { items.push(six); this.logEvent('set', `Found ${six.name}`, true); } }
     const gold = Math.round(150 * dg.def.lv * (1 + dg.def.lv / 40) * ({ S: 1.6, A: 1.25, B: 1 }[dg.rating]));
     const diamonds = { S: 25, A: 15, B: 10 }[dg.rating];
     const exp = Math.round(needExp(S.level) * ({ S: 0.1, A: 0.07, B: 0.05 }[dg.rating]));
@@ -2297,6 +2309,7 @@ installCombatWorld(Game);
 installProgress(Game);
 installTrials(Game);
 installNavigation(Game);
+installGear(Game);
 installGather(Game);
 installTailor(Game);
 installDangerZone(Game);

@@ -791,10 +791,14 @@ const M = {
   ascend(ref) {
     const eq = this.refItem(ref), S = this.S; if (!eq) return;
     if (eq.set) { this.ui.toast('Set pieces cannot be ascended', 'warn'); return; }
-    const A = ASCEND[eq.quality]; if (!A) { this.ui.toast('Already Legendary', 'warn'); return; }
+    const A = ASCEND[eq.quality]; if (!A) { this.ui.toast(eq.quality >= 6 ? 'Red cannot be crafted into Ancient' : 'Already Legendary', 'warn'); return; }
+    // an item climbs one tier at most, and only to a tier its level allows
+    if (eq.climbed) { this.ui.toast('This item has already climbed a tier', 'warn'); return; }
+    if (RARITY[eq.quality + 1].min > eq.lvl) { this.ui.toast(`${RARITY[eq.quality + 1].name} needs an item of Lv ${RARITY[eq.quality + 1].min}+ (re-temper it first)`, 'warn'); return; }
     if (!this.pay({ gold: A.gold, mats: A.mats })) return;
     const before = eq.name;
     ascendItem(eq, S.cls);
+    eq.climbed = true; if (eq.quality >= 5) eq.bound = true;
     if (eq.named) this.registerNamed(eq);
     if (eq.quality >= 4) {
       this.ui.banner(eq.quality === 5 ? 'LEGENDARY!' : 'UNIQUE!', eq.name, 'loot' + eq.quality);

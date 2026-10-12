@@ -118,6 +118,8 @@ const N = {
     for (const e of this.waystoneEnts) this.waystoneLook(e);
     this.navT = 0; this.macro = { win: [], reps: 0, since: Date.now() };
   },
+  // Wayfarer's Garb (6): the map uncovers in a 30 m radius
+  revealR() { return this.hasFx && this.hasFx('six_wayfarer6') ? 2 : 1; },
   waystoneOn(i) { return this.S.waystones.includes(TELEPORTS[i]?.name); },
   waystoneLook(e) {
     const on = this.waystoneOn(e.idx), u = e.model.userData;
@@ -163,6 +165,9 @@ const N = {
       this.ui.banner('HIDDEN PLACE FOUND', r.name.replace(/^the /, 'The '), 'zone'); this.sfx.play('rare');
       this.discoverXp('hidden', esc(r.name));
       this.gainMastery('survival', 12);
+      // a discovery chest: Shadowstep pieces hide in such places (Lv 50+), otherwise coin and a little treasure
+      if (S.level >= 50 && Math.random() < 0.35) this.giveSix('six_shadowstep', null, 'Discovery chest');
+      else { const gold = 200 + S.level * 30; S.gold += gold; this.ui.toast(`Discovery chest: +${gold} Gold`, 'good'); this.ui.refreshWallet(); }
     }
   },
   readLore(e) {

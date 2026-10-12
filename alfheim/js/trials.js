@@ -208,6 +208,7 @@ const T = {
     this.mpTrackNow && this.mpTrackNow();
     this.syncSkills(true); this.ui.markMenu && this.ui.markMenu('skills');
     this.after(0.4, () => this.gainExp(0)); // the level that waited behind the wall comes through
+    this.after(0.8, () => this.sixTrialReward && this.sixTrialReward(T0.n));
     this.ui.modal('Trial cleared!', `You cleared ${trialLabel(T0.n)}: ${T0.name} in ${mmss(secs)}. You earned the title «${T0.title}», an aura every player can see, and 3 skill points.${T0.n < 10 ? ` Levels ${T0.lv + 1}–${T0.lv + 19} are open.` : ' You have reached the summit of Aetherheim.'}`, [{ label: 'Return to Sylvan Haven', fn: () => this.leaveTrial() }], true);
     this.save();
   },
@@ -818,7 +819,8 @@ const T = {
   animateAuras() {
     const t = this.time;
     if (this.player.aura) this.player.aura.userData.update(t);
-    for (const e of this.rplayers || []) if (e.aura) e.aura.userData.update(t);
+    if (this.player.gearGlow) this.player.gearGlow.userData.update(t);
+    for (const e of this.rplayers || []) { if (e.aura) e.aura.userData.update(t); if (e.gearGlow) e.gearGlow.userData.update(t); }
   },
 
   // ================================================================ first clears (prestige board)

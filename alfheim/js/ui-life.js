@@ -333,7 +333,7 @@ const P = {
       const src = this.sel.aucSrc;
       const grid = h('div', 'grid-bag sm');
       const cells = [];
-      S.bag.forEach((b, i) => { if ((b.eq && !b.eq.lock) || (ITEMS[b.id] && ITEMS[b.id].type !== 'quest')) cells.push({ src: { bag: i }, icon: b.eq ? b.eq.icon : b.id, q: b.eq ? b.eq.quality : ITEMS[b.id].quality, n: b.eq ? 0 : b.qty, eq: b.eq, id: b.id }); });
+      S.bag.forEach((b, i) => { if ((b.eq && !b.eq.lock && !g.isBound(b.eq)) || (ITEMS[b.id] && ITEMS[b.id].type !== 'quest')) cells.push({ src: { bag: i }, icon: b.eq ? b.eq.icon : b.id, q: b.eq ? b.eq.quality : ITEMS[b.id].quality, n: b.eq ? 0 : b.qty, eq: b.eq, id: b.id }); });
       Object.keys(S.mats).filter((id) => !MATERIALS[id].notrade).forEach((id) => cells.push({ src: { mat: id }, icon: MATERIALS[id].icon, q: MATERIALS[id].quality, n: S.mats[id], id }));
       for (const c of cells) {
         const on = src && ((src.bag !== undefined && src.bag === c.src.bag) || (src.mat && src.mat === c.src.mat));

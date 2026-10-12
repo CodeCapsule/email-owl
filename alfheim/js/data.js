@@ -148,18 +148,19 @@ export const ITEMS = {
   legend_cache: { name: 'Legendary Cache', icon: 'legend_cache', type: 'consumable', quality: 5, stack: 99, price: 9000, desc: 'Open to receive a random Legendary item for your class at your level.' },
 };
 
-export const SLOTS = ['weapon', 'helm', 'armor', 'boots', 'necklace', 'ring'];
+export const SLOTS = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'necklace', 'ring'];
 export const SLOT_INFO = {
   weapon: { label: 'Weapon', icon: 'w_sword' },
   helm: { label: 'Helm', icon: 'helm' },
   armor: { label: 'Armor', icon: 'armor' },
+  gloves: { label: 'Gloves', icon: 'gloves' },
   boots: { label: 'Boots', icon: 'boots' },
   necklace: { label: 'Necklace', icon: 'necklace' },
   ring: { label: 'Ring', icon: 'ring' },
 };
 export const WEAPON_NAMES = { knight: 'Longsword', assassin: 'Twin Daggers', mage: 'Ember Staff', priest: 'Tidal Scepter', berserker: 'Greataxe', ranger: 'Longbow', summoner: 'Spirit Tome', spellblade: 'Runesword' };
 export const WEAPON_ICONS = { knight: 'w_sword', assassin: 'w_daggers', mage: 'w_staff', priest: 'w_scepter', berserker: 'w_greataxe', ranger: 'w_bow', summoner: 'w_tome', spellblade: 'w_runesword' };
-export const SLOT_BASE = { helm: 'Helm', armor: 'Tunic', boots: 'Boots', necklace: 'Amulet', ring: 'Ring' };
+export const SLOT_BASE = { helm: 'Helm', armor: 'Tunic', gloves: 'Gloves', boots: 'Boots', necklace: 'Amulet', ring: 'Ring' };
 
 export const NPCS = [
   { id: 'elder', icon: 'quests', name: 'Elder Rowan', title: 'Village Elder', x: -6, z: -16, look: 'elder', face: 0.5,
@@ -270,9 +271,9 @@ export const TITLES = ['Novice Adventurer', 'Jelly Hunter', 'Pet Lover', 'Rising
 
 
 export const TIPS = [
-  'Click a quest in the tracker to auto-path to your objective.',
+  'Click a quest in the tracker to hear the way there; your journal keeps the directions.',
   'Press R to summon or dismiss your mount.',
-  'Turn on Auto Battle to fight nearby monsters automatically.',
+  'Auto-hit (T) fights from where you stand. Roll (Space) through red telegraphs.',
   'Pets fight by your side and add to your Battle Rating.',
   'Enhance gear at Gorm the Blacksmith to raise your Battle Rating.',
   'Step out of red circles on the ground to avoid boss attacks!',
@@ -296,6 +297,8 @@ NPCS.push({ id: 'thalia', icon: 'trial', name: 'Thalia', title: 'Trial Warden', 
 Object.assign(ITEMS, SIGIL_ITEMS, FOOD_ITEMS);
 for (const [id, d] of Object.entries(TRIAL_MONSTER_DEFS)) { const { from, look, ...rest } = d; MONSTERS[id] = { ...MONSTERS[from], ...rest, lvl: [1, 1], exp: 0, gold: [0, 0], drops: [], aggressive: true, dungeon: true, skills: rest.trialAI && rest.trialAI !== 'gauntlet' ? [] : MONSTERS[from].skills }; void look; }
 TITLES.push(...TRIALS.map((t) => t.title));
+// Battle Rating is level x 100 + gear + mastery x 50, so recommended values follow the dungeon's level
+for (const d of DUNGEONS) d.recBR = Math.round(d.lv * 1.75) * 100;
 // ---- navigation: survey maps cartographers copy (one per zone) and the parchment they are drawn on
 ITEMS.blank_parchment = { name: 'Blank Parchment', icon: 'parchment', type: 'material', quality: 0, stack: 99, price: 60, desc: 'Copy a zone you have explored onto it from the World Map (Survival mastery 20+).' };
 for (const z of ZONES) if (!z.safe && z.name !== 'Storm Altar') ITEMS['survey_' + zoneKey(z.name)] = { name: `Survey Map: ${z.name}`, icon: 'survey_map', type: 'survey', quality: 2, stack: 20, price: 450, desc: `A hand-drawn map of ${z.name}. Read it to add the whole zone to your own map.` };

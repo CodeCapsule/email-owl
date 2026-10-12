@@ -178,7 +178,7 @@ const G = {
   partyMembersNear() {
     if (!mp.party.id || this.dg || mp.status !== 'online') return [];
     const p = this.player.pos;
-    return partyMembers().filter((x) => !x.me && x.pr.info.map === 'world' && x.pr.net.w && Math.hypot(x.pr.net.x - p.x, x.pr.net.z - p.z) <= PARTY_RANGE).map((x) => ({ level: x.pr.info.level, name: x.pr.info.name }));
+    return partyMembers().filter((x) => !x.me && x.pr.info.map === 'world' && x.pr.net.w && Math.hypot(x.pr.net.x - p.x, x.pr.net.z - p.z) <= PARTY_RANGE).map((x) => ({ level: x.pr.info.level, name: x.pr.info.name, dawn: x.pr.info.dawn }));
   },
   partyGetExp(m) {
     if (!mp.party.id || m.party !== mp.party.id || this.dg || this.war || this.trial || this.player.dead) return;
