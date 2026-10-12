@@ -294,7 +294,7 @@ const U = {
     if (!el) { el = h('div', ''); el.id = 'hud-party'; hud.appendChild(el); }
     const mem = partyMembers(), others = mem.filter((x) => !x.me);
     el.hidden = !mp.party.id;
-    if (el.hidden) { hud.style.setProperty('--party-h', '0px'); hud.style.setProperty('--party-w', '0px'); return; }
+    if (el.hidden) { hud.style.setProperty('--party-h', '0px'); hud.style.setProperty('--party-w', '0px'); this.fitPhoneHud(); return; }
     el.innerHTML = `<div class="ph">Party <small>${mem.length}/${PARTY_MAX}${mem[0]?.me ? ' · Leader' : ''}</small></div>`;
     if (!others.length) el.appendChild(h('div', 'pm-wait', 'Waiting for members…'));
     for (const x of others) {
@@ -306,6 +306,7 @@ const U = {
       el.appendChild(r);
     }
     hud.style.setProperty('--party-h', el.offsetHeight + 8 + 'px'); hud.style.setProperty('--party-w', el.offsetWidth + 8 + 'px');
+    this.fitPhoneHud();
     this.refreshPartyBars();
     if (this.panelName === 'online') this.softRefresh();
   },
