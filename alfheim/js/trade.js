@@ -327,54 +327,68 @@ const T = {
 
 // ============================================================ UI
 const TU = {
-  // build the window once; refreshTrade fills it
+  // the window is a regular game panel (same frame, title bar, cells and footer as the Bag); refreshTrade fills it
   tradeWin(open) {
     let el = $('trade-win');
     $('tooltip').hidden = true;
     if (!open) { if (el) el.remove(); return; }
     const g = this.g, tr = g.tr; if (!tr) return;
     if (el) el.remove();
-    el = h('div', 'mcw'); el.id = 'trade-win';
-    el.innerHTML = `<div class="mc-banner"></div>
-      <div class="mc-head"><b>Trading with ${esc(tr.name)}</b><button class="mc-x" aria-label="Cancel trade">✕</button></div>
-      <div class="mc-body">
-        <div class="mc-armor"><div class="mc-lbl">Your armor</div><div class="mc-col"></div></div>
-        <div class="mc-main">
-          <div class="mc-offers">
-            <div class="mc-sec"><span class="mc-lbl">THEM</span><span class="mc-tag" data-s="them"></span><span class="mc-gold" data-g="them"></span></div>
-            <div class="mc-grid" data-grid="them"></div>
-            <div class="mc-sec"><span class="mc-lbl">YOU</span><span class="mc-tag" data-s="me"></span><label class="mc-gold">${ico('coin', 'ico inl')}<input type="number" min="0" step="1" inputmode="numeric" aria-label="Gold to offer"></label></div>
-            <div class="mc-grid" data-grid="me"></div>
-          </div>
-          <div class="mc-side">
-            <div class="mc-sec"><span class="mc-lbl">Inventory</span><span class="mc-move">Move <button data-m="all">All</button><button data-m="half">Half</button><button data-m="one">1</button></span></div>
-            <div class="mc-grid mc-inv" data-grid="inv"></div>
-            <div class="mc-log"></div>
-            <input class="mc-say" maxlength="120" placeholder="Message ${esc(tr.name)} — Enter to send" aria-label="Message ${esc(tr.name)}">
-            <div class="mc-acts"><button class="mc-btn" data-a="lock"></button><button class="mc-btn" data-a="conf">Confirm</button><button class="mc-btn" data-a="cancel">Cancel</button></div>
+    el = h('div', 'panel frame trade2'); el.id = 'trade-win';
+    el.innerHTML = `<div class="ptitle">Trade <small>with ${esc(tr.name)}</small></div><button class="x-close" aria-label="Cancel trade"></button>
+      <div class="pbody">
+        <div class="tw-banner"></div>
+        <div class="tw-body">
+          <div class="tw-armor"><div class="tw-lbl">Your armor</div><div class="tw-col"></div></div>
+          <div class="tw-main">
+            <div class="tw-offers">
+              <div class="tw-sec"><span class="tw-who">${esc(tr.name)}</span><span class="tw-tag" data-s="them"></span><span class="tw-gold" data-g="them"></span></div>
+              <div class="tw-grid" data-grid="them"></div>
+              <div class="tw-sec"><span class="tw-who">You</span><span class="tw-tag" data-s="me"></span><label class="tw-gold">${ico('coin', 'ico inl')}<input type="number" min="0" step="1" inputmode="numeric" aria-label="Gold to offer"></label></div>
+              <div class="tw-grid" data-grid="me"></div>
+            </div>
+            <div class="tw-side">
+              <div class="tw-sec"><span class="tw-who">Inventory</span><div class="tabs small tw-move" role="group" aria-label="How much of a stack to move"><button data-m="all">All</button><button data-m="half">Half</button><button data-m="one">1</button></div></div>
+              <div class="tw-grid tw-inv" data-grid="inv"></div>
+              <div class="tw-log"></div>
+              <input class="tw-say" maxlength="120" placeholder="Message ${esc(tr.name)} — Enter to send" aria-label="Message ${esc(tr.name)}">
+              <div class="tw-acts"><button class="btn small blue" data-a="lock"></button><button class="btn small green" data-a="conf">Confirm</button><button class="btn small gray" data-a="cancel">Cancel</button></div>
+            </div>
           </div>
         </div>
+        <div class="bag-foot"><div class="bag-money"><div>${ico('coin', 'ico inl')}Your Gold<b data-w="gold"></b></div></div></div>
       </div>`;
     $('panels').appendChild(el);
     this.tradeMove = this.tradeMove || 'all';
-    el.querySelector('.mc-x').onclick = () => g.tradeCancel();
+    el.querySelector('.x-close').onclick = () => g.tradeCancel();
     el.querySelector('[data-a="lock"]').onclick = () => g.tradeLock(!g.tr?.me.lock);
     el.querySelector('[data-a="conf"]').onclick = () => g.tradeConfirm();
     el.querySelector('[data-a="cancel"]').onclick = () => g.tradeCancel();
-    for (const b of el.querySelectorAll('.mc-move button')) b.onclick = () => { this.tradeMove = b.dataset.m; this.refreshTrade(); };
-    const gi = el.querySelector('.mc-gold input');
+    for (const b of el.querySelectorAll('.tw-move button')) b.onclick = () => { this.tradeMove = b.dataset.m; this.refreshTrade(); };
+    const gi = el.querySelector('.tw-gold input');
     gi.onchange = () => g.tradeGold(gi.value);
     gi.onkeydown = (e) => { if (e.key === 'Enter') gi.blur(); };
-    const say = el.querySelector('.mc-say');
+    const say = el.querySelector('.tw-say');
     say.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); g.tradeSay(say.value); say.value = ''; } };
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     this.refreshTrade();
     this.tradeLogShow();
+    // centre once it is filled, then keep it on screen
+    el.style.left = (innerWidth - el.offsetWidth) / 2 + 'px';
+    el.style.top = (innerHeight - el.offsetHeight) / 2 - 10 + 'px';
+    this.tradeFit();
+    if (!this.tradeOnResize) { this.tradeOnResize = () => this.tradeFit(); addEventListener('resize', this.tradeOnResize); }
+    this.dragify(el);
+  },
+  // keep the window on screen (a phone turned sideways, a smaller window)
+  tradeFit() {
+    const el = $('trade-win'); if (!el) return;
+    const x = parseFloat(el.style.left) || 0, y = parseFloat(el.style.top) || 0;
+    el.style.left = Math.max(8, Math.min(x, innerWidth - el.offsetWidth - 8)) + 'px';
+    el.style.top = Math.max(8, Math.min(y, innerHeight - el.offsetHeight - 8)) + 'px';
   },
   tradeCell(x, onClick, extra = '') {
-    const q = goodQuality(x), c = h('button', 'mc-slot' + extra, `${ico(goodIcon(x))}${x.qty > 1 ? `<span class="cnt">${fmt(x.qty)}</span>` : ''}${x.kind === 'gear' && x.eq.enh ? `<span class="enh">+${x.eq.enh}</span>` : ''}`);
-    c.style.setProperty('--qc', RARITY[q]?.color || '#fff');
-    if (q > 0) c.classList.add('q');
+    const q = goodQuality(x), c = h('button', `cell q${q}${extra}`, `${ico(goodIcon(x))}${x.qty > 1 ? `<span class="cnt">${fmt(x.qty)}</span>` : ''}${x.kind === 'gear' && x.eq.enh ? `<span class="enh">+${x.eq.enh}</span>` : ''}`);
     if (onClick) { c.onclick = () => onClick('click'); c.oncontextmenu = (e) => { e.preventDefault(); onClick('one'); }; }
     this.tip(c, () => (x.kind === 'gear' ? this.equipTip(x.eq) : `<b style="color:${RARITY[q]?.color}">${esc(goodName(x))}</b>${esc((x.kind === 'item' ? ITEMS[x.id]?.desc : MATERIALS[x.id]?.desc) || '')}`));
     return c;
@@ -384,13 +398,16 @@ const TU = {
     const S = g.S, me = tr.me, them = tr.them, lead = g.tradeLeader(), mode = this.tradeMove || 'all';
     $('tooltip').hidden = true;
     const both = me.lock && them.lock, who = esc(tr.name);
-    el.querySelector('.mc-banner').innerHTML = tr.backing ? `Waiting for ${who} to answer…`
+    const ban = el.querySelector('.tw-banner');
+    ban.innerHTML = tr.backing ? `Waiting for ${who} to answer…`
       : !both ? (me.lock ? `Waiting for ${who} to lock` : them.lock ? `${who} locked their offer — lock yours when ready` : 'Add goods, then lock your offer')
         : me.conf && them.conf ? 'Completing the trade…' : me.conf ? `Waiting for ${who} to confirm` : them.conf ? `${who} confirmed — press Confirm to trade` : 'Both offers locked — check them, then Confirm';
-    const tag = (s) => (s.conf ? ['CONFIRMED', 'conf'] : s.lock ? ['LOCKED', 'lock'] : ['EDITING', 'edit']);
-    for (const [k, s] of [['them', them], ['me', me]]) { const [t, c] = tag(s), e = el.querySelector(`[data-s="${k}"]`); e.textContent = t; e.className = 'mc-tag ' + c; }
-    el.querySelector('[data-g="them"]').innerHTML = `${ico('coin', 'ico inl')}${fmt(them.gold)}`;
-    const gi = el.querySelector('.mc-gold input');
+    ban.classList.toggle('ready', both);
+    const tag = (s) => (s.conf ? ['Confirmed', 'conf'] : s.lock ? ['Locked', 'lock'] : ['Editing', 'edit']);
+    for (const [k, s] of [['them', them], ['me', me]]) { const [t, c] = tag(s), e = el.querySelector(`[data-s="${k}"]`); e.textContent = t; e.className = 'tw-tag ' + c; }
+    el.querySelector('[data-g="them"]').innerHTML = `${ico('coin', 'ico inl')}<b>${fmt(them.gold)}</b>`;
+    el.querySelector('[data-w="gold"]').textContent = fmt(S.gold);
+    const gi = el.querySelector('.tw-gold input');
     if (document.activeElement !== gi) gi.value = me.gold;
     gi.disabled = me.lock; gi.max = S.gold + me.gold;
     // the two offers, 2 x 9 each
@@ -398,7 +415,7 @@ const TU = {
       grid.innerHTML = '';
       for (let i = 0; i < TRADE_SLOTS; i++) {
         const x = list[i];
-        grid.appendChild(x ? this.tradeCell(x, click ? (how) => click(i, how) : null) : h('div', 'mc-slot empty'));
+        grid.appendChild(x ? this.tradeCell(x, click ? (how) => click(i, how) : null) : h('div', 'cell empty'));
       }
     };
     fill(el.querySelector('[data-grid="them"]'), them.goods, null);
@@ -418,28 +435,28 @@ const TU = {
       if (!has(MATERIALS, id) || MATERIALS[id].notrade || !S.mats[id]) continue;
       inv.appendChild(this.tradeCell({ kind: 'mat', id, qty: S.mats[id] }, me.lock ? null : (how) => g.tradePut({ mat: id }, how === 'one' ? 'one' : mode)));
     }
-    if (!inv.children.length) inv.appendChild(h('div', 'mc-none', 'Your bag is empty.'));
+    if (!inv.children.length) inv.appendChild(h('div', 'tw-none muted', 'Your bag is empty.'));
     inv.classList.toggle('locked', me.lock);
-    for (const b of el.querySelectorAll('.mc-move button')) b.classList.toggle('on', b.dataset.m === mode);
+    for (const b of el.querySelectorAll('.tw-move button')) b.classList.toggle('sel', b.dataset.m === mode);
     // what you wear (read only)
-    const col = el.querySelector('.mc-col'); col.innerHTML = '';
+    const col = el.querySelector('.tw-col'); col.innerHTML = '';
     for (const s of SLOTS) {
       const eq = S.equip[s];
-      const c = eq ? this.tradeCell({ kind: 'gear', eq, qty: 1 }, null, ' worn') : h('div', 'mc-slot empty', `<span class="ghost">${ico(s === 'weapon' ? WEAPON_ICONS[S.cls] : SLOT_INFO[s].icon)}</span>`);
+      const c = eq ? this.tradeCell({ kind: 'gear', eq, qty: 1 }, null, ' worn') : h('div', 'cell empty', `<span class="ghost">${ico(s === 'weapon' ? WEAPON_ICONS[S.cls] : SLOT_INFO[s].icon)}</span>`);
       if (!eq) this.tip(c, () => `<b>${SLOT_INFO[s].label}</b>Empty slot`);
       col.appendChild(c);
     }
     const lk = el.querySelector('[data-a="lock"]'), cf = el.querySelector('[data-a="conf"]'), cx = el.querySelector('[data-a="cancel"]');
     lk.textContent = me.lock ? 'Unlock' : 'Lock';
+    lk.className = 'btn small ' + (me.lock ? 'gray' : 'blue');
     lk.disabled = !!tr.backing || (me.conf && !lead);
     cf.disabled = !both || me.conf || !!tr.backing;
-    cf.classList.toggle('go', both && !me.conf);
     cx.disabled = !!tr.backing;
   },
   tradeLogShow() {
     const el = $('trade-win'), tr = this.g.tr; if (!el || !tr) return;
-    const log = el.querySelector('.mc-log');
-    log.innerHTML = tr.log.length ? tr.log.slice(-6).map((l) => `<p class="${l.me ? 'me' : ''}"><b>${esc(l.who)}:</b> ${esc(l.text)}</p>`).join('') : '<p class="mc-hint">Click a good in your inventory to offer it, and click it in YOU to take it back. Move sets how much of a stack goes.</p>';
+    const log = el.querySelector('.tw-log');
+    log.innerHTML = tr.log.length ? tr.log.slice(-6).map((l) => `<p class="${l.me ? 'me' : ''}"><b>${esc(l.who)}:</b> ${esc(l.text)}</p>`).join('') : '<p class="tw-hint">Click a good in your inventory to offer it, and click it in your offer to take it back. Move sets how much of a stack goes.</p>';
     log.scrollTop = log.scrollHeight;
   },
 };

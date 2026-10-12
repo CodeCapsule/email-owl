@@ -19,6 +19,7 @@ import { installMp } from './mp.js';
 import { installParty } from './party.js';
 import { installTrade } from './trade.js';
 import { installSocial, cleanFriends } from './social.js';
+import { installGuide, initGuideSave } from './guide.js';
 import { installSky } from './sky.js';
 import { buildExtraMonster, EXTRA_MONSTER_MODELS } from './models-monsters.js';
 import { buildExtraPet, buildExtraMount, EXTRA_PET_MODELS, EXTRA_MOUNT_MODELS } from './models-extra.js';
@@ -98,6 +99,7 @@ export function migrateSave(S) {
   initToolBelt(S);
   initSystemsSave(S); initLifeSave(S); initEconomySave(S);
   S.friends = cleanFriends(S.friends);
+  initGuideSave(S);
   if (!S.quest || (!S.quest.id && S.quest.status === 'done' && !S.storyDone)) S.quest = { id: 'q11', status: 'available', prog: 0 }; // Chapter I used to end here
   S.v = 3;
   return S;
@@ -2346,6 +2348,7 @@ installMp(Game);
 installParty(Game);
 installTrade(Game);
 installSocial(Game);
+installGuide(Game);
 installSky(Game);
 installCombat(Game);
 installCombatWorld(Game);

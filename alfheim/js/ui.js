@@ -11,6 +11,7 @@ import { installTrialsUI } from './ui-trials.js';
 import { installPartyUI, partyMembers } from './party.js';
 import { installTradeUI } from './trade.js';
 import { installSocialUI } from './social.js';
+import { installGuideUI } from './guide.js';
 import { CHAPTERS } from './data-story.js';
 import { setOfDungeon } from './data-sets.js';
 import { PET_ABILITIES, PET_MAX_LV, petAbilityText } from './data-pets.js';
@@ -492,6 +493,7 @@ export class UI {
     } else if (g.bountyUnlocked()) {
       list.appendChild(h('div', 'qt-item', `<span class="qtag bounty">Bounty</span><div class="qo">Visit <u>Captain Elena</u> for a bounty</div>`)).onclick = () => g.talkTo(g.npcById('elena'), true);
     }
+    this.guideTracker(list);
     this.questExtras(list);
     if (this.panelName === 'quests') this.renderPanel();
   }
@@ -985,6 +987,7 @@ export class UI {
   }
 
   panel_quests(body) {
+    if (this.tabs(body, 'qTab', [['story', 'Story'], ['guide', 'Guide']]) === 'guide') { this.guidePanel(body); return; }
     const g = this.g, S = g.S, q = g.quest();
     const idx = q && q.def ? QUESTS.findIndex((x) => x.id === q.def.id) : QUESTS.length;
     const curCh = idx < QUESTS.length ? QUESTS[idx].ch || 1 : CHAPTERS.length;
@@ -1239,6 +1242,7 @@ installTrialsUI(UI);
 installPartyUI(UI);
 installTradeUI(UI);
 installSocialUI(UI);
+installGuideUI(UI);
 
 // the dungeon's set: pieces you own and its bonuses
 function setBlock(dungeonId, S) {

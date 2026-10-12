@@ -191,7 +191,17 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   separate for each player, and a player inside a dungeon or guild war is hidden until they come back. It runs on a free
   Supabase Realtime channel (broadcast and presence, no database tables): put the project URL and its **publishable**
   key in `js/mp-config.js`. With no key, or inside the claude.ai page, the game plays solo as before.
-- **Parties**: click another player and press **Invite** (or use the Online panel) to team up, up to 5 players.
+- **Player menu, friends and inspect**: click another player (or their target frame) for a menu: **Add Friend**,
+  **Inspect Character**, **Invite to Party** and **Trade**. A friend request asks the other player first; friends are
+  kept in your save and listed at the top of the Online panel with who is on now, and you are told when one comes
+  online. Inspect opens their worn gear (with full tooltips), Battle Rating and main stats.
+- **Trading between players**: ask a player within 25 m to trade. The trade window is styled like the Bag: the other
+  player's offer and yours (up to 18 goods each, plus Gold), your inventory and worn armor, and a message line. Click a
+  good to offer it (All, Half or 1 of a stack), **Lock** your offer when it is final, and press **Confirm** once both
+  offers are locked; the trade completes on both sides together. Offered goods leave your bag at once and wait in
+  escrow, so they cannot be sold or used meanwhile, and a cancelled or interrupted trade (moving apart, logging off,
+  a reload) gives them back. Locked, account-bound (Legendary and up) and quest items cannot be traded.
+- **Parties**: click another player and choose **Invite to Party** (or use the Online panel) to team up, up to 5 players.
   Party members within 60 m of a kill share its EXP: the kill's EXP is split between everyone nearby, plus 10% per extra
   member, and each member's own level gap and EXP boosts apply to their share. The party frame under your wallet
   shows members' levels and HP (dimmed when too far to share), `/p message` or the Party chat tab talks to the party,
@@ -206,6 +216,12 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   time (water and fertilize to speed them up); Alchemy turns herbs and produce into stronger potions and timed elixirs
   (Might, Iron Skin, Swiftness, Wisdom, Fortune, Phoenix Draught); Smithing turns ore and logs into gear and Crimson
   Cores. Each profession levels to 100.
+- **The Crafter's Path (guide)**: a short guide quest line in the quest tracker teaches the crafts one step at a time:
+  chop an Oak Tree, mine a Copper Vein, pick Silverleaf, plant and harvest a crop at the homestead, refine Enhancement
+  Stones at Gorm, smith Copper Gear and enhance it. Clicking the Guide line walks you to the nearest node, your plots
+  or Gorm, and each step pays Gold, EXP and the materials for the next. The Quest Log (L) has a **Guide** tab with a
+  page each for gathering, farming, refining and forging (tools and keys, node tiers, crop times, stone refining,
+  smithing recipes, the Forge tabs), and the guide line can be hidden from the tracker there.
 - **Gathering tools and animations**: chopping a tree needs an **Axe**, mining ore a **Pickaxe** and cutting herbs a
   **Sickle**. Tools come in five metals (Copper, Iron, Silver, Mithril, Starmetal); each one works on nodes up to its own
   tier and gathers faster and finds more on lower tiers. Every new hero starts with Copper tools, Hilda and the outposts
@@ -225,11 +241,12 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   Gold sit at the bottom beside a **Mall** button. Equipped gear is in the Character window (C).
 - **MMO systems**: Battle Rating, bag, auto-hit, auto potions, titles, daily sign-in, online gifts, a gold/diamond mall
   (no XP or progress for sale), world and guild chat, minimap and world map.
-- **Action bar**: on computers one gold-framed bar runs along the bottom, in the style of classic web MMORPGs: a row
-  of small slots for Mount, Auto, Roll, Block and the tool belt sits over the skill row (keys 1-7 and the Q/E potions
-  with their counts), the round menu buttons with their labels sit to the right (Hero, Bag, Skills, Pets, Mounts,
-  Gathering, Relics, Codex, Quests, Map, Settings) and the EXP strip runs underneath. Activities sit in a slim panel at
-  the top right (Online, Missions, Dungeon, the World Boss timer); **More** there expands to the rest.
+- **Action bar and menu**: on computers a slim gold-framed tray runs along the bottom with the skill row (keys 1-7 and
+  the Q/E potions with their counts) and the EXP strip; two small pills sit above it, Mount, Auto, Roll and Block on the
+  left and the tool belt on the right. The menu is a compact grid of round icons with their hotkeys right under the
+  minimap (Hero, Bag, Skills, Pets, Mounts, Gathering, Relics, Codex, Quests, Map, Settings), with the quest tracker
+  below it. Activities sit in a slim panel at the top right (Online, Missions, Dungeon, the World Boss timer); **More**
+  there expands to the rest. Phones keep the bottom dock.
 - **Day and night, seasonal weather**: one clock for every player; a day lasts 40 minutes. Dawn and dusk blush the
   sky, nights are deep blue with stars, a moon and lit lamps (still easy to see in), and the shadows follow the sun
   and moon. The weather changes every 10 minutes from the real-world season's table: spring brings blossom breezes and
@@ -283,6 +300,9 @@ market buyers and auction bids are simulated, so those systems also work solo.
 | `js/admin.js` | Game Master Console |
 | `js/mp.js`, `js/mp-config.js` | Real-time multiplayer over Supabase Realtime: other players, chat, Online panel |
 | `js/party.js` | Parties: invitations, party frame and chat, shared EXP |
+| `js/social.js` | The player menu, friends (requests, list, online notices) and inspecting another player |
+| `js/trade.js` | Trading between players: requests, the trade window, escrow, lock and confirm |
+| `js/data-guide.js`, `js/guide.js` | The Crafter's Path guide quests and the Quest Log's Guide pages |
 | `js/data-story.js` | Main story chapters II-VI, quest items and chapter titles |
 | `js/data-sets.js` | Dungeon sets, Ancient sets and the 17 six-piece sets with their powers |
 | `js/data-pets.js` | Pet abilities and how they grow with pet level |
