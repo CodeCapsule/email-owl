@@ -246,7 +246,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   left and the tool belt on the right. The menu is a compact grid of round icons with their hotkeys right under the
   minimap (Hero, Bag, Skills, Pets, Mounts, Gathering, Relics, Codex, Quests, Map, Settings), with the quest tracker
   below it. Activities sit in a slim panel at the top right (Online, Missions, Dungeon, the World Boss timer); **More**
-  there expands to the rest. Phones keep the bottom dock.
+  there expands to the rest.
 - **Day and night, seasonal weather**: one clock for every player; a day lasts 40 minutes. Dawn and dusk blush the
   sky, nights are deep blue with stars, a moon and lit lamps (still easy to see in), and the shadows follow the sun
   and moon. The weather changes every 10 minutes from the real-world season's table: spring brings blossom breezes and
@@ -254,11 +254,15 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   cloudy and clear spells between. Rain falls as snow in the frost highlands. The minimap shows the time and the
   weather; Settings can switch the falling particles off. Dungeons, trials and guild wars keep their own light, and
   the weather never changes combat.
-- **Phones and tablets**: on small screens the HUD docks to a leather-and-gold bar along the bottom (Events, Hero, Bag,
-  Skills, Quests, Chat, More). Events and More open as sheets above the dock that close when you pick something or tap the game; a red
-  dot marks a sheet with something waiting. The skill bar sits above the dock with Mount, Auto, Roll and Block above it, a joystick
-  in the bottom-left corner (with the tool belt above it) walks your hero (one thumb walks while the other turns the camera; tapping the ground still
-  works), and the layout also works in landscape.
+- **Phones and tablets (MOBA-style controls)**: a joystick in the bottom-left corner walks your hero (one thumb walks
+  while the other turns the camera; tapping the ground still works). On the right, a big **Attack** button hits your
+  target or the nearest enemy, with the seven skills in an arc around it and the healing and mana potions above. Mount,
+  Auto, Roll and Block and the tool belt sit above the joystick, with the chat button above them. The menu is the same
+  icon grid as on computers, under the minimap, plus **Events** for the activities; the quest tracker sits below it
+  (and slides under the target frame while you have a target). Landscape puts the menu beside the minimap and the
+  quest tracker on the left. Phones whose browser asks for the desktop site (the "Desktop site" switch) used to get a
+  tiny desktop layout with no joystick: the game now spots a touch screen laid out wider than the phone and scales its
+  interface back to the phone's real width, so the touch layout appears either way.
 - **Icons**: every icon is a hand-made SVG in `js/icons/`, so nothing depends on the device's emoji font.
 
 ## Controls
@@ -327,3 +331,4 @@ market buyers and auction bids are simulated, so those systems also work solo.
 | `js/ui-systems.js` | Panels and HUD widgets for the live systems |
 | `js/ui-life.js` | Professions, farm, Crimson Forge, collection, wardrobe, shop, auction and Online panels |
 | `js/main.js` | Boot, title screen, character creation and main loop |
+| `js/touchfit.js` | Phones asking for the desktop site: zooms the interface back to the phone width and rescales the breakpoints |

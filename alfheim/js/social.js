@@ -8,6 +8,7 @@ import { RACES } from './data-classes.js';
 import { itemLines } from './loot.js';
 import { cleanEq } from './dz.js';
 import { ico } from './icons.js';
+import { UIZ, vw, vh } from './touchfit.js';
 
 const FRIENDS_MAX = 60;
 const ASK_SECS = 30;
@@ -203,10 +204,10 @@ const U = {
     add('party_add', 'Invite to Party', () => g.partyInvite(key), inParty ? 'Already in your party' : info.party ? 'Already in a party' : '');
     add('trade', 'Trade', () => g.tradeRequest(key), g.tr ? 'Finish your trade first' : '');
     // next to where you clicked, inside the screen
-    const W = el.offsetWidth, H = el.offsetHeight;
-    const px = x ?? innerWidth / 2 - W / 2, py = y ?? 90;
-    el.style.left = Math.max(8, Math.min(innerWidth - W - 8, px + 14)) + 'px';
-    el.style.top = Math.max(8, Math.min(innerHeight - H - 8, py - 24)) + 'px';
+    const W = el.offsetWidth, H = el.offsetHeight; // x, y are screen px; the HUD may be zoomed (touchfit.js)
+    const px = x != null ? x / UIZ.k : vw() / 2 - W / 2, py = y != null ? y / UIZ.k : 90;
+    el.style.left = Math.max(8, Math.min(vw() - W - 8, px + 14)) + 'px';
+    el.style.top = Math.max(8, Math.min(vh() - H - 8, py - 24)) + 'px';
   },
   // ------------------------------------------------------------ the inspect window
   inspectWin(o) {

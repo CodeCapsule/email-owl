@@ -12,6 +12,7 @@ import { RARITY } from './loot.js';
 import { cleanEq } from './dz.js';
 import { goodName, goodQuality, goodIcon } from './economy.js';
 import { ico } from './icons.js';
+import { vw, vh } from './touchfit.js';
 
 const TRADE_SLOTS = 18;
 const TRADE_RANGE = 25; // to start a trade
@@ -374,8 +375,8 @@ const TU = {
     this.refreshTrade();
     this.tradeLogShow();
     // centre once it is filled, then keep it on screen
-    el.style.left = (innerWidth - el.offsetWidth) / 2 + 'px';
-    el.style.top = (innerHeight - el.offsetHeight) / 2 - 10 + 'px';
+    el.style.left = (vw() - el.offsetWidth) / 2 + 'px';
+    el.style.top = (vh() - el.offsetHeight) / 2 - 10 + 'px';
     this.tradeFit();
     if (!this.tradeOnResize) { this.tradeOnResize = () => this.tradeFit(); addEventListener('resize', this.tradeOnResize); }
     this.dragify(el);
@@ -384,8 +385,8 @@ const TU = {
   tradeFit() {
     const el = $('trade-win'); if (!el) return;
     const x = parseFloat(el.style.left) || 0, y = parseFloat(el.style.top) || 0;
-    el.style.left = Math.max(8, Math.min(x, innerWidth - el.offsetWidth - 8)) + 'px';
-    el.style.top = Math.max(8, Math.min(y, innerHeight - el.offsetHeight - 8)) + 'px';
+    el.style.left = Math.max(8, Math.min(x, vw() - el.offsetWidth - 8)) + 'px';
+    el.style.top = Math.max(8, Math.min(y, vh() - el.offsetHeight - 8)) + 'px';
   },
   tradeCell(x, onClick, extra = '') {
     const q = goodQuality(x), c = h('button', `cell q${q}${extra}`, `${ico(goodIcon(x))}${x.qty > 1 ? `<span class="cnt">${fmt(x.qty)}</span>` : ''}${x.kind === 'gear' && x.eq.enh ? `<span class="enh">+${x.eq.enh}</span>` : ''}`);

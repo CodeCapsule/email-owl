@@ -20,6 +20,7 @@ import { installParty } from './party.js';
 import { installTrade } from './trade.js';
 import { installSocial, cleanFriends } from './social.js';
 import { installGuide, initGuideSave } from './guide.js';
+import { UIZ } from './touchfit.js';
 import { installSky } from './sky.js';
 import { buildExtraMonster, EXTRA_MONSTER_MODELS } from './models-monsters.js';
 import { buildExtraPet, buildExtraMount, EXTRA_PET_MODELS, EXTRA_MOUNT_MODELS } from './models-extra.js';
@@ -566,6 +567,18 @@ export class Game {
   setTarget(t) {
     this.player.target = t;
     this.ui.refreshTarget && this.ui.refreshTarget();
+  }
+  // the phone Attack button: hit the current enemy, or the nearest one
+  attackNearest() {
+    const p = this.player; if (p.dead) return;
+    let t = p.target;
+    if (!t || t.dead || !(t.kind === 'monster' || (t.kind === 'rp' && this.pvpFoe(t)))) {
+      t = this.nearestEnemy(30);
+      if (!t) for (const e of this.rplayers || []) if (!e.dead && !e.netHidden && this.pvpFoe(e) && flat(e.pos, p.pos) < 30 && (!t || flat(e.pos, p.pos) < flat(t.pos, p.pos))) t = e;
+    }
+    if (!t) { this.ui.toast('No enemy nearby', 'warn'); return; }
+    this.setTarget(t); this.engage = true; p.path = []; this.pendingTalk = null; this.pendingLife = null;
+    this.autoPathing = false; this.ui.setAutoPath(false);
   }
   cycleTarget() {
     const p = this.player;
@@ -2278,7 +2291,7 @@ export class Game {
   }
 
   updatePlates() {
-    const w = this.renderer.domElement.clientWidth, h = this.renderer.domElement.clientHeight;
+    const w = this.renderer.domElement.clientWidth / UIZ.k, h = this.renderer.domElement.clientHeight / UIZ.k; // #world-ui may be zoomed (touchfit.js)
     const v = new THREE.Vector3();
     const range = { npc: 80, portal: 90, loot: 40, node: 42, plot: 45, rp: 100, soul: 160 };
     for (const e of [...this.ents, ...this.loots, ...this.portals, ...(this.lifeEnts || []), ...(this.dzBags || []), ...(this.soulEnt ? [this.soulEnt] : []), ...(this.trial ? this.trial.ents.filter((e) => e.np) : [])]) {
