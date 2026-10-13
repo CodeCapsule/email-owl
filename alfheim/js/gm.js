@@ -6,8 +6,8 @@
 // claims no Hall of Firsts, and its world boss is its own.
 import { GM_CONFIG } from './gm-config.js';
 import { MONSTERS, ITEMS, SLOTS, SLOT_INFO, ZONES } from './data.js';
-import { NEW_ZONES, MAX_LEVEL } from './data-world.js';
-import { RARITY, NAMED_LIST, genSix } from './loot.js';
+import { NEW_ZONES, MAX_LEVEL, RELIC_SETS } from './data-world.js';
+import { RARITY, NAMED_LIST, genSix, genRed } from './loot.js';
 import { SIX_SETS } from './data-sets.js';
 import { MATERIALS, WORLD_BOSS } from './systems-data.js';
 import { ELEMENTS, ELEMENT_IDS } from './data-elements.js';
@@ -54,7 +54,9 @@ const STATS = [['hp', 'Max HP'], ['mp', 'Max MP'], ['atk', 'Attack'], ['def', 'D
 const POWERS = [['god', 'God mode', 'You take no damage'], ['ohk', 'One-hit kills', 'Every hit kills a monster'], ['nocd', 'No cooldowns', 'Skills are ready again at once'], ['freemp', 'Free skills', 'Skills cost no MP'], ['hidden', 'Monsters ignore me', 'Monsters only fight you if you attack them']];
 const TIMES = [[null, 'Real time'], [0.3, 'Morning'], [0.5, 'Noon'], [0.76, 'Dusk'], [0.95, 'Night']];
 const DROP_X = [1, 2, 5, 10, 20];
-const gearQuality = (q) => clamp(q | 0, 0, RARITY.length - 1);
+const GEAR_Q = 6; // Common to Red (Ancient pieces are set pieces: First Dawn, Jormungandr)
+const gearQuality = (q) => clamp(q | 0, 0, GEAR_Q);
+const minLv = (q) => RARITY[q]?.min || 1; // a rarity never comes below its level
 
 // ============================================================ game side
 const G = {
@@ -97,9 +99,13 @@ const G = {
   gmGear({ slot = 'weapon', quality = 3, lvl = this.S.level, enh = 0, el = null, set = null, named = null } = {}) {
     const S = this.S; lvl = clamp(Math.round(+lvl || 1), 1, MAX_LEVEL + 10);
     let eq;
-    if (named) { const d = NAMED_LIST.find((x) => x.id === named); if (!d) return null; eq = this.makeEquip(d.slot, lvl, d.quality, named); }
+    if (named) { const d = NAMED_LIST.find((x) => x.id === named); if (!d) return null; eq = this.makeEquip(d.slot, Math.max(lvl, minLv(d.quality)), d.quality, named); }
     else if (set) { const st = SIX_SETS[set]; if (!st) return null; eq = genSix(set, { slot: st.slots.includes(slot) ? slot : st.slots[0], lvl: Math.max(st.min, lvl), cls: S.cls, uid: S.uid++, owner: S.name }); }
-    else eq = this.makeEquip(slot, lvl, gearQuality(quality));
+    else {
+      const q = gearQuality(quality); lvl = Math.max(lvl, minLv(q));
+      if (q === 6) { const [dg, R] = Object.entries(RELIC_SETS)[(Math.random() * Object.keys(RELIC_SETS).length) | 0]; eq = genRed({ adj: R.adj, set: dg, slot, lvl, cls: S.cls, uid: S.uid++ }); }
+      else eq = this.makeEquip(slot, lvl, q);
+    }
     if (!eq) return null;
     eq.enh = clamp(enh | 0, 0, 15); eq.dur = 100;
     if (eq.slot === 'weapon' && ELEMENTS[el]) eq.el = el; else delete eq.el;
@@ -230,13 +236,13 @@ const U = {
 
   gmGearTab(body) {
     const g = this.g, S = g.S, o = this.sel.gmGear = this.sel.gmGear || { kind: 'random', slot: 'weapon', quality: 4, lvl: S.level, enh: 0, el: '', set: Object.keys(SIX_SETS)[0], named: NAMED_LIST[0]?.id };
-    const sec = this.gmSec(body, 'Make gear');
+    const sec = this.gmSec(body, 'Make gear', 'A rarity never comes below its level (Rare 20, Special 40, Unique 60, Legendary 100, Red 140): a lower level is raised');
     const kind = h('div', 'gm-row'); sec.appendChild(kind);
     for (const [k, label] of [['random', 'Any rarity'], ['set', 'Set piece'], ['named', 'Named item']]) this.gmBtn(kind, label, () => { o.kind = k; this.renderPanel(); }, 'chip' + (o.kind === k ? ' sel' : ''));
     const grid = h('div', 'gm-grid'); sec.appendChild(grid);
     const read = [];
     if (o.kind !== 'named') { const sl = this.gmField(grid, 'Slot', this.gmSelect(SLOTS.map((s) => [s, SLOT_INFO[s].label]), o.slot)); read.push(() => { o.slot = sl.value; }); }
-    if (o.kind === 'random') { const q = this.gmField(grid, 'Rarity', this.gmSelect(RARITY.map((r, i) => [i, r.name]), o.quality)); read.push(() => { o.quality = +q.value; }); }
+    if (o.kind === 'random') { const q = this.gmField(grid, 'Rarity', this.gmSelect(RARITY.slice(0, GEAR_Q + 1).map((r, i) => [i, r.name]), o.quality)); read.push(() => { o.quality = +q.value; }); }
     if (o.kind === 'set') { const st = this.gmField(grid, 'Set', this.gmSelect(Object.entries(SIX_SETS).map(([id, x]) => [id, `${x.name} (${RARITY[x.tier]?.name || ''})`]), o.set)); read.push(() => { o.set = st.value; }); }
     if (o.kind === 'named') { const nm = this.gmField(grid, 'Item', this.gmSelect(NAMED_LIST.map((d) => [d.id, `${d.name} · ${SLOT_INFO[d.slot]?.label || d.slot}`]), o.named)); read.push(() => { o.named = nm.value; }); }
     const lv = this.gmField(grid, 'Level', this.gmInput(o.lvl, { min: 1, max: MAX_LEVEL + 10 })); read.push(() => { o.lvl = +lv.value; });
@@ -303,7 +309,7 @@ const U = {
     const gq = h('div', 'gm-row'); dr.appendChild(gq);
     const all = [...Object.entries(ITEMS).map(([id, it]) => [id, it.name]), ...Object.entries(MATERIALS).map(([id, m]) => [id, m.name])];
     const it = this.gmField(gq, 'Next kills drop', this.gmSelect([['gear', 'Gear (pick rarity)'], ...all.slice(0, 400)], this.sel.gmDropId || 'gear'));
-    const rq = this.gmField(gq, 'Gear rarity', this.gmSelect(RARITY.map((r, i) => [i, r.name]), this.sel.gmDropQ ?? 4));
+    const rq = this.gmField(gq, 'Gear rarity', this.gmSelect(RARITY.slice(0, GEAR_Q + 1).map((r, i) => [i, r.name]), this.sel.gmDropQ ?? 4));
     const sl = this.gmField(gq, 'Gear slot', this.gmSelect([['', 'Any'], ...SLOTS.map((s) => [s, SLOT_INFO[s].label])], this.sel.gmDropSlot || ''));
     this.gmBtn(gq, 'Add', () => {
       this.sel.gmDropId = it.value; this.sel.gmDropQ = +rq.value; this.sel.gmDropSlot = sl.value;
