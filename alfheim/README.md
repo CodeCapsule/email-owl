@@ -161,7 +161,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   each player earns their own reward for their own damage.
 - **Aggro (who the monster attacks)**: when several players fight the world boss, or a party fights a monster, it goes
   for the same player on every screen: the one with the most threat. Threat is the damage you deal (Guardians make
-  three times as much, so the tank holds it) and a taunt puts you on top. Another player only takes it over by beating
+  three times as much, so the tank holds it) and a taunt puts you on top; falling wipes your threat, and the monster turns to the next player. Another player only takes it over by beating
   that by 10% up close or 30% from range, so the others can fight from a distance without being attacked. It only
   swings at the player it is after; its lantern and lightning strikes fall on that player and on whoever stands close
   to it. The target frame shows whom it is attacking (`⚔ Attacking: name`).

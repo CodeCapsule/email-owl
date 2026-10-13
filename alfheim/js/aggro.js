@@ -29,13 +29,14 @@ const A = {
     if ((m.aggroT || 0) > this.time) return;
     m.aggroT = this.time + 0.3;
     const p = this.player, now = this.time, me = mp.id || 'me';
-    if (m.tauntT > now && m.tauntBy === p) m.threat = Math.max(m.threat || 0, this.threatTopRemote(m) * 1.3 + 50); // your taunt puts you on top
+    if (p.dead) m.threat = 0; // falling wipes your threat
+    else if (m.tauntT > now && m.tauntBy === p) m.threat = Math.max(m.threat || 0, this.threatTopRemote(m) * 1.3 + 50); // your taunt puts you on top
     const cand = [];
     if (!p.dead && (m.threat || 0) > 0 && (p.map || this.world) === (m.map || this.world) && flat(p.pos, m.pos) < RANGE) cand.push({ key: me, th: m.threat, e: p });
     for (const [key, r] of m.rthreat || []) {
       if (now - r.t > FRESH) { m.rthreat.delete(key); continue; }
       const e = (this.rplayers || []).find((x) => x.peerId === key && !x.netHidden);
-      if (e && !e.dead && flat(e.pos, m.pos) < RANGE) cand.push({ key, th: r.th, e });
+      if (e && !e.dead && e.state !== 'dead' && e.hp > 0 && flat(e.pos, m.pos) < RANGE) cand.push({ key, th: r.th, e }); // a fallen player is out
     }
     if (!cand.length) { m.aggroKey = null; return; } // nobody has hit it yet: the usual rules
     cand.sort((a, b) => b.th - a.th || (a.key < b.key ? -1 : 1));
