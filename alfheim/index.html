@@ -974,6 +974,8 @@ button { font-family: inherit; }
 .np .t.gmt { color: #ffd84a; }
 .gm-body .chip.sel { color: #fff; text-shadow: 0 1px 0 #6a3a00; }
 .gm-body .gm-row > .muted { align-self: center; font-size: 12px; font-weight: 800; }
+/* a newer version is out (update.js) */
+#update-bar { position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 96; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 24px); padding: 8px 10px 8px 14px; color: var(--ink); font-size: 13px; font-weight: 800; }
 #title-live { width: min(520px, 100%); display: flex; flex-direction: column; gap: 6px; }
 #title-live .tl { padding: 7px 12px; border-radius: 8px; font-size: 13px; color: var(--ink); background: rgba(10, 16, 40, .78); border: 1px solid rgba(243, 199, 91, .45); display: flex; gap: 8px; align-items: center; }
 #title-live .tl .ico { width: 18px; height: 18px; flex: none; } #title-live .maint { border-color: #ff8a5a; background: rgba(90, 24, 10, .8); } #title-live .boost { border-color: #7aff9a; }
