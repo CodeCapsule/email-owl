@@ -193,7 +193,7 @@ export class UI {
     $('hud-pet').onclick = () => this.togglePanel('pets');
     $('qt-tog').onclick = () => { const l = $('qt-list'); l.hidden = !l.hidden; $('qt-tog').textContent = l.hidden ? '+' : '−'; };
     $('qt-team').onclick = () => this.togglePanel('online');
-    $('chat-toggle').onclick = () => $('hud-chat').classList.toggle('open');
+    $('chat-toggle').onclick = () => { const on = $('hud-chat').classList.toggle('open'); $('chat-toggle').classList.toggle('on', on); };
     $('chat-tabs').querySelectorAll('button').forEach((b) => b.onclick = () => {
       $('chat-tabs').querySelectorAll('button').forEach((x) => x.classList.toggle('sel', x === b));
       this.chatFilter = b.dataset.c; this.applyChatFilter();

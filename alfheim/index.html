@@ -1580,6 +1580,7 @@ html.uiz #hud, html.uiz #panels, html.uiz #dialog, html.uiz #modal, html.uiz #to
   #hud.menu-min #hud-quest { max-height: calc(100% - 204px - 322px); }
   #hud.menu-min.has-target #hud-quest { top: calc(210px + 68px * var(--tg-s, .68)); max-height: calc(100% - 210px - 68px * var(--tg-s, .68) - 322px); }
 }
+#hud #chat-toggle.on { border-color: var(--gold-l); box-shadow: 0 0 10px rgba(243, 199, 91, .6); }
 /* portrait phones: the quest tracker steps aside while the chat is open */
 @media (max-width: 900px) and (min-height: 501px) {
   #hud:has(#hud-chat.open) #hud-quest { visibility: hidden; }
@@ -1621,17 +1622,24 @@ html.uiz #hud, html.uiz #panels, html.uiz #dialog, html.uiz #modal, html.uiz #to
   #hud #hud-bar .side-btns { left: 132px; bottom: 16px; }
   #hud #hud-bar .toolbelt { left: 132px; bottom: 64px; }
   #hud #chat-toggle { left: 132px; bottom: 112px; }
-  /* chat: a small box in the middle of the screen, under the menu row, clear of the joystick and the skills */
-  #hud #hud-chat.open { top: 66px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(300px, calc(100% - 460px)); min-width: 220px; max-height: none; }
-  #hud #hud-chat.open .chat-log { height: auto; max-height: 78px; min-height: 40px; background: rgba(0, 0, 0, .5); }
+  /* chat: opened by its message button as a small box at the bottom centre, between the joystick side and the skills
+     (narrower phones lift it just above the buttons there) */
+  #hud #hud-chat.open { top: auto; bottom: 8px; left: 50%; right: auto; transform: translateX(-50%); width: min(320px, calc(100% - 660px)); min-width: 0; max-height: none; }
+  #hud #hud-chat.open .chat-log { height: auto; max-height: 58px; min-height: 36px; padding: 4px 8px; font-size: 11.5px; background: rgba(0, 0, 0, .5); }
   #hud #hud-chat.open .chat-tabs button { padding: 2px 7px; font-size: 10.5px; }
   #hud #hud-chat.open .chat-input input { padding-top: 4px; padding-bottom: 4px; }
-  #hud:has(#hud-chat.open) #hud-target { top: 214px; }
   #hud #skillbar .slot:nth-child(8) { right: 246px; bottom: 40px; }
   #hud #skillbar .slot:nth-child(9) { right: 229px; bottom: 110px; }
   #hud #hud-target, #hud.menu-min #hud-target { top: 158px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%) scale(.78); transform-origin: top center; }
   #hud #hud-wb { transform: translateX(-50%) scale(.72); transform-origin: top center; }
   #hud #hud-cast { bottom: 120px; }
+}
+/* landscape phones narrower than 920px: the chat box sits just above the buttons beside the joystick */
+@media (max-height: 500px) and (max-width: 919px) {
+  #hud #hud-chat.open { bottom: 64px; width: min(250px, calc(100% - 600px)); }
+}
+@media (max-height: 500px) and (max-width: 799px) {
+  #hud #hud-chat.open { bottom: 164px; width: 240px; }
 }
 </style>
 </head>

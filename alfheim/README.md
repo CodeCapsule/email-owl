@@ -284,8 +284,9 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   Skills, Quests); scroll it, or tap the arrow under it, for Events, Map, Gathering, Pets and the rest. The **Menu**
   tab above it folds the column away to free the screen (remembered on that device; a red dot shows when something
   inside wants you). The target frame and the quest tracker sit beside the column, or along the right edge while it
-  is folded. Landscape puts the four buttons in a row beside the minimap and the quest tracker on the left. Chat opens
-  from its button: in landscape as a small box in the middle of the screen, clear of the joystick and the skills. Phones whose browser asks for the desktop site (the "Desktop site" switch) used to get a
+  is folded. Landscape puts the four buttons in a row beside the minimap and the quest tracker on the left. Chat stays
+  hidden until you tap its message button: in landscape it opens as a small box at the bottom centre, between the
+  buttons beside the joystick and the skills (narrower phones lift it just above those buttons). Phones whose browser asks for the desktop site (the "Desktop site" switch) used to get a
   tiny desktop layout with no joystick: the game now spots a touch screen laid out wider than the phone and scales its
   interface back to the phone's real width, so the touch layout appears either way.
 - **Icons**: every icon is a hand-made SVG in `js/icons/`, so nothing depends on the device's emoji font.
