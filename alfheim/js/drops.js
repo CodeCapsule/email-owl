@@ -14,7 +14,8 @@ const KEEP_MS = 5 * 60e3; // on the ground this long, then back to its owner
 const PUT_SECS = 4; // the owner repeats its list this often
 const STALE_MS = 20e3; // an owner not heard from for this long: its drops go
 const MAX_MINE = 12, MAX_GM = 40; // drops one player can have on the ground at once
-const PICK_R = 2; // walk this close to pick one up
+const PICK_R = 1.4; // walk this close to pick one up
+const GAP = 1.7; // drops land at least this far apart, so you pick up the one you walk to
 const ID_RE = /^[a-z0-9]{1,16}-\d{1,9}$/;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (v, lo, hi, d = 0) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
@@ -58,8 +59,12 @@ const D = {
   groundDrop(item) {
     if (this.dg || this.war || this.trial || !this.dropRoom()) return null;
     const S = this.S, p = this.player;
-    let x = p.pos.x + Math.sin(p.yaw) * 1.8, z = p.pos.z + Math.cos(p.yaw) * 1.8;
-    [x, z] = this.world.nearestFree(x, z);
+    // in front of you, beside the ones already there
+    let x = 0, z = 0;
+    spot: for (const r of [1.8, 3.4, 5]) for (const k of [0, 1, -1, 2, -2, 3, -3]) {
+      [x, z] = this.world.nearestFree(p.pos.x + Math.sin(p.yaw + k * 0.95 * 1.8 / r) * r, p.pos.z + Math.cos(p.yaw + k * 0.95 * 1.8 / r) * r);
+      if (!this.loots.some((L) => L.map === this.world && Math.hypot(L.ground.x - x, L.ground.z - z) < GAP)) break spot;
+    }
     const id = `${(mp.id || 'me').slice(0, 16)}-${++this.dropN}`, until = Date.now() + KEEP_MS;
     (S.grounded ||= []).push({ id, item, until });
     const L = this.dropMake({ id, owner: mp.id || 'me', ownerName: S.name, x, z, until, show: dropShow(item), mine: true, item, src: p.pos });
