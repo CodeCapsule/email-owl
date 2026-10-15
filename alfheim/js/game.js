@@ -28,6 +28,11 @@ import { installLimit } from './limit.js';
 import { installAutoFight } from './autofight.js';
 import { installCompanions } from './companions.js';
 import { installFireworks } from './fireworks.js';
+import { installDuel } from './duel.js';
+import { installEvents } from './events.js';
+import { installMiniGames } from './minigames.js';
+import { installUnlocks } from './unlocks.js';
+import { ZONE_ELEMENT, elemAdv } from './data-elements.js';
 import { installTrade } from './trade.js';
 import { installSocial, cleanFriends } from './social.js';
 import { installGuide, initGuideSave } from './guide.js';
@@ -158,7 +163,7 @@ export class Game {
     this.initProgress();
     this.createPlayer();
     this.dzInit();
-    this.gmNetInit(); this.dropsInit(); this.starsInit(); this.compInit();
+    this.gmNetInit(); this.dropsInit(); this.starsInit(); this.compInit(); this.arenaInit();
     let p = S.pos || { x: 0, z: 9 };
     if (Math.abs(p.x) > 380 || Math.abs(p.z) > 380) p = { x: 0, z: 9 };
     this.player.pos.set(p.x, this.world.heightAt(p.x, p.z), p.z);
@@ -301,6 +306,7 @@ export class Game {
     if (inner.userData.humanoid) e.humanoid = inner;
     e.map = o.map || this.world; e.dungeon = !!o.dungeon; e.room = o.room ?? -1; e.summoned = !!o.summoned; e.fixed = o.fixed || null;
     e.uid = o.uid || null; e.gen = 0; // world spawns: the same id and life count in every browser
+    e.el = !o.dungeon && e.map === this.world && !d.war && !d.structure ? ZONE_ELEMENT[this.world.zoneAt(sp.x, sp.z, ZONES)?.name] || null : null; // the element wheel
     if (d.dz) { e.dz = true; this.dzTint(e); }
     const cls = 'monster' + (d.aggressive ? ' aggr' : '') + (d.elite ? ' elite' : '') + (d.boss ? ' boss' : '');
     this.nameplate(e, `<div class="n"></div>`, cls, true);
@@ -685,6 +691,7 @@ export class Game {
     if (this.hasFx('set_covenant') && o.fixed == null) { if (src === this.player || src.kind === 'pet') base *= 1.15; else if (dst === this.player) base *= 0.85; }
     if (dst === this.player && o.fixed == null && (this.petIs('guard') || this.petIs('guardian'))) base *= 1 - this.petFx.v / 100;
     if (dst.guard && src === this.player) base *= 0.25; // a Twin Blade on guard
+    if (dst.kind === 'monster' && dst.el && o.fixed == null && (src === this.player || src.kind === 'pet')) base *= elemAdv(src === this.player ? this.S.equip.weapon?.el : this.petEl(), dst.el); // the element wheel
     const K = 50 + 8 * (src.level || 1); // armor matters relative to the attacker's level, so it scales to Lv 200
     let dmg = o.fixed != null ? Math.max(1, Math.round(o.fixed)) : o.pct != null ? Math.max(1, Math.round(base)) : Math.max(1, Math.round(base * K / (K + this.defOf(dst))));
     if (dst === this.player && dmg > 0) dmg = Math.round(this.manaShield(dmg));
@@ -693,6 +700,7 @@ export class Game {
       if (dst === this.player && ab > 0) this.fx.text(dst.pos.clone().setY(dst.pos.y + dst.height), 'Absorb', 'miss');
       if (dst.shield <= 0) dst.buffs = dst.buffs.filter((b) => !b.shield);
     }
+    if (dst === this.player && dmg >= dst.hp && this.duelGuard()) return 0; // duels and arena fights end at 1 HP (duel.js)
     dst.hp -= dmg;
     const head = dst.pos.clone().setY(dst.pos.y + dst.height * 0.9);
     const mine = src === this.player || src.kind === 'pet';
@@ -838,9 +846,10 @@ export class Game {
     if (m.wb) this.onWorldBossKilled(m);
     if (m.trialMob) { this.cbOnKill(m); this.gearOnKill(m); this.onTrialKill(m); return; }
     if (m.realm) { this.realmWon(m); return; } // the Sprite Realm's guardian (companions.js)
+    if (m.arena) { this.arenaWon(m); return; } // an arena champion (duel.js)
     if (!m.tagged) return;
     m.tagged = false;
-    this.petKill(m); this.compOnKill(m); // pet XP, Evolution Stones, Sprite Essence
+    this.petKill(m); this.compOnKill(m); this.rushKill(m); // pet XP, Evolution Stones, Sprite Essence, Monster Rush
     const K = this.killScale(d, m.level);
     // exp
     const cs = d.curve ? curveStats(m.level, d.curve) : null;
@@ -1010,7 +1019,7 @@ export class Game {
       if (S.level === 100 && S.awaken == null) { this.ui.banner('AWAKENING', 'Choose your path in the Skills window (K)', 'level'); this.ui.markMenu('skills'); }
       if (this.skillPtsLeft() > 0) this.ui.markMenu('skills');
       if (S.level >= 10 && S.title < 3) { S.title = 3; this.refreshPlayerPlate(); }
-      this.questLevelUp(); this.starsLevelUp(from);
+      this.questLevelUp(); this.starsLevelUp(from); this.featuresLevelUp(from);
       if (Math.floor(S.level / 10) > Math.floor(from / 10)) this.fwLevel(); // a rocket for every 10th level
       if (S.level >= MAX_LEVEL) { this.unlockTitle('Legend of Hiraya'); this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached the maximum level ${MAX_LEVEL}!`); }
       else if (S.level % 25 === 0) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached Level ${S.level}!`);
@@ -1635,7 +1644,7 @@ export class Game {
     this.updateCombat(dt);
     this.updateSoul(dt); this.updateFog(); this.updateNavigation(dt); this.gearTick(dt);
     this.skyUpdate(dt);
-    this.dzUpdate(dt); this.dropsUpdate(dt); this.huntUpdate(dt); this.realmUpdate(dt); this.fwUpdate(dt);
+    this.dzUpdate(dt); this.dropsUpdate(dt); this.huntUpdate(dt); this.realmUpdate(dt); this.fwUpdate(dt); this.duelUpdate(dt); this.arenaUpdate(dt); this.evUpdate(dt);
     this.updateSprite(dt);
     for (const m of this.monsters) this.updateMonster(m, dt);
     for (const n of this.npcs) this.updateNPC(n, dt);
@@ -2411,6 +2420,10 @@ installLimit(Game);
 installAutoFight(Game);
 installCompanions(Game);
 installFireworks(Game);
+installDuel(Game);
+installEvents(Game);
+installMiniGames(Game);
+installUnlocks(Game);
 installTrade(Game);
 installSocial(Game);
 installGuide(Game);

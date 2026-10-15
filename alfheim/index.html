@@ -564,6 +564,23 @@ button { font-family: inherit; }
 .sp-tal { flex-basis: 100%; display: grid; gap: 4px; } .sp-trow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; } .sp-trow > small { width: 40px; color: #ffd84a; } .sp-trow.locked { opacity: .5; }
 .sp-trow .chip small { color: var(--muted); font-size: 10px; margin-left: 3px; }
 .mt-box { flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .1); font-size: 12px; } .mt-box .ico.inl { width: 16px; height: 16px; vertical-align: -3px; }
+/* ---- Arena, timetable, quiz, mini-games, coming up (duel.js, events.js, minigames.js, unlocks.js) ---- */
+.ar-me { font-size: 13px; margin-bottom: 8px; line-height: 1.6; } .ar-me b { font-family: var(--f-num); font-weight: 400; font-size: 18px; color: #ffe7a8; }
+.ar-tier { display: inline-block; padding: 1px 9px; margin-right: 6px; border-radius: 999px; background: var(--tc); color: #1a1020; font-weight: 800; font-size: 12px; }
+.ar-list { max-height: 46vh; overflow-y: auto; } .ar-list .row.me { background: rgba(255, 216, 74, .14); } .ar-rank { width: 26px; text-align: center; font-family: var(--f-num); color: #ffe7a8; }
+.row.live { background: rgba(122, 255, 154, .1); border-color: rgba(122, 255, 154, .4); } .tt-time { width: 48px; font-family: var(--f-num); color: #ffe7a8; }
+.qtag.event { background: #d84a8a; }
+#quiz-box { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); width: min(340px, 86vw); padding: 10px 12px; z-index: 30; }
+#quiz-box .qz-h { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); } #quiz-box .qz-h b { color: #ffe7a8; }
+#quiz-box .qz-q { margin: 6px 0 8px; font-size: 14px; } #quiz-box .qz-a { display: flex; gap: 6px; flex-wrap: wrap; } #quiz-box .qz-a .btn { flex: 1 1 80px; }
+.mg-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.mg-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-width: 360px; margin: 0 auto 10px; }
+.mg-card { aspect-ratio: 1; border-radius: 10px; border: 2px solid #8a6a3a; cursor: pointer; display: grid; place-items: center; font-size: 22px; color: #ffe7a8;
+  background: radial-gradient(circle at 40% 30%, #4a5a9a, #1a2250); transition: transform .15s; }
+.mg-card.up { background: radial-gradient(circle at 40% 30%, #ffffff, #d8e4f8); transform: rotateY(0); } .mg-card.done { border-color: #7aff7a; opacity: .8; } .mg-card img { width: 80%; height: 80%; }
+.td-cv { display: block; width: 100%; max-width: 480px; margin: 0 auto; border-radius: 8px; border: 2px solid #8a6a3a; touch-action: manipulation; }
+.td-bar { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 8px; } .td-bar .btn[style] { box-shadow: inset 0 -3px 0 var(--tc); }
+.coming { display: grid; gap: 2px; margin: 0 auto 8px; font-size: 11px; color: var(--muted); text-align: center; } .coming b { color: #ffe7a8; font-size: 12px; }
 /* ---- Star Wish ---- */
 .wish-board { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, auto); gap: 6px; }
 .wish-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 4px; border-radius: 10px; text-align: center; font-size: 11px; line-height: 1.15;
@@ -641,6 +658,8 @@ button { font-family: inherit; }
 .qtag.dungeon { background: #8a3ac8; }
 .dg-meta { display: flex; gap: 10px; font-size: 11px; color: var(--muted); margin-top: 2px; }
 #tg-name .tg-dr { margin-left: 6px; font-size: 10.5px; color: #ffb35a; font-weight: 700; }
+#tg-name .tg-el { margin-left: 6px; padding: 0 5px; border-radius: 6px; background: var(--el); color: #1a1020; font-size: 10px; font-weight: 800; text-shadow: none; } #tg-name .tg-el.up { box-shadow: 0 0 0 2px #7aff7a; } #tg-name .tg-el.down { box-shadow: 0 0 0 2px #ff7a7a; }
+.el-wheel { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0; font-size: 12px; } .el-wheel .el-tag { margin-left: 0; } .el-wheel .ar { color: var(--muted); }
 .tg-ag { font-size: 11px; line-height: 1.2; margin-top: 2px; color: #ffd0a0; min-height: 0; }
 .tg-ag:empty { display: none; }
 .tg-ag.me { color: #ff8a7a; }

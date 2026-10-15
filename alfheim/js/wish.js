@@ -53,6 +53,7 @@ const G = {
   wishFreeLeft() { return Math.max(0, WISH_FREE - this.wishState().free); },
   // n: 1 or 10; a single wish uses a free one first. Returns the prize indexes.
   wish(n = 1) {
+    if (!this.featureGate('wish')) return null;
     const W = this.wishState();
     const free = n === 1 && this.wishFreeLeft() > 0;
     if (!free && !this.pay(n === 10 ? WISH_TEN : WISH_ONE)) return null;

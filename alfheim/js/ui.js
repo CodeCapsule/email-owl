@@ -23,9 +23,14 @@ import { installWishUI } from './wish.js';
 import { LIMIT_BREAK, LB_MAX } from './limit.js';
 import { BOT_RANGES, BOT_POTS } from './autofight.js';
 import { installCompanionsUI, PET_EVO } from './companions.js';
+import { installDuelUI } from './duel.js';
+import { installEventsUI } from './events.js';
+import { installMiniGamesUI } from './minigames.js';
+import { FEATURES } from './unlocks.js';
 import { dirWord } from './nav-world.js';
 import { WORLD_BOSS, MATERIALS } from './systems-data.js';
 import { DZ } from './data-dz.js';
+import { ELEMENTS, elemAdv } from './data-elements.js';
 import { MASTERY, MASTERY_MAX, masteryNeed, FOG } from './progress.js';
 import { SURVEY_MIN_MASTERY, SURVEY_COVER } from './data-nav.js';
 import { trialLabel } from './data-trials.js';
@@ -152,7 +157,7 @@ export class UI {
     this.setMenuMin(min, false);
     // activities (top right): Online, Missions, Dungeon and the World Boss timer stay out; the rest sit behind More
     const acts = $('hud-acts'); acts.innerHTML = ''; acts.className = 'qa';
-    const A = [['online', 'Online'], ['missions', 'Missions'], ['dungeon', 'Dungeon'], ['worldboss', 'World Boss'], ['war', 'Guild War'], ['event', 'Festival'], ['season', 'Season'], ['farm', 'Farm'], ['signin', 'Sign-In'], ['wish', 'Star Wish'], ['gift', 'Gift'], ['mall', 'Mall'], ['rank', 'Ranking'], ['bounty', 'Bounty'], ['teleport', 'Teleport']];
+    const A = [['online', 'Online'], ['missions', 'Missions'], ['dungeon', 'Dungeon'], ['worldboss', 'World Boss'], ['war', 'Guild War'], ['event', 'Festival'], ['season', 'Season'], ['farm', 'Farm'], ['signin', 'Sign-In'], ['timetable', 'Timetable'], ['wish', 'Star Wish'], ['arena', 'Arena'], ['games', 'Mini-games'], ['gift', 'Gift'], ['mall', 'Mall'], ['rank', 'Ranking'], ['bounty', 'Bounty'], ['teleport', 'Teleport']];
     const ACT_PIN = ['online', 'missions', 'dungeon', 'worldboss'];
     this.acts = {};
     for (const [n, label] of A) {
@@ -324,7 +329,9 @@ export class UI {
         const tag = t.def0.boss ? '<em>BOSS</em>' : t.def0.elite ? '<em>ELITE</em>' : '';
         // hunting one type over and over pays less: show what a kill is worth now
         const dr = g.diminishInfo ? g.diminishInfo(t.type) : 1;
-        $('tg-name').innerHTML = `Lv${t.level} ${esc(t.def0.name)}${tag}${dr < 1 ? ` <small class="tg-dr" title="Repeated kills of this monster type give less EXP; it recovers while you hunt elsewhere">EXP ${Math.round(dr * 100)}%</small>` : ''}`;
+        const E = t.el && ELEMENTS[t.el], adv = E ? elemAdv(g.S.equip.weapon?.el, t.el) : 1;
+        const elt = E ? ` <small class="tg-el${adv > 1 ? ' up' : adv < 1 ? ' down' : ''}" style="--el:${E.color}" title="${E.name} monster${adv > 1 ? ': your weapon\'s element beats it (+25% damage)' : adv < 1 ? ': it resists your weapon\'s element (-15% damage)' : ''}">${E.name}${adv > 1 ? ' ▲' : adv < 1 ? ' ▼' : ''}</small>` : '';
+        $('tg-name').innerHTML = `Lv${t.level} ${esc(t.def0.name)}${tag}${elt}${dr < 1 ? ` <small class="tg-dr" title="Repeated kills of this monster type give less EXP; it recovers while you hunt elsewhere">EXP ${Math.round(dr * 100)}%</small>` : ''}`;
       } else {
         $('tg-img').src = g.heroIcon(t);
         $('tg-name').innerHTML = `Lv${t.level} ${esc(t.name)} <em style="color:#9ad0ff">${CLASSES[t.cls]?.name || ''}</em>`;
@@ -336,8 +343,11 @@ export class UI {
     const canSign = S.signin.last !== new Date().toISOString().slice(0, 10);
     this.acts.signin.classList.toggle('glow', canSign);
     this.setBadge(this.acts.signin, canSign);
-    const wishFree = this.g.wishFreeLeft() > 0;
+    const wishFree = this.g.wishFreeLeft() > 0 && this.g.featureOn('wish');
     this.acts.wish.classList.toggle('glow', wishFree); this.setBadge(this.acts.wish, wishFree);
+    // newer features stay off the bar until their level (unlocks.js)
+    for (const f of FEATURES) if (f.act && this.acts[f.act]) this.acts[f.act].hidden = !this.g.featureOn(f.id);
+    if (this.acts.timetable) this.acts.timetable.classList.toggle('glow', !!this.g.evLive() && this.g.featureOn('events'));
     this.acts.gift.hidden = S.gift.idx >= ONLINE_GIFTS.length;
     this.acts.bounty.classList.toggle('glow', !!(S.bounty && S.bounty.status === 'complete'));
     const anyEntry = DUNGEONS.some((d) => S.level >= d.lv - 2 && this.g.dungeonEntries(d) > 0);
@@ -587,6 +597,7 @@ export class UI {
       it.title = 'Click to walk to the treasure'; it.onclick = () => { g.sfx.play('click'); g.pathTo(S.hunt.x, S.hunt.z, true, true); };
       list.appendChild(it);
     }
+    this.eventTracker(list);
     this.guideTracker(list);
     this.questExtras(list);
     if (this.panelName === 'quests') this.renderPanel();
@@ -771,8 +782,8 @@ export class UI {
     const dot = this.menuBtns[name]?.querySelector('.dotn'); if (dot) dot.remove();
     const titles = { char: 'Character', bag: 'Bag', skills: 'Skills', pets: 'Pets & Sprites', mounts: 'Mount Stable', quests: 'Quest Log', map: this.g.dg ? this.g.dg.def.name : this.g.war ? 'Spirit Crystal Arena' : 'World Map of Carlyle', settings: 'Settings', mall: 'Mall', signin: 'Daily Sign-In', gift: 'Online Gifts', rank: 'Leaderboards', dungeons: 'Dungeons',
       online: 'Players Online', life: 'Professions', collect: 'Relic Collection', wardrobe: 'Wardrobe', shop: SHOPS[this.sel.shop]?.name || 'Shop', auction: 'Auction House',
-      missions: 'Daily & Weekly Missions', guild: this.g.S.guild ? `Guild · ${this.g.S.guild.name}` : 'Guilds of Carlyle', market: 'Carlyle Market', forge: this.stationNext?.npc === 'opal' || this.station?.npc === 'opal' ? "Opal's Gem Workshop" : "Gorm's Forge", codex: 'Legendary Codex', season: 'Season Pass', event: this.g.event ? this.g.event.name : 'Festivals', worldboss: 'World Boss', trials: 'Breakthrough Trials', cooking: 'Campfire Cooking', prestige: 'Hall of Firsts', gm: 'Game Master', stars: 'Attribute Stars', wish: 'Star Wish' };
-    const widths = { char: 600, bag: 412, skills: 720, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 560, dungeons: 620, missions: 600, guild: 600, market: 620, forge: 600, codex: 620, season: 660, event: 600, worldboss: 600, online: 520, life: 620, collect: 600, wardrobe: 600, shop: 560, auction: 640, trade: 640, trials: 680, cooking: 540, prestige: 520, gm: 660, stars: 560, wish: 560 };
+      missions: 'Daily & Weekly Missions', guild: this.g.S.guild ? `Guild · ${this.g.S.guild.name}` : 'Guilds of Carlyle', market: 'Carlyle Market', forge: this.stationNext?.npc === 'opal' || this.station?.npc === 'opal' ? "Opal's Gem Workshop" : "Gorm's Forge", codex: 'Legendary Codex', season: 'Season Pass', event: this.g.event ? this.g.event.name : 'Festivals', worldboss: 'World Boss', trials: 'Breakthrough Trials', cooking: 'Campfire Cooking', prestige: 'Hall of Firsts', gm: 'Game Master', stars: 'Attribute Stars', wish: 'Star Wish', arena: 'Arena', timetable: 'Event Timetable', games: 'Mini-games' };
+    const widths = { char: 600, bag: 412, skills: 720, pets: 520, mounts: 520, quests: 480, map: 600, settings: 400, mall: 560, signin: 560, gift: 420, rank: 560, dungeons: 620, missions: 600, guild: 600, market: 620, forge: 600, codex: 620, season: 660, event: 600, worldboss: 600, online: 520, life: 620, collect: 600, wardrobe: 600, shop: 560, auction: 640, trade: 640, trials: 680, cooking: 540, prestige: 520, gm: 660, stars: 560, wish: 560, arena: 560, timetable: 520, games: 540 };
     const p = h('div', 'panel frame');
     p.style.width = `min(${widths[name]}px, calc(var(--lw, 1vw) * 100 - 24px))`;
     p.innerHTML = `<div class="ptitle">${titles[name]}</div><button class="x-close" aria-label="Close"></button><div class="pbody"></div>`;
@@ -844,6 +855,8 @@ export class UI {
     st.appendChild(cpb);
     const sb = h('button', 'btn small star-open', `★ Attribute Stars${S.level >= STAR_START ? ` ${(S.stars || []).filter(Boolean).length}/${STAR_MAX}` : ` (Lv ${STAR_START})`}`);
     sb.onclick = () => this.togglePanel('stars', true); st.appendChild(sb);
+    const nx = g.featuresNext(3);
+    if (nx.length) st.appendChild(h('div', 'coming', `<b>Coming up</b>${nx.map((f) => `<span>Lv ${f.lv} · ${esc(f.name)}</span>`).join('')}`));
     const RC = RACES[S.app?.race] || RACES.human;
     st.appendChild(h('div', 'stats', `
       <span>Class</span><span>${C.name}</span><span>${S.awaken != null ? 'Path' : 'Race'}</span><span>${S.awaken != null ? esc(C.paths[S.awaken]) : esc(RC.name)}</span>
@@ -1424,6 +1437,9 @@ installGmUI(UI);
 installStarsUI(UI);
 installWishUI(UI);
 installCompanionsUI(UI);
+installDuelUI(UI);
+installEventsUI(UI);
+installMiniGamesUI(UI);
 
 // the dungeon's set: pieces you own and its bonuses
 function setBlock(dungeonId, S) {

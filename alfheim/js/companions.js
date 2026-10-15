@@ -74,6 +74,7 @@ const G = {
   compDay() { const C = this.S.comp; if (C.day !== dayKey()) { C.day = dayKey(); C.hunts = 0; C.realm = 0; } return C; },
 
   // ---------------------------------------------------------------- pets
+  petEl() { return this.S.activePet ? petElement(this.S.activePet) : null; },
   petEvo(id) { return PET_EVO[this.S.pets[id]?.evo || 0]; },
   petEvoMult(id) { return this.petEvo(id).mult; },
   petName(id) { const pd = PETS.find((x) => x.id === id), E = this.petEvo(id); return E.name ? `${E.name} ${pd.name}` : pd.name; },
@@ -108,6 +109,7 @@ const G = {
     const S = this.S, st = S.pets[id], pd = PETS.find((x) => x.id === id); if (!st || !pd) return false;
     const nx = PET_EVO[(st.evo || 0) + 1];
     if (!nx) { this.ui.toast('Already at its final stage', 'warn'); return false; }
+    if (!this.featureGate('evolve')) return false;
     if (st.lv < nx.lv) { this.ui.toast(`${pd.name} must reach Lv ${nx.lv} to evolve`, 'warn'); return false; }
     if (!this.pay(nx.cost)) return false;
     st.evo = (st.evo || 0) + 1;
@@ -170,6 +172,7 @@ const G = {
   huntsLeft() { return Math.max(0, HUNTS_A_DAY - this.compDay().hunts); },
   huntStart() {
     const S = this.S, p = this.player;
+    if (!this.featureGate('hunt')) return false;
     if (!S.activeSprite) { this.ui.toast('Call a sprite first: it senses the treasure', 'warn'); return false; }
     if (this.dg || this.trial || this.war || this.map !== this.world) { this.ui.toast('Treasure lies out in the open world', 'warn'); return false; }
     if (S.hunt) { this.ui.toast('Your sprite already senses a treasure: follow the tracker', 'warn'); return false; }
@@ -224,7 +227,7 @@ const G = {
     if (this.realmFight) { this.ui.toast('A guardian is already waiting for you', 'warn'); return false; }
     if (this.dg || this.trial || this.war || this.map !== this.world) { this.ui.toast('The Sprite Realm opens in the open world', 'warn'); return false; }
     if (this.zone?.safe) { this.ui.toast('Step outside the town: the guardians do not come where people live', 'warn'); return false; }
-    if (S.level < 15) { this.ui.toast('The guardians test heroes of Lv 15 and above', 'warn'); return false; }
+    if (!this.featureGate('realm')) return false;
     if (!this.realmLeft()) { this.ui.toast('The Sprite Realm closes for today: three challenges a day', 'warn'); return false; }
     this.compDay().realm++;
     const a = p.yaw, [x, z] = this.world.nearestFree(p.pos.x + Math.sin(a) * 9, p.pos.z + Math.cos(a) * 9);
