@@ -974,6 +974,16 @@ button { font-family: inherit; }
 .np .t.gmt { color: #ffd84a; }
 .gm-body .chip.sel { color: #fff; text-shadow: 0 1px 0 #6a3a00; }
 .gm-body .gm-row > .muted { align-self: center; font-size: 12px; font-weight: 800; }
+/* phones held upright where the screen cannot turn by itself (landscape.js) */
+#rotate-hint { position: fixed; inset: 0; z-index: 97; display: grid; place-items: center; background: rgba(4, 8, 20, .78); }
+#rotate-hint[hidden] { display: none; }
+#rotate-hint .frame { display: grid; justify-items: center; gap: 8px; width: min(300px, calc(100vw - 40px)); padding: 20px 18px; color: var(--ink); text-align: center; }
+#rotate-hint svg { width: 72px; height: 72px; color: var(--gold); animation: rh-turn 2.4s ease-in-out infinite; }
+#rotate-hint b { font-size: 17px; } #rotate-hint span { color: var(--muted); font-size: 13px; font-weight: 700; }
+@keyframes rh-turn { 0%, 25% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
+@media (prefers-reduced-motion: reduce) { #rotate-hint svg { animation: none; } }
+/* landscape phones: keep the HUD clear of a camera cutout at the side */
+@media (orientation: landscape) { #hud { left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); } }
 /* a newer version is out (update.js) */
 #update-bar { position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 96; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 24px); padding: 8px 10px 8px 14px; color: var(--ink); font-size: 13px; font-weight: 800; }
 #title-live { width: min(520px, 100%); display: flex; flex-direction: column; gap: 6px; }
