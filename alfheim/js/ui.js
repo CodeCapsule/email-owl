@@ -87,6 +87,7 @@ export class UI {
     const pg = $('skill-page');
     pg.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v13M3 13l4 4 4-4M17 20V7M13 11l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><b></b>`;
     pg.onclick = () => g.swapSkillPage();
+    this.placePageBtn(); // main.js onResize places it again
     this.tip(pg, () => `<b>Skill page ${g.S.page + 1} of 2</b>Swaps the six skills on the bar for your other six.<br><span class="ts">Hotkey [ or ] · set both pages in the Skills window (K)</span>`);
     for (const [id, key] of [['hp_potion', 'Q'], ['mp_potion', 'E']]) {
       const b = h('button', 'slot potion'); b.innerHTML = `${ico(id)}<span class="key">${key}</span><span class="cnt"></span><span class="cd"></span>`;
@@ -291,6 +292,17 @@ export class UI {
     });
   }
   refreshSkillCD() {}
+  // the desktop bar keeps the page swap in the round action pill (mount, auto-fight, roll); phones keep it beside the
+  // skill arc. The desktop layout is the one where the dock is a grid (its media query, rescaled by touchfit.js).
+  placePageBtn() {
+    const pg = $('skill-page'), pill = document.querySelector('#hud-bar .side-btns'), bar = $('hud-bar'), dock = $('hud-dockbar');
+    if (!pg || !pill || !bar || !dock) return;
+    const desk = getComputedStyle(dock).display === 'grid';
+    let sep = pill.querySelector('.pill-sep');
+    if (desk && pg.parentElement !== pill) { if (!sep) { sep = h('span', 'pill-sep'); sep.setAttribute('aria-hidden', 'true'); } pill.append(sep, pg); }
+    else if (!desk && pg.parentElement !== bar) { sep?.remove(); bar.insertBefore(pg, $('skillbar')); }
+    pg.classList.toggle('inpill', desk);
+  }
   refreshTools() {
     const g = this.g; if (!g || !this.toolSlots) return;
     for (const [k, b] of Object.entries(this.toolSlots)) {

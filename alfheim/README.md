@@ -40,8 +40,8 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   Lv 1, 3, 7, 10, 15, 20, 30, 35, 40, 50, 55, 60, 70, 75, 80 and 90 so the bar fills early, and two awakening paths
   from Lv 100 with a new skill every 10 levels up to an ultimate at Lv 200. You get one skill point per level and three
   per cleared trial; each skill has 10 ranks, and ranks above 5 need weapon mastery of 10 x the rank. Passives are
-  always on. Your loadout has **two pages** of 6 actives plus the ultimate (keys 1-7): the **⇅** button beside the bar
-  (on phones, beside the skill buttons) or the [ and ] keys swap the page on the bar, so 12 skills are always a tap
+  always on. Your loadout has **two pages** of 6 actives plus the ultimate (keys 1-7): the gold **⇅** button in the round
+  action pill above the bar, with the page number on it (on phones, beside the skill buttons), or the [ and ] keys swap the page on the bar, so 12 skills are always a tap
   away; new skills fill the free slots of either page, and the Skills window (K) sets both. Respec is free in town once
   a day; switching paths costs a Trial Sigil.
   New in each class (Lv 3, 7, 15, 35, 55, 75): Guardian Shield Slam, Defensive Stance, Lunging Strike, Shield Spin,

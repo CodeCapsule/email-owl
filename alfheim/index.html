@@ -1595,6 +1595,14 @@ button { font-family: inherit; }
   #hud-bar .big-rbtn:hover { border-color: var(--gold); }
   #hud-bar .big-rbtn.on { border-color: var(--gold); box-shadow: 0 0 8px rgba(255, 210, 120, .7), inset 0 0 0 1px rgba(0, 0, 0, .5); }
   #hud-bar .slot.tool { width: 34px; height: 34px; }
+  /* the page swap in the action pill: a gold-ringed round button with the page number as a badge */
+  #hud-bar .side-btns { align-items: center; }
+  #hud-bar .side-btns .pill-sep { width: 1px; height: 24px; margin: 0 1px; background: #6a5030; }
+  #hud-bar #skill-page.inpill { position: relative; width: 34px; height: 34px; border-radius: 50%; border: 2px solid #ffd84a; padding: 0; overflow: visible; display: grid; place-items: center;
+    background: radial-gradient(circle at 40% 30%, #4a3418, #1e1408); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .5); color: var(--gold); }
+  #hud-bar #skill-page.inpill svg { width: 18px; height: 18px; }
+  #hud-bar #skill-page.inpill b { position: absolute; right: -5px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 8px; background: #b8862a; color: #1a1006; font-size: 11px; line-height: 16px; text-align: center; }
+  #hud-bar #skill-page.inpill:hover { border-color: #fff3b0; }
   #hud-bar .slot.tool .key { font-size: 10px; }
   #hud-dockbar .skillbar { position: static; transform: none; grid-area: skills; padding: 5px 6px; border-radius: 10px; background: rgba(0, 0, 0, .38); border: 1px solid rgba(184, 134, 42, .6); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .65); }
   #hud-menu { position: absolute; top: 236px; right: 10px; bottom: auto; left: auto; width: 172px; box-sizing: border-box; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 4px; justify-items: center; padding: 8px 6px; border-radius: 14px; z-index: 3;
