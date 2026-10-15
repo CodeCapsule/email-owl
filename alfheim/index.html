@@ -308,7 +308,7 @@ button { font-family: inherit; }
 .qt-item:hover { background: rgba(255, 255, 255, .08); }
 .qt-item .qtag { font-size: 10px; padding: 0 4px; border-radius: 3px; color: #fff; margin-right: 4px; }
 .qtag.main { background: #e8701a; }
-.qtag.bounty { background: #2a7ad8; }
+.qtag.bounty { background: #2a7ad8; } .qtag.hunt { background: #c8901a; }
 .qt-item .qn { color: #ffe066; }
 .qt-item .qo { color: #e8f0ff; font-size: 12px; }
 .qt-item .qo u { color: #7aff7a; text-decoration-color: rgba(122, 255, 122, .5); }
@@ -544,6 +544,26 @@ button { font-family: inherit; }
 .st-acts { display: grid; gap: 6px; margin-top: 8px; } .st-act { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, .05); }
 .st-act small { display: block; color: var(--muted); font-size: 11px; } .st-act .cost .ico.inl { width: 16px; height: 16px; vertical-align: -3px; }
 @media (max-width: 520px) { .st-grid { grid-template-columns: repeat(3, 1fr); } }
+/* ---- pets, Pet Book, sprites and mounts (companions.js) ---- */
+.el-tag { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 800; color: #1a1020; background: var(--el); vertical-align: 1px; }
+.card .evo { color: #ffd84a; font-size: 11px; }
+.pet-grow { flex-basis: 100%; display: grid; gap: 4px; margin-top: 8px; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, .05); font-size: 12px; }
+.pet-grow .pg-row { display: flex; justify-content: space-between; align-items: center; color: #ffd84a; } .pet-grow .pg-row b { color: #fff; }
+.pet-grow .pg-xp small { display: block; color: var(--muted); } .pet-grow .bar { display: block; height: 7px; border-radius: 4px; background: rgba(0, 0, 0, .4); overflow: hidden; } .pet-grow .bar i { display: block; height: 100%; background: linear-gradient(90deg, #7aff9a, #3ac85a); }
+.pg-evo { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, .1); } .pg-evo small { display: block; color: var(--muted); } .pg-evo .ico.inl { width: 16px; height: 16px; vertical-align: -3px; } .pg-evo.done b { color: #ffd84a; }
+.pb-sum { font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+.pb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; max-height: 52vh; overflow-y: auto; }
+.pb-row { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 8px; background: rgba(255, 255, 255, .05); }
+.pb-row.locked { opacity: .45; } .pb-name { flex: 1 1 auto; min-width: 0; font-size: 12px; } .pb-name b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pb-name .el-tag { margin-left: 0; }
+.pb-st { position: relative; width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; background: rgba(0, 0, 0, .3); border: 1px solid rgba(255, 255, 255, .1); }
+.pb-st img { width: 34px; height: 34px; filter: grayscale(1) brightness(.35); } .pb-st.on img { filter: none; } .pb-st.on { border-color: #ffd84a; }
+.pb-st i { position: absolute; bottom: -2px; right: 1px; font-style: normal; font-size: 9px; color: #ffd84a; text-shadow: 0 1px 0 #000; } .pb-ar { color: var(--muted); font-size: 10px; }
+.sp-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px; } .sp-top .ico.inl { width: 18px; height: 18px; vertical-align: -4px; }
+.sp-row { flex-wrap: wrap; } .sp-row.locked .ic img { filter: grayscale(1) brightness(.5); } .sp-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.sp-up { flex-basis: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 12px; } .sp-up .ico.inl { width: 16px; height: 16px; vertical-align: -3px; }
+.sp-tal { flex-basis: 100%; display: grid; gap: 4px; } .sp-trow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; } .sp-trow > small { width: 40px; color: #ffd84a; } .sp-trow.locked { opacity: .5; }
+.sp-trow .chip small { color: var(--muted); font-size: 10px; margin-left: 3px; }
+.mt-box { flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .1); font-size: 12px; } .mt-box .ico.inl { width: 16px; height: 16px; vertical-align: -3px; }
 /* ---- Star Wish ---- */
 .wish-board { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, auto); gap: 6px; }
 .wish-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 4px; border-radius: 10px; text-align: center; font-size: 11px; line-height: 1.15;

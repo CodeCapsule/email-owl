@@ -22,6 +22,8 @@ import { STAR_START, STAR_MAX, installStarsUI } from './stars.js';
 import { installWishUI } from './wish.js';
 import { LIMIT_BREAK, LB_MAX } from './limit.js';
 import { BOT_RANGES, BOT_POTS } from './autofight.js';
+import { installCompanionsUI, PET_EVO } from './companions.js';
+import { dirWord } from './nav-world.js';
 import { WORLD_BOSS, MATERIALS } from './systems-data.js';
 import { DZ } from './data-dz.js';
 import { MASTERY, MASTERY_MAX, masteryNeed, FOG } from './progress.js';
@@ -579,6 +581,12 @@ export class UI {
     } else if (g.bountyUnlocked()) {
       list.appendChild(h('div', 'qt-item', `<span class="qtag bounty">Bounty</span><div class="qo">Visit <u>Captain Elena</u> for a bounty</div>`)).onclick = () => g.talkTo(g.npcById('elena'), true);
     }
+    if (S.hunt && g.map === g.world) {
+      const d = Math.round(Math.hypot(S.hunt.x - g.player.pos.x, S.hunt.z - g.player.pos.z));
+      const it = h('div', 'qt-item', `<span class="qtag hunt">Treasure</span><span class="qn">Sprite's Treasure Hunt</span><div class="qo">${d < 4 ? 'Dig here!' : `<u>${d} m ${dirWord(S.hunt.x - g.player.pos.x, S.hunt.z - g.player.pos.z)}</u>`}</div>`);
+      it.title = 'Click to walk to the treasure'; it.onclick = () => { g.sfx.play('click'); g.pathTo(S.hunt.x, S.hunt.z, true, true); };
+      list.appendChild(it);
+    }
     this.guideTracker(list);
     this.questExtras(list);
     if (this.panelName === 'quests') this.renderPanel();
@@ -1065,22 +1073,23 @@ export class UI {
 
   panel_pets(body) {
     const g = this.g, S = g.S;
-    const tab = this.tabs(body, 'petTab', [['pets', `Pets (${Object.keys(S.pets).length}/${PETS.length})`], ['sprites', `Sprites (${S.sprites.length}/${SPRITES.length})`]]);
+    const tab = this.tabs(body, 'petTab', [['pets', `Pets (${Object.keys(S.pets).length}/${PETS.length})`], ['book', 'Pet Book'], ['sprites', `Sprites (${S.sprites.length}/${SPRITES.length})`]]);
+    if (tab === 'book') { this.petBookPanel(body); return; }
     if (tab === 'pets') {
       const cards = h('div', 'cards');
       for (const pd of PETS) {
         const own = S.pets[pd.id];
         const c = h('button', 'card' + (own ? '' : ' locked') + (this.sel.pet === pd.id ? ' sel' : ''));
-        c.innerHTML = `<img alt="" src="${g.petIcon(pd.id)}"><div>${own ? esc(pd.name) : '???'}</div><div class="rar" style="color:${RARC[pd.rarity]}">${RAR[pd.rarity]}</div><div class="pab">${esc(PET_ABILITIES[pd.id].name)}</div>${S.activePet === pd.id ? '<span class="on">OUT</span>' : ''}`;
+        c.innerHTML = `<img alt="" src="${g.petIcon(pd.id)}"><div>${own ? esc(pd.name) + (own.evo ? ` <span class="evo">${'★'.repeat(own.evo)}</span>` : '') : '???'}</div><div class="rar" style="color:${RARC[pd.rarity]}">${RAR[pd.rarity]}</div><div class="pab">${esc(PET_ABILITIES[pd.id].name)}</div>${S.activePet === pd.id ? '<span class="on">OUT</span>' : ''}`;
         c.onclick = () => { this.sel.pet = pd.id; this.renderPanel(); };
         cards.appendChild(c);
       }
       body.appendChild(cards);
       const pd = PETS.find((x) => x.id === (this.sel.pet || S.activePet || PETS[0].id)), own = S.pets[pd.id];
       const det = h('div', 'detail');
-      const lv = own ? own.lv : 1, k = 1 + 0.15 * (lv - 1);
-      det.innerHTML = `<img alt="" src="${g.petIcon(pd.id)}" ${own ? '' : 'style="filter:grayscale(1) brightness(.5)"'}><div class="dtx"><b>${own ? esc(pd.name) : '???'}</b> <span style="color:${RARC[pd.rarity]}">${RAR[pd.rarity]} ${esc(pd.species)}</span><br>${own ? `Level ${lv} · Attack ${fmt(pd.atk * k)} · HP +${fmt(pd.hp * k)}` : `How to obtain: ${esc(pd.src)}`}
-        <div class="pet-ab"><b>${ico('paw', 'ico inl')}${esc(PET_ABILITIES[pd.id].name)}</b> ${esc(petAbilityText(PET_ABILITIES[pd.id], lv))}<small>${lv < PET_MAX_LV ? `Grows each time you feed ${own ? esc(pd.name) : 'this pet'} · at Lv ${PET_MAX_LV}: ${esc(petAbilityText(PET_ABILITIES[pd.id], PET_MAX_LV))}` : 'Fully grown'}</small></div>
+      const lv = own ? own.lv : 1, k = (1 + 0.15 * (lv - 1)) * (own ? PET_EVO[own.evo || 0].mult : 1);
+      det.innerHTML = `<img alt="" src="${g.petIcon(pd.id)}" ${own ? '' : 'style="filter:grayscale(1) brightness(.5)"'}><div class="dtx"><b>${own ? esc(g.petName(pd.id)) : '???'}</b> <span style="color:${RARC[pd.rarity]}">${RAR[pd.rarity]} ${esc(pd.species)}</span><br>${own ? `Level ${lv} · Attack ${fmt(pd.atk * k)} · HP +${fmt(pd.hp * k)}` : `How to obtain: ${esc(pd.src)}`}
+        <div class="pet-ab"><b>${ico('paw', 'ico inl')}${esc(PET_ABILITIES[pd.id].name)}</b> ${esc(own && S.activePet === pd.id && g.petFx ? PET_ABILITIES[pd.id].text.replace(/\{2v\}/g, String(Math.round(g.petFx.v * 20) / 10)).replace(/\{v\}/g, String(g.petFx.v)) : petAbilityText(PET_ABILITIES[pd.id], lv))}<small>${lv < PET_MAX_LV ? `Grows each time you feed ${own ? esc(pd.name) : 'this pet'} · at Lv ${PET_MAX_LV}: ${esc(petAbilityText(PET_ABILITIES[pd.id], PET_MAX_LV))}` : 'Fully grown'}</small></div>
         Pets fight beside you, add to your Combat Power and lend you their ability while summoned.</div>`;
       if (own) {
         const acts = h('div', 'acts');
@@ -1088,21 +1097,13 @@ export class UI {
         else { const b = h('button', 'btn green', 'Summon'); b.onclick = () => g.setPet(pd.id); acts.appendChild(b); }
         const f = h('button', 'btn', `Feed · <span class="coin" style="display:inline-block;vertical-align:-3px"></span> ${fmt(150 * lv * lv)}`); f.onclick = () => g.feedPet(pd.id); acts.appendChild(f);
         det.appendChild(acts);
+        const gb = this.petGrowBox(pd); if (gb) det.appendChild(gb);
       }
       body.appendChild(det);
     } else {
-      const list = h('div', 'list');
-      for (const sd of SPRITES) {
-        const own = S.sprites.includes(sd.id);
-        const r = h('div', 'row');
-        r.innerHTML = `<div class="ic"><img alt="" src="${g.spriteIcon(sd.id)}"></div><div class="tx"><b>${esc(sd.name)} <span style="color:var(--cyan);font-size:12px">${sd.element} Sprite</span></b>${esc(sd.desc)}${own ? '' : '<br><span style="color:var(--dim)">Locked — earned from the Spirit Guide for your element</span>'}</div>`;
-        if (own) { const b = h('button', S.activeSprite === sd.id ? 'btn gray small' : 'btn green small', S.activeSprite === sd.id ? 'Active' : 'Call'); b.onclick = () => g.setSprite(sd.id); r.appendChild(b); }
-        list.appendChild(r);
-      }
-      body.appendChild(list);
+      this.spritePanel(body);
     }
   }
-
   panel_mounts(body) {
     const g = this.g, S = g.S;
     const cards = h('div', 'cards');
@@ -1116,12 +1117,13 @@ export class UI {
     body.appendChild(cards);
     const md = MOUNTS.find((x) => x.id === (this.sel.mount || S.activeMount || MOUNTS[0].id)), own = S.mounts.includes(md.id);
     const det = h('div', 'detail');
-    det.innerHTML = `<img alt="" src="${g.mountIcon(md.id)}" ${own ? '' : 'style="filter:grayscale(1) brightness(.5)"'}><div class="dtx"><b>${esc(md.name)}</b><br>Move speed +${Math.round((md.speed - 1) * 100)}% · Combat Power +${md.br}<br>${own ? 'Every mount you own adds to your Combat Power.' : `How to obtain: ${esc(md.src)}`}</div>`;
+    det.innerHTML = `<img alt="" src="${g.mountIcon(md.id)}" ${own ? '' : 'style="filter:grayscale(1) brightness(.5)"'}><div class="dtx"><b>${esc(md.name)}</b><br>Move speed +${Math.round(((own ? g.mountSpeed(md.id) : md.speed) - 1) * 100)}% · Combat Power +${fmt(own ? md.br * (1 + 0.15 * (g.mountLv(md.id) - 1)) : md.br)}<br>${own ? 'Every mount you own adds to your Combat Power.' : `How to obtain: ${esc(md.src)}`}</div>`;
     if (own) {
       const acts = h('div', 'acts');
       if (S.activeMount !== md.id) { const b = h('button', 'btn green', 'Set Active'); b.onclick = () => g.setMount(md.id); acts.appendChild(b); }
       const r = h('button', 'btn blue', g.mounted ? 'Dismount' : 'Ride (R)'); r.onclick = () => { if (S.activeMount !== md.id) g.setMount(md.id); g.toggleMount(); this.closePanels(); }; acts.appendChild(r);
       det.appendChild(acts);
+      det.appendChild(this.mountTrainBox(md));
     }
     body.appendChild(det);
   }
@@ -1421,6 +1423,7 @@ installGuideUI(UI);
 installGmUI(UI);
 installStarsUI(UI);
 installWishUI(UI);
+installCompanionsUI(UI);
 
 // the dungeon's set: pieces you own and its bonuses
 function setBlock(dungeonId, S) {

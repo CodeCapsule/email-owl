@@ -118,6 +118,7 @@ const M = {
     on('w', (p) => this.wbNetMsg(p)); // the world boss's health and threat (aggro.js)
     on('g', (p) => this.gmNetMsg(p)); // a Game Master's monsters (gmnet.js)
     on('d', (p) => this.dropMsg(p)); // items dropped on the ground (drops.js)
+    on('x', (p) => this.fwMsg(p)); // fireworks (fireworks.js)
     ch.subscribe((status, err) => {
       if (mp.channel !== ch) return;
       if (status === 'SUBSCRIBED') this.mpJoined();

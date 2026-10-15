@@ -114,6 +114,25 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   (Mushy poisons, Pengu freezes, Cinder splashes fire, Ribbit attacks faster, Fluffle stomps, Twinkle calls falling
   stars, Kohaku throws fox fire, Frostbite breathes frost) and finders (Mochi more gear drops, Kitsu more EXP, Pumpkin
   Pip more Gold). The Pets panel shows each ability and what it becomes at Lv 60.
+- **Pets grow, evolve and collect**: the summoned pet earns XP from every kill (more from elites and bosses; feeding
+  with Gold still raises a level). At Lv 20 a pet can evolve into its **Evolved** form (3 Evolution Stones, 20,000
+  Gold: stats x1.3, ability x1.15) and at Lv 40 into its **Awakened** form (8 stones, 2 Star Essence, 80,000 Gold:
+  stats x1.7, ability x1.35); each stage is bigger, with a glow at its feet and stars on its name. Every pet has an
+  element (Fire, Lightning, Frost, Wind, Earth, Light or Shadow) and fights 25% harder in the lands of that element.
+  The **Pet Book** tab shows all 27 pets in their three stages; each pet owned adds +0.4% Max HP and each evolution
+  stage +0.2% Attack to your hero, plus Combat Power. Evolution Stones drop from elites and bosses, the Sprite Realm and
+  treasure hunts, and Mimi sells them.
+- **Sprites grow too**: Sprite Essence levels a sprite up to Lv 30 (its bonus grows 5% a level) and opens a talent row
+  at Lv 10, 20 and 30 (Might or Ward, Focus or Vigor, Arcana or Fury; changing one costs 10,000 Gold). The active
+  sprite senses buried treasure three times a day (**Treasure Hunt**: the tracker shows how far and which way; walk
+  there and it is dug up for Sprite Essence, Gold and sometimes an Evolution Stone, a Gem Pouch or Diamonds). In the
+  **Sprite Realm** (outside towns, three times a day) each sprite's guardian, a boss at your level, can be challenged:
+  beating it wins its sprite the first time, so all four sprites can be earned, plus Sprite Essence.
+- **Mount training**: every mount trains from Lv 1 to 10 with Gold and Spirit Shards in the Mount Stable, +1% speed
+  and +15% of its Combat Power a level.
+- **Fireworks**: Hilda sells Fireworks (5 for 1,500 Gold) and Grand Fireworks (five big rockets, 20 Diamonds). Use
+  one from the bag and everyone nearby sees it burst. Every in-game midnight a short show lights the sky over Sylvan
+  Haven, and every 10th level (and a Star Wish Unicorn) goes up with a rocket.
 - **Costumes**: 23 cosmetic outfits, hats and wings in Coco the Costume Tailor's Wardrobe. They change only your look,
   never your stats. Buy them at Coco's Boutique, find them in Wardrobe Boxes, or sew them yourself.
 - **Tailoring (costumes from ingredients)**: Coco's Wardrobe has a Tailoring tab where every costume has a pattern:
@@ -429,6 +448,8 @@ market buyers and auction bids are simulated, so those systems also work solo.
 | `js/wish.js` | The Star Wish lottery: prizes, free and paid wishes, the sure Unicorn and the wheel |
 | `js/autofight.js` | Auto-fight: hunting, quest monsters, handing in quests, potions and its settings |
 | `js/limit.js` | The Limit Break gauge, the burst on slot 7 and readying the ultimate |
+| `js/companions.js` | Pet XP, evolution, elements and the Pet Book; sprite levels, talents, treasure hunts and the Sprite Realm; mount training |
+| `js/fireworks.js` | Fireworks from the bag, the midnight show and level-up rockets, sent to players nearby |
 | `js/build.js`, `js/update.js` | The published version and the Update bar |
 | `js/mp.js`, `js/mp-config.js` | Real-time multiplayer over Supabase Realtime: other players, chat, Online panel |
 | `js/party.js` | Parties: invitations, party frame and chat, shared EXP, shared monsters (HP, fights, kills, respawns) |
