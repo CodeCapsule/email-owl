@@ -113,7 +113,8 @@ const G = {
     if (D.t >= DUEL_SECS) {
       const mine = p.hp / p.maxHp * 100, theirs = pr.net.h ?? 100;
       if (Math.abs(mine - theirs) < 1) this.duelEnd(0.5, 'time'); else if (mine < theirs) this.duelEnd(0, 'time');
-      // the other side ends it when they are lower
+      // the other side ends it when they are lower; if their word never comes, it ends as a win 5 seconds later
+      else if (D.t >= DUEL_SECS + 5) this.duelEnd(1, 'time');
     }
   },
   // s: 1 you won, 0 you lost, 0.5 draw. told: the other side already sent the result.
