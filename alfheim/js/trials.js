@@ -145,7 +145,7 @@ const T = {
     this.zone = map.zone; this.ui.setZone(map.zone);
     this['setup_' + T0.kind](tr);
     this.ui.banner(trialLabel(T0.n).toUpperCase(), T0.name, 'boss');
-    this.ui.chat('system', `<b>${esc(trialLabel(T0.n))}: ${esc(T0.name)}</b> · ${esc(T0.challenge)}. Your stats are set to the same values every ${esc(CLASSES[this.S.cls].name)} gets at Lv ${T0.lv}: only your skills and your play count. Auto-hit is off. Out-of-combat healing does not work here.`);
+    this.ui.chat('system', `<b>${esc(trialLabel(T0.n))}: ${esc(T0.name)}</b> · ${esc(T0.challenge)}. Your stats are set to the same values every ${esc(CLASSES[this.S.cls].name)} gets at Lv ${T0.lv}: only your skills and your play count. Auto-fight is off. Out-of-combat healing does not work here.`);
     this.ui.enterTrial();
     this.logEvent && this.logEvent('trial', `Entered ${trialLabel(T0.n)}`);
   },

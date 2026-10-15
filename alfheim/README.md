@@ -53,8 +53,18 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   Bolt, Flash Step, Runic Ward, Arcane Wave, Rune Nova.
 - **Action combat**: a low dodge roll (Shift) with invulnerable frames, where the first 0.2 s is a perfect dodge; Space
   jumps; Guardians block from the front (hold the right mouse button; a just-in-time block stops the hit); parries; aimed skills that land at the cursor
-  (or straight ahead); a stamina bar for rolls. Auto-hit (T) fights the nearest enemy from where you stand but never
-  moves, dodges or picks a path, and it is off inside dungeons and trials.
+  (or straight ahead); a stamina bar for rolls.
+- **Auto-fight (T or the Auto button)**: a hunting and questing helper for the open world (off in dungeons, trials and
+  guild wars). It walks to monsters within 15, 30 or 50 m of where you turned it on, fights them with your skills,
+  drinks potions at the HP share you choose, gathers the loot and comes back; whatever attacks you is fought first.
+  With **Quests** on it hunts the monsters your story quest or bounty asks for at their grounds, then walks back to the
+  quest giver, hands the quest in and takes the next one. Settings > Auto-fight turns each part on or off (with Hunt
+  off it only fights what is within reach, without moving) and can leave elites and bosses alone. Steering your hero
+  moves the hunting spot, and any move, click or skill of your own always works.
+- **Limit Break**: a gauge on skill slot 7 fills as you fight (hits you land, hits you take, kills; elites and bosses
+  fill it faster). Until the Lv 200 ultimate, slot 7 holds the Limit Break itself: with a full gauge it unleashes a
+  burst that strikes everything within 8 m for 900% attack, stuns for 1.5 s and lifts your attack 15% for 8 s. Once
+  you have an ultimate, a full gauge readies it at once even while it is cooling down. Trials leave the gauge alone.
 - **Earned levels**: the next level takes floor(500 x L^2.2) XP (about 57 million from 199 to 200). Killing the same
   monster type over and over pays 5% less each time (down to 10%, recovering while you hunt elsewhere); monsters 3-5
   levels below you give 60%, 6-9 levels 20% and 10+ nothing. First visits pay discovery XP: a new zone 2% of a level, a
@@ -65,7 +75,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
 - **Masteries**: Weapon (hits and skills with your weapon type), Defense (blocks, dodges and parries; a perfect dodge
   counts three times) and Survival (exploring, gathering, crafting, cooking) run from 1 to 200. They never hold back a
   level-up; they unlock skill ranks above 5, higher gear tiers and map copying. They only grow against enemies within 5
-  levels, and auto-hit kills in the open world give half. The Hero window always shows XP left, your masteries and the
+  levels, and auto-fight kills in the open world give half. The Hero window always shows XP left, your masteries and the
   next trial.
 - **Breakthrough trials**: a wall stands at Lv 20, 40, 60 ... 180, with the Final Ascension at 200. At Thalia the Trial
   Warden (Sylvan Haven) you craft a Trial Sigil from your bracket's ore, wood, herbs and spirit dust. Each trial is a
@@ -293,7 +303,8 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   timing in every browser, and party members send what they do to them a few times a second. A monster your partner
   is fighting walks over to them on your screen and loses the same HP; when they kill it, it dies on your screen at
   once (counting for your kill quests and bounties if you are within 60 m) and comes back at the same moment for both
-  of you.
+  of you. Healers' party heals, heals over time, cleanses and shields reach members within reach, party buffs (banners,
+  barriers, Last Bastion) land on members within 20 m, and Ocean's Grace revives fallen members where they fell.
 - **Seasons, festivals and leaderboards**: each month is a season with a 30-tier Season Pass (free and premium tracks)
   and a Season leaderboard that pays out when the month ends. Leaderboards also rank Combat Power, Level, World Boss
   damage, dungeon speed, guild war wins and guilds. Festivals follow the calendar: the Harvest Moon (October to early
@@ -329,7 +340,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   wear (grey while you cannot wear it yet), **Sort** (gear first by rarity, then consumables, quest items and valuables) and
   **Sell All**, which sells everything up to a chosen rarity in one go (locked gear is always kept). Your Diamonds and
   Gold sit at the bottom beside a **Mall** button. Equipped gear is in the Character window (C).
-- **MMO systems**: Combat Power, bag, auto-hit, auto potions, titles, daily sign-in, online gifts, a gold/diamond mall
+- **MMO systems**: Combat Power, bag, auto-fight, auto potions, titles, daily sign-in, online gifts, a gold/diamond mall
   (no XP or progress for sale), world and guild chat, minimap and world map.
 - **Daily sign-in streak**: the seven-day rewards follow your streak of days in a row; missing a day starts it over at
   Day 1, and every 10th day in a row adds 150 Diamonds, 2 Lucky Tickets and 3 Star Essence.
@@ -381,7 +392,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
 | Tool belt | 8 Axe, 9 Pickaxe, 0 Sickle (gather the nearest node) |
 | Dodge roll / jump / block | Shift / Space / hold the right mouse button (Guardians) |
 | Potions | Q (HP), E (MP) |
-| Mount / Auto-hit | R / T |
+| Mount / Auto-fight | R / T |
 | Panels | C character, B bag, K skills, P pets, U mounts, Z professions, L quests, M map, O settings |
 | Live systems | H missions, X codex, J season pass; Y forge, N market, G guild and V wardrobe walk you to their NPC |
 | Other | Tab next target, F talk, Enter chat, Esc close |
@@ -416,6 +427,8 @@ market buyers and auction bids are simulated, so those systems also work solo.
 | `js/drops.js` | Items dropped from the bag onto the ground for anyone to pick up |
 | `js/stars.js` | Attribute Stars: opening, awakening, tiers, re-rolls and their window |
 | `js/wish.js` | The Star Wish lottery: prizes, free and paid wishes, the sure Unicorn and the wheel |
+| `js/autofight.js` | Auto-fight: hunting, quest monsters, handing in quests, potions and its settings |
+| `js/limit.js` | The Limit Break gauge, the burst on slot 7 and readying the ultimate |
 | `js/build.js`, `js/update.js` | The published version and the Update bar |
 | `js/mp.js`, `js/mp-config.js` | Real-time multiplayer over Supabase Realtime: other players, chat, Online panel |
 | `js/party.js` | Parties: invitations, party frame and chat, shared EXP, shared monsters (HP, fights, kills, respawns) |

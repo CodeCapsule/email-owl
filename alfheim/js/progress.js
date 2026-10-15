@@ -76,7 +76,7 @@ const P = {
       const lv = enemy.level || 1;
       if (lv < S.level - 5 && !this.mentorActive()) return;
       pts *= 1 + lv / 20;
-      if (this.auto && !this.dg && !this.trial) pts *= 0.5; // auto-hit gives half
+      if (this.auto && !this.dg && !this.trial) pts *= 0.5; // auto-fight gives half
     } else if (enemy) return; // other players (PvP) do not train masteries
     else pts *= 1 + S.level / 20; // gathering, crafting, exploring: higher-level work is worth more
     if (type === 'survival') pts *= 1 + (RACES[S.app?.race]?.mods.survival || 0);

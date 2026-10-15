@@ -24,6 +24,8 @@ import { installGmNet } from './gmnet.js';
 import { installDrops } from './drops.js';
 import { installStars } from './stars.js';
 import { installWish } from './wish.js';
+import { installLimit } from './limit.js';
+import { installAutoFight } from './autofight.js';
 import { installTrade } from './trade.js';
 import { installSocial, cleanFriends } from './social.js';
 import { installGuide, initGuideSave } from './guide.js';
@@ -186,7 +188,7 @@ export class Game {
     this.tradeInit();
     this.mpStart();
     this.ui.chat('system', 'Welcome to <b>Carlyle</b>! Click the quest in the tracker on the right to auto-path to your goal.');
-    this.ui.chat('system', 'Controls: click to move or attack · drag to turn the camera · scroll to zoom · 1–7 skills · Shift dodge roll · Space jump · R mount · T auto battle.');
+    this.ui.chat('system', 'Controls: click to move or attack · drag to turn the camera · scroll to zoom · 1–7 skills · Shift dodge roll · Space jump · R mount · T auto-fight.');
     this.ui.chat('system', 'Daily & Weekly <b>Missions</b> (H), <b>World Bosses</b> every 15 minutes, the <b>Season Pass</b> and leaderboards. <b>Professions</b> (Z): gather ore, herbs and wood and farm the homestead west of town.');
     this.ui.chat('system', 'Town services are run by their keepers in Sylvan Haven: <b>Gorm</b> (Forge), <b>Opal</b> (Gem Workshop), <b>Vera</b> (Alchemy), <b>Mira</b> (Market), <b>Grimsby</b> (Auction House), <b>Aldric</b> (Guilds) and <b>Coco</b> (Wardrobe). Thalia the Trial Warden guards the walls every 20 levels.');
     if (this.event) this.ui.chat('announce', `<b>[Festival]</b> The <span style="color:${this.event.color}">${esc(this.event.name)}</span> is on! ${esc(this.event.desc)}`);
@@ -689,7 +691,7 @@ export class Game {
     dst.hp -= dmg;
     const head = dst.pos.clone().setY(dst.pos.y + dst.height * 0.9);
     const mine = src === this.player || src.kind === 'pet';
-    if (dst === this.player) { if (dmg) this.fx.text(head, '-' + dmg, 'hurt'); this.sfx.play('hurt'); this.lastCombat = this.time; if (dmg > 0) { this.setPowersHurt(src); this.cbHurt(src, dmg); } }
+    if (dst === this.player) { if (dmg) this.fx.text(head, '-' + dmg, 'hurt'); this.sfx.play('hurt'); this.lastCombat = this.time; if (dmg > 0) { this.setPowersHurt(src); this.cbHurt(src, dmg); this.lbOnHurt(); } }
     else if (mine) {
       this.fx.text(head, String(dmg), o.cls || (src.kind === 'pet' ? 'pet' : crit ? 'crit' : 'dmg'));
       if (!o.proc) this.sfx.play(crit ? 'crit' : 'hit');
@@ -707,7 +709,7 @@ export class Game {
       if (!dst.target || dst.target.dead) dst.target = src.kind === 'pet' ? this.player : src;
       dst.returning = false;
     }
-    if (src === this.player && !o.proc && dmg > 0) this.onPlayerHit(dst, dmg, crit, o.sk);
+    if (src === this.player && !o.proc && dmg > 0) { this.onPlayerHit(dst, dmg, crit, o.sk); this.lbOnHit(o.sk); }
     if (dst === this.player && src.kind === 'monster' && dmg > 0 && !src.dead) {
       let back = dmg * Math.min(60, this.stat('thorns')) / 100;
       if (this.hasFx('thorn_aura')) back += this.defOf(this.player) * 0.4;
@@ -822,6 +824,7 @@ export class Game {
     m.respawnT = m.dungeon || m.summoned || m.wb || d.structure ? Infinity : d.war ? 7 : d.boss ? 90 : m.uid ? 9 + mobRng(m, 13)() * 6 : rnd(9, 15);
     m.dots = [];
     if (m.uid) { if (m.tagged) this.partyMobKill(m); m.gen++; } // party members see it die too
+    if (m.tagged) this.lbOnKill(m); // Limit Break gauge (limit.js)
     if (m.gmId) this.gmMobKill(m); // a Game Master's monster falls for everyone (gmnet.js)
     if (p.target === m) { this.setTarget(null); }
     if (this.pet && this.pet.target === m) this.pet.target = null;
@@ -1262,11 +1265,14 @@ export class Game {
   }
 
   toggleAuto(force) {
-    if ((force === undefined ? !this.auto : force) && !this.autoAllowed()) { this.ui.toast('Auto-hit is off in dungeons and trials: every attack, dodge and skill is yours', 'warn'); return; }
+    if ((force === undefined ? !this.auto : force) && !this.autoAllowed()) { this.ui.toast('Auto-fight is off in dungeons, trials and guild wars: every attack, dodge and skill is yours', 'warn'); return; }
     this.auto = force !== undefined ? force : !this.auto;
     this.ui.setAutoBattle(this.auto);
-    if (this.auto) { this.autoAnchor = this.player.pos.clone(); this.engage = true; this.ui.toast('Auto-hit ON: attacks enemies within reach, never moves you', 'good'); }
-    else { this.autoPref = null; this.ui.toast('Auto-hit OFF'); }
+    if (this.auto) {
+      this.autoAnchor = this.player.pos.clone(); this.engage = true; this.bot = {};
+      const q = this.botQuestType();
+      this.ui.toast(q ? `Auto-fight ON: hunting ${MONSTERS[q].name} for your quest` : this.botMoves() ? `Auto-fight ON: hunting within ${this.botSet('botRange')} m of here` : 'Auto-fight ON: fights what is within reach', 'good');
+    } else { this.player.path = []; this.autoPathing = false; this.ui.setAutoPath(false); this.ui.toast('Auto-fight OFF'); }
   }
 
   // ============================================================== quests
@@ -1456,7 +1462,6 @@ export class Game {
     this.sfx.play('quest');
     this.ui.toast(`Quest objective complete! Return to ${this.npcName(d.turnin)}`, 'good');
     this.ui.chat('system', `<b>${esc(d.name)}</b>: objective complete. Return to ${esc(this.npcName(d.turnin))}.`);
-    if (this.auto && this.autoPref === d.target) { this.toggleAuto(false); this.autoQuest('main'); }
   }
   bountyUnlocked() { const i = QUESTS.findIndex((x) => x.id === this.S.quest.id); return i === -1 || i >= 5; }
   takeBounty() {
@@ -1665,6 +1670,7 @@ export class Game {
       let dx = fx * -kz + rx * kx, dz = fz * -kz + rz * kx; const L = Math.hypot(dx, dz); dx /= L; dz /= L;
       this.moveEnt(p, p.pos.x + dx * 3, p.pos.z + dz * 3, speed, dt);
       moving = true; this.pendingSkill = null; this.pendingTalk = null; this.pendingPortal = null; this.engage = this.auto ? this.engage : false;
+      if (this.auto) this.botSteered();
     }
     // pending skill: approach
     const t = p.target;
@@ -1684,7 +1690,7 @@ export class Game {
       const basic = this.basicSkill();
       const d = flat(p.pos, t.pos) - t.radius;
       if (d > this.skRange(basic)) {
-        if (this.auto) { /* auto-hit never moves your hero */ }
+        if (this.auto && !this.botMoves()) { /* auto-fight that stays in place */ }
         else if (this.map.lineClear(p.pos.x, p.pos.z, t.pos.x, t.pos.z)) { this.moveEnt(p, t.pos.x, t.pos.z, speed, dt); moving = true; }
         else if (!p.path.length) p.path = this.map.findPath(p.pos.x, p.pos.z, t.pos.x, t.pos.z);
       } else if (p.actT <= 0 && this.skillReady(basic) && !this.casting && !this.channel) {
@@ -1721,7 +1727,7 @@ export class Game {
     const rate = ooc && !this.trial ? (zoneSafe ? 0.06 : 0.025) : 0; // no resting inside a trial
     if (rate) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * rate * dt); }
     p.mp = Math.min(p.maxMp, p.mp + p.maxMp * (ooc ? 0.03 : 0.012) * dt);
-    if (S.settings.autoPotion && p.hp < p.maxHp * 0.35 && this.countPotions('hp_potion') && this.potionCD <= this.time) this.usePotion('hp_potion');
+    if (S.settings.autoPotion && p.hp < p.maxHp * (this.auto ? this.botSet('botPot') : 35) / 100 && this.countPotions('hp_potion') && this.potionCD <= this.time) this.usePotion('hp_potion');
     if (S.settings.autoPotion && p.mp < p.maxMp * 0.15 && this.countPotions('mp_potion') && this.potionCD <= this.time) this.usePotion('mp_potion');
     // gear effects that tick over time
     const regen = this.stat('regen') + (this.hasFx('worldtree') ? p.maxHp * 0.012 : 0);
@@ -1741,34 +1747,6 @@ export class Game {
       this.fx.emit(hp, { count: 1, color: RARITY[wq].color, speed: 0.5, life: 0.7, size: 0.45, up: 1.2, jitter: 0.6 });
     }
     // enhanced and infused weapons glow on the blade itself: weaponfx.js
-  }
-
-  autoBattle() {
-    const p = this.player;
-    let t = p.target;
-    if (!t || t.dead || t.kind !== 'monster') {
-      const anchor = this.autoAnchor || p.pos;
-      t = this.nearestEnemy(14, this.autoPref, p.pos) || this.nearestEnemy(40, this.autoPref, anchor) || (this.autoPref ? null : this.nearestEnemy(40, null, anchor));
-      if (t) { this.setTarget(t); this.engage = true; }
-      else if (this.autoAnchor && flat(p.pos, this.autoAnchor) > 6 && !p.path.length) p.path = this.map.findPath(p.pos.x, p.pos.z, this.autoAnchor.x, this.autoAnchor.z);
-      return;
-    }
-    this.engage = true;
-    if (p.actT > 0) return;
-    const list = this.skillList();
-    // heal / buffs first
-    for (let i = list.length - 1; i >= 1; i--) {
-      const sk = list[i];
-      if (this.S.level < sk.lvl || (this.cd[sk.id] || 0) > this.time || p.mp < this.mpCost(sk)) continue;
-      if (sk.kind === 'heal' && p.hp > p.maxHp * 0.6) continue;
-      if (sk.kind === 'buff' && p.buffs.some((b) => b.id === sk.id)) continue;
-      if (sk.kind === 'zone' && p.hp > p.maxHp * 0.8 && flat(p.pos, t.pos) > sk.radius) continue;
-      if (sk.kind === 'aoeSelf' && flat(p.pos, t.pos) > sk.radius) continue;
-      const d = flat(p.pos, t.pos) - t.radius;
-      if (['target', 'dash', 'proj', 'aoeTarget'].includes(sk.kind) && d > (sk.range || 3)) continue;
-      this.useSkill(i);
-      return;
-    }
   }
 
   moveEnt(e, tx, tz, speed, dt) {
@@ -2419,6 +2397,8 @@ installGmNet(Game);
 installDrops(Game);
 installStars(Game);
 installWish(Game);
+installLimit(Game);
+installAutoFight(Game);
 installTrade(Game);
 installSocial(Game);
 installGuide(Game);

@@ -276,7 +276,7 @@ export const TIPS = [
   'Click a quest in the tracker to auto-path there; your journal keeps the directions quest givers tell you.',
   'Your Axe, Pickaxe and Sickle sit on the tool belt above the skill bar: press 8, 9 or 0 to gather the nearest node.',
   'Press R to summon or dismiss your mount.',
-  'Auto-hit (T) fights from where you stand. Roll (Shift) through red telegraphs.',
+  'Auto-fight (T) hunts nearby monsters and your quest targets; set it up in Settings. Roll (Shift) through red telegraphs.',
   'Pets fight by your side and add to your Combat Power.',
   'Enhance gear at Gorm the Blacksmith to raise your Combat Power.',
   'Step out of red circles on the ground to avoid boss attacks!',

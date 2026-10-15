@@ -20,6 +20,8 @@ import { CLASS_SKILLS, SKILL_BY_ID, rankMult, RACES } from './data-classes.js';
 import { MAX_LEVEL, SHOPS, DUNGEON_RULES } from './data-world.js';
 import { STAR_START, STAR_MAX, installStarsUI } from './stars.js';
 import { installWishUI } from './wish.js';
+import { LIMIT_BREAK, LB_MAX } from './limit.js';
+import { BOT_RANGES, BOT_POTS } from './autofight.js';
 import { WORLD_BOSS, MATERIALS } from './systems-data.js';
 import { DZ } from './data-dz.js';
 import { MASTERY, MASTERY_MAX, masteryNeed, FOG } from './progress.js';
@@ -64,10 +66,14 @@ export class UI {
     const bar = $('skillbar'); bar.innerHTML = '';
     this.slots = [];
     for (let i = 1; i <= 7; i++) {
-      const b = h('button', 'slot' + (i === 7 ? ' ult' : '')); b.dataset.i = i; b.setAttribute('aria-label', i === 7 ? 'Ultimate skill' : 'Skill ' + i);
-      b.innerHTML = `<span class="ic"></span><span class="key">${i}</span><span class="cd"></span><span class="cdt"></span>`;
+      const b = h('button', 'slot' + (i === 7 ? ' ult' : '')); b.dataset.i = i; b.setAttribute('aria-label', i === 7 ? 'Ultimate skill or Limit Break' : 'Skill ' + i);
+      b.innerHTML = `<span class="ic"></span><span class="key">${i}</span><span class="cd"></span><span class="cdt"></span>${i === 7 ? '<span class="lbg"></span>' : ''}`;
       b.addEventListener('click', () => g.useSkill(i));
-      this.tip(b, () => { const sk = g.skillList()[i]; return sk ? this.skillTip(sk) : `<b>${i === 7 ? 'Ultimate' : 'Empty slot'}</b>${i === 7 ? 'Your ultimate unlocks at Lv 200.' : 'Choose a skill for this slot in the Skills window (K).'}`; });
+      this.tip(b, () => {
+        const sk = g.skillList()[i], lb = `<br><span class="ts">Limit Break gauge ${Math.floor(g.lb || 0)}% · fills as you hit, get hit and defeat monsters</span>`;
+        if (i === 7) return sk ? `${this.skillTip(sk)}<br>A full Limit Break gauge readies it at once.${lb}` : `<b>Limit Break</b>${LIMIT_BREAK.desc}. Your ultimate takes this slot at Lv 200.${lb}`;
+        return sk ? this.skillTip(sk) : '<b>Empty slot</b>Choose a skill for this slot in the Skills window (K).';
+      });
       bar.appendChild(b); this.slots.push(b);
     }
     // the second skill page: swaps the six skills on the bar
@@ -270,10 +276,11 @@ export class UI {
     this.slots.forEach((b) => {
       if (b.dataset.potion) { b.querySelector('.cnt').textContent = g.countPotions(b.dataset.potion); return; }
       const sk = list[+b.dataset.i];
-      const icEl = b.querySelector('.ic'), key = sk ? sk.id : 'empty';
-      if (icEl.dataset.k !== key) { icEl.dataset.k = key; icEl.innerHTML = sk ? ico(sk.id) : ''; }
-      b.classList.toggle('empty', !sk);
-      b.classList.toggle('locked', !sk && +b.dataset.i === 7);
+      const lbs = !sk && +b.dataset.i === 7; // the Limit Break until the ultimate
+      const icEl = b.querySelector('.ic'), key = sk ? sk.id : lbs ? 'limit_break' : 'empty';
+      if (icEl.dataset.k !== key) { icEl.dataset.k = key; icEl.innerHTML = sk ? ico(sk.id) : lbs ? ico('limit_break') : ''; }
+      b.classList.toggle('empty', !sk && !lbs);
+      b.classList.toggle('lbslot', lbs);
     });
   }
   refreshSkillCD() {}
@@ -435,6 +442,9 @@ export class UI {
       if (rem > 0) { cd.style.background = `conic-gradient(rgba(0,0,0,.7) ${(rem / total) * 360}deg, transparent 0)`; if (cdt) this.txt(cdt, rem > 1 ? String(Math.ceil(rem)) : rem.toFixed(1)); }
       else if (cd.style.background) { cd.style.background = ''; if (cdt) this.txt(cdt, ''); }
     }
+    // the Limit Break gauge on slot 7
+    const lbv = Math.floor(g.lb || 0);
+    if (lbv !== this.lbShown) { this.lbShown = lbv; const s7 = this.slots[6]; s7.style.setProperty('--lb', lbv + '%'); s7.classList.toggle('lbfull', lbv >= LB_MAX); }
     // buffs
     const bf = $('pf-buffs');
     const elx = g.activeElixirs ? g.activeElixirs() : [];
@@ -1315,13 +1325,36 @@ export class UI {
     }
     row('Show other players', 'others'); row('Auto-use potions at low HP', 'autoPotion'); row('Auto-collect loot', 'autoLoot'); row('Real-time shadows', 'shadows'); row('Weather effects (rain, snow, petals, leaves)', 'weather'); row('Sound & music', 'sound'); row('Sound captions (trial cues as text)', 'captions');
     body.appendChild(s);
+    // auto-fight (T): what the helper does (autofight.js)
+    body.appendChild(h('div', 'set-head', `${ico('auto', 'ico inl')} Auto-fight <small>(T or the Auto button · open world only)</small>`));
+    const bs = h('div', 'settings');
+    const brow = (label, key) => {
+      const on = !!g.botSet(key);
+      bs.appendChild(h('span', '', label));
+      const b = h('button', 'switch' + (on ? ' on' : '')); b.setAttribute('aria-label', label); b.setAttribute('aria-pressed', on);
+      b.onclick = () => { g.setSetting(key, !on); this.renderPanel(); };
+      bs.appendChild(b);
+    };
+    const chips = (label, key, list, unit) => {
+      bs.appendChild(h('span', '', label));
+      const c = h('div', 'chips set-chips');
+      for (const v of list) { const b = h('button', 'chip' + (g.botSet(key) === v ? ' sel' : ''), `${v}${unit}`); b.onclick = () => { g.setSetting(key, v); this.renderPanel(); }; c.appendChild(b); }
+      bs.appendChild(c);
+    };
+    brow('Hunt: walk to monsters nearby', 'botHunt');
+    chips('Hunting range', 'botRange', BOT_RANGES, ' m');
+    brow('Quests: hunt what your quest or bounty needs', 'botQuest');
+    brow('Hand in finished quests and take the next one', 'botTurnIn');
+    chips('Drink a Healing potion at', 'botPot', BOT_POTS, '% HP');
+    brow('Leave elites and bosses alone', 'botSkipElite');
+    body.appendChild(bs);
     const acts = h('div', 'acts'); acts.style.cssText = 'display:flex;gap:8px;margin-top:16px;flex-wrap:wrap';
     const sv = h('button', 'btn blue', 'Save Game'); sv.onclick = () => { g.save(); this.toast('Game saved', 'good'); }; acts.appendChild(sv);
     if (this.openAdmin && this.adminAllowed && this.adminAllowed()) { const ad = h('button', 'btn', 'Game Master Console'); ad.onclick = () => { this.closePanels(); this.openAdmin(); }; acts.appendChild(ad); }
     const del = h('button', 'btn gray', 'New Character'); del.onclick = () => this.modal('Start over?', 'This deletes your saved hero and returns to character creation.', [{ label: 'Delete & Restart', fn: () => { try { localStorage.removeItem('alfheim_tales_save_v1'); } catch { /* ignore */ } location.reload(); } }, { label: 'Cancel', cls: 'gray' }]);
     acts.appendChild(del);
     body.appendChild(acts);
-    body.appendChild(h('div', '', '<p style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:14px">Controls: click to move · click monsters to attack · drag to rotate camera · scroll or pinch to zoom · WASD to walk · 1–7 skills · Q/E potions · R mount · T auto battle · Shift dodge roll · Space jump · hold right mouse button to block (Guardians) · Tab next target · F talk · Enter chat.</p>'));
+    body.appendChild(h('div', '', '<p style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:14px">Controls: click to move · click monsters to attack · drag to rotate camera · scroll or pinch to zoom · WASD to walk · 1–7 skills · Q/E potions · R mount · T auto-fight · Shift dodge roll · Space jump · hold right mouse button to block (Guardians) · Tab next target · F talk · Enter chat.</p>'));
   }
 
   panel_mall(body) {

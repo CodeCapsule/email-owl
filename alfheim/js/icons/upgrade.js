@@ -130,6 +130,10 @@ add('wish', svg(rg('z-wish-o', ['#ffffff', '#d8c8ff', '#8a6ae8', '#3a2a8a'], '38
   `<path d="M14 58H50L44 50H20Z" fill="#c8862a" ${INK}/><circle cx="32" cy="34" r="17" fill="url(#z-wish-o)" ${INK}/>
 <path d="M4 6Q20 10 30 20" fill="none" stroke="#ffe27a" stroke-width="4" stroke-linecap="round" opacity=".8"/>
 <path d="M${starPts(5, 10, 4.2, 38, 26)}Z" fill="url(#z-wish-s)" ${INK2}/>${glint(25, 28, 2.6)}${spark(52, 46, 3.4)}${spark(12, 30, 2.6)}`));
+// Limit Break: a burst of rays around a blazing core
+add('limit_break', svg(rg('z-limit_break-c', ['#ffffff', '#fff2a0', '#ffb02a', '#d0400a'], '50%', '45%', '60%'),
+  `<path d="M${starPts(12, (i) => (i % 2 ? 22 : 29), 9)}Z" fill="#ffd84a" ${INK2}/><circle cx="32" cy="32" r="13" fill="url(#z-limit_break-c)" ${INK2}/>
+<path d="M27 25L36 31L29 33L37 40" fill="none" stroke="#c0400a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>${glint(27, 26, 2.4)}${spark(54, 10, 3.6)}${spark(10, 52, 3)}`));
 // Attribute Stars: three linked stars
 add('attr_stars', svg(lg('z-attr_stars-a', ['#fffbe0', '#ffd84a', '#e8900a']) + lg('z-attr_stars-b', ['#f0e0ff', '#b48aff', '#5a3ad8']),
   `<path d="M18 40L32 20L46 40" fill="none" stroke="#ffe27a" stroke-width="3" opacity=".7"/>
