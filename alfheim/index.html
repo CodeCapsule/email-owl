@@ -522,6 +522,40 @@ button { font-family: inherit; }
 .cell .ghost { display: block; width: 84%; height: 84%; opacity: .28; filter: grayscale(.6); }
 .cell .ghost .ico { width: 100%; height: 100%; }
 .sday .si .ico { width: 40px; height: 40px; margin: 0 auto; }
+/* ---- daily sign-in streak ---- */
+.si-streak { display: grid; gap: 4px; margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 216, 74, .08); border: 1px solid rgba(255, 216, 74, .3); font-size: 12px; }
+.si-streak > b { font-family: var(--f-num); font-size: 20px; color: #ffe27a; font-weight: 400; }
+.si-streak .bar { height: 8px; border-radius: 4px; background: rgba(0, 0, 0, .4); overflow: hidden; } .si-streak .bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffd84a, #ff8a2a); }
+/* ---- Combat Power and Attribute Stars ---- */
+.br-big small { font-size: 13px; color: #ffe7a8; margin-right: -4px; }
+.star-open { display: block; margin: -4px auto 8px; }
+.st-sum { font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+.st-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.st-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 64px; padding: 4px 2px; border-radius: 10px; cursor: pointer; color: #fff; font: inherit; font-size: 11px;
+  background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .12), rgba(20, 24, 50, .8)); border: 2px solid rgba(255, 255, 255, .15); }
+.st-cell .star { font-size: 22px; line-height: 1; } .st-cell b { font-size: 11px; } .st-cell small { font-size: 11px; color: #e8f0ff; } .st-cell .tp { font-style: normal; color: #ffe27a; letter-spacing: 1px; font-size: 10px; line-height: 1; }
+.st-cell.locked { opacity: .45; cursor: default; } .st-cell.locked .sn { font-family: var(--f-num); font-size: 16px; }
+.st-cell.ready { border-color: #ffd84a; box-shadow: 0 0 10px rgba(255, 216, 74, .55); animation: stPulse 1.6s ease-in-out infinite; } .st-cell.ready .star { color: #ffe27a; }
+.st-cell.on { border-color: rgba(255, 216, 74, .5); } .st-cell.sel { outline: 2px solid var(--gold); outline-offset: 1px; }
+@keyframes stPulse { 50% { box-shadow: 0 0 18px rgba(255, 216, 74, .9); } }
+.st-det2 { margin-top: 10px; } .st-roll { margin: 8px 0 4px; font-size: 13px; } .st-det2 .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.st-acts { display: grid; gap: 6px; margin-top: 8px; } .st-act { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, .05); }
+.st-act small { display: block; color: var(--muted); font-size: 11px; } .st-act .cost .ico.inl { width: 16px; height: 16px; vertical-align: -3px; }
+@media (max-width: 520px) { .st-grid { grid-template-columns: repeat(3, 1fr); } }
+/* ---- Star Wish ---- */
+.wish-board { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, auto); gap: 6px; }
+.wish-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 4px; border-radius: 10px; text-align: center; font-size: 11px; line-height: 1.15;
+  background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .14), rgba(30, 24, 70, .85)); border: 2px solid rgba(255, 255, 255, .15); transition: transform .08s; }
+.wish-cell .ico, .wish-cell img { width: 36px; height: 36px; }
+.wish-cell.rare { border-color: rgba(196, 107, 255, .7); } .wish-cell.grand { border-color: #ffd84a; background: radial-gradient(circle at 50% 30%, rgba(255, 240, 180, .35), rgba(90, 50, 10, .9)); }
+.wish-cell.hl { transform: scale(1.06); border-color: #fff; box-shadow: 0 0 16px #fff6c0, inset 0 0 12px rgba(255, 246, 192, .7); }
+.wish-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; text-align: center; font-size: 12px; border-radius: 12px; background: rgba(0, 0, 0, .25); }
+.wish-mid .wm-t { display: flex; align-items: center; gap: 6px; font-size: 16px; } .wish-mid .wm-t .ico { width: 34px; height: 34px; }
+.wish-mid .wm-acts { display: flex; flex-direction: column; gap: 6px; }
+.wish-got { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; font-size: 12px; } .wish-got > b { flex-basis: 100%; }
+.wish-got .wg { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 2px; border-radius: 999px; background: rgba(255, 255, 255, .08); }
+.wish-got .wg .ico, .wish-got .wg img { width: 22px; height: 22px; } .wish-got .wg.rare { background: rgba(196, 107, 255, .3); } .wish-got .wg.grand { background: rgba(255, 216, 74, .4); }
+@media (max-width: 520px) { .wish-cell { min-height: 62px; font-size: 10px; } .wish-cell .ico, .wish-cell img { width: 28px; height: 28px; } }
 .class-card .ci .ico { width: 80%; height: 80%; }
 .dice .ico { width: 26px; height: 26px; margin: auto; }
 .big-rbtn .ico { width: 30px; height: 30px; }
@@ -938,6 +972,11 @@ button { font-family: inherit; }
 .enh-res { margin-top: 4px; font-family: var(--f-num); font-size: 16px; } .enh-box.ok .enh-res { color: #9affb0; } .enh-box.fail .enh-res { color: #ff8a7a; }
 .enh-ctl .ck { display: block; margin-top: 6px; font-size: 12px; } .enh-ctl .ck .ico { width: 18px; height: 18px; vertical-align: -4px; }
 .btn.big-ish { padding: 10px 22px; font-size: 16px; }
+.lucky-box { border-color: rgba(255, 216, 74, .35); } .lucky-box .ico.inl { width: 18px; height: 18px; vertical-align: -4px; } .lucky-box .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.free-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #2ab03a; color: #fff; font-size: 11px; font-weight: 800; vertical-align: 1px; }
+.reforge-pick { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; margin: 4px 0; border-radius: 8px; background: rgba(196, 107, 255, .12); border: 1px solid rgba(196, 107, 255, .4); }
+.reforge-pick .rp-col { flex: 1 1 140px; font-size: 12px; } .reforge-pick .rp-col.new { color: #9affb0; } .reforge-pick .rp-col b { display: block; color: #ffe7a8; margin-bottom: 2px; }
+.reforge-pick .acts-row { flex-basis: 100%; display: flex; gap: 8px; }
 .refinery { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .1); }
 .refinery .ico.inl, .row .cost .ico.inl { width: 16px; height: 16px; vertical-align: -3px; }
 .socket.soul { box-shadow: 0 0 16px #ff9ae8, inset 0 0 12px rgba(255, 154, 232, .5); }
@@ -1325,7 +1364,7 @@ button { font-family: inherit; }
   #hud-chat.open .chat-log { max-height: calc(100vh - 270px); }
 }
 
-/* ---- party frame fixes: bars fit the panel, buffs share the BR line, compact party in landscape ---- */
+/* ---- party frame fixes: bars fit the panel, buffs share the CP line, compact party in landscape ---- */
 #hud-party .bar { width: auto; border-width: 0; box-shadow: none; }
 .pf-br { display: inline-flex; vertical-align: middle; }
 #pf-buffs { display: inline-flex; gap: 3px; margin: 0 0 0 6px; vertical-align: middle; max-width: 136px; overflow: hidden; }
@@ -1359,7 +1398,7 @@ button { font-family: inherit; }
 .bag-sel .bs-name { flex: 1 1 110px; min-width: 0; display: flex; flex-direction: column; }
 .bag-sel .bs-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .bag-sel .bs-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10.5px; }
-/* the selected gear: Battle Rating against what you wear, the stats that change, and the full stat list */
+/* the selected gear: Combat Power against what you wear, the stats that change, and the full stat list */
 .bag-sel.gear { flex-wrap: wrap; padding: 6px; }
 .bs-card { flex-basis: 100%; display: grid; gap: 4px; min-width: 0; font-size: 11.5px; }
 .bs-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: #b6c2dc; }
@@ -1751,7 +1790,7 @@ html.uiz #hud, html.uiz #panels, html.uiz #dialog, html.uiz #modal, html.uiz #to
         <div class="pf-name stroke"><span id="pf-name"></span><span class="pf-vip">VIP 1</span></div>
         <div class="bar hp"><i id="pf-hp"></i><span id="pf-hp-t"></span></div>
         <div class="bar mp"><i id="pf-mp"></i><span id="pf-mp-t"></span></div>
-        <div class="pf-br"><span class="flame"></span>BR <b id="pf-br">0</b></div>
+        <div class="pf-br"><span class="flame"></span>CP <b id="pf-br">0</b></div>
         <div id="pf-buffs"></div>
       </div>
     </div>

@@ -151,8 +151,10 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
 - **Six-piece sets** (helmet, armor, gloves, boots, necklace, ring; bonuses at 2, 4 and 6 pieces): Wayfarer's Garb,
   Ironbound Guard, Shadowstep, Emberheart, Tidewarden, Crown of the Fallen King, Bloodsworn Pact and Relics of the First
   Dawn, plus the beast sets Minotaur, Griffin, Basilisk, Hydra, Kraken, Cerberus, Phoenix, Fenrir and Jörmungandr. They
-  drop from field elites, world bosses, dungeon chests, hidden ruins and trials. Battle Rating is level x 100 + gear x
-  tier multiplier + average mastery x 50, and it is only a guide: content gates use level, mastery and trials.
+  drop from field elites, world bosses, dungeon chests, hidden ruins and trials.
+- **Combat Power (CP)**: level x 100 + gear x tier multiplier + average mastery x 50, plus your summoned pet, sprite,
+  every mount you own, your guild and Codex bonuses and your Attribute Stars. Hover it in the Hero window (C) to see each
+  part. It is only a guide: content gates use level, mastery and trials.
 - **Loot**: gear drops on the ground with a light beam in its rarity color. Unique and Legendary items are named and
   carry a special power, such as chain lightning, meteor strikes every 6th hit, phoenix rebirth or a healing nova. Loot
   auto-collects (toggle in Settings).
@@ -183,6 +185,14 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   next try (up to +25%), and from +7 a failure drops the item one level unless a Protection Charm is used. Lucky Charms
   add +15%. Base stats grow 7% per level with bonus steps at +5, +10 and +15 (x2.6 at +15), and affixes grow from +10.
   Stones drop from monsters and dungeon chests, are sold by Hilda and refine 5 into 1 of the next tier.
+- **Lucky Points and Perfect Enhancement**: every failed enhancement adds Lucky Points (1 at +2 up to 24 at +15).
+  Spend them under the Enhance button on a **Perfect Enhancement**, which cannot fail and needs no stones or gold
+  (10 points x the target level; **Perfect to +N** keeps going while the points last). Lucky Tickets (Hilda, 30
+  Diamonds; the Star Wish; the 10-day sign-in bonus) add 20 points each.
+- **Attribute Stars**: from Lv 34 a new star opens every 2 levels, 18 in all by Lv 68 (the Hero window's **Attribute
+  Stars** button). Awakening a star is free and rolls one stat (Attack, Max HP, Defense, Critical chance, Critical
+  damage, Dodge or Skill damage) with a value in its range. Upgrading a star (gold and Star Essence) raises the top of
+  its range through five tiers; a re-roll draws a new value, or a new stat, which you keep or discard.
 - **Weapon glows**: from +6 your weapon glows in your class's own style, and everyone around sees it: Guardians a
   rising golden Radiance, Berserkers a heartbeat of blood-red with dripping sparks, Shadowblades a flickering violet
   Nightshade with shadow wisps, Rangers green leaves spiralling up the bow, Elementalists a Prismatic staff that cycles
@@ -204,7 +214,8 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   (one per item) and grant a named power: the twelve Unique/Legendary powers plus three found only on Soulstones (Twin
   Fang, Executioner, Giant Slayer). The Socket Drill adds up to two extra sockets (five in total) and the Soul Forge fuses
   three Brilliant gems into a random Soulstone.
-- **Equipment progression**: gear can also be reforged (reroll affixes), re-tempered to your level,
+- **Equipment progression**: gear can also be reforged (reroll the bonus affixes of Uncommon gear and better; the
+  first reforge each day is free, and afterwards you **Keep new** or **Take back old**), re-tempered to your level,
   ascended up a rarity tier (Special gear awakens into a named Unique, Unique into a Legendary) and salvaged into Spirit
   Dust, Shards and Star Essence. The Legendary Codex tracks all 21 named items, grants a collection bonus and pays out at milestones.
 - **Game Master Console**: the server panel on the title screen has a Game Master Console link for the artifact's owner
@@ -265,7 +276,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
 - **Player menu, friends and inspect**: click another player (or their target frame) for a menu: **Add Friend**,
   **Inspect Character**, **Invite to Party** and **Trade**. A friend request asks the other player first; friends are
   kept in your save and listed at the top of the Online panel with who is on now, and you are told when one comes
-  online. Inspect opens their worn gear (with full tooltips), Battle Rating and main stats.
+  online. Inspect opens their worn gear (with full tooltips), Combat Power and main stats.
 - **Trading between players**: ask a player within 25 m to trade. The trade window is styled like the Bag: the other
   player's offer and yours (up to 18 goods each, plus Gold), your inventory and worn armor, and a message line. Click a
   good to offer it (All, Half or 1 of a stack), **Lock** your offer when it is final, and press **Confirm** once both
@@ -284,7 +295,7 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   once (counting for your kill quests and bounties if you are within 60 m) and comes back at the same moment for both
   of you.
 - **Seasons, festivals and leaderboards**: each month is a season with a 30-tier Season Pass (free and premium tracks)
-  and a Season leaderboard that pays out when the month ends. Leaderboards also rank Battle Rating, Level, World Boss
+  and a Season leaderboard that pays out when the month ends. Leaderboards also rank Combat Power, Level, World Boss
   damage, dungeon speed, guild war wins and guilds. Festivals follow the calendar: the Harvest Moon (October to early
   November) brings Jackpuffs, the Pumpkin King, Moon Candy, pumpkin decorations in town and a festival shop with the
   Pumpkin Pip pet, orange fairy wings and a title. Winter Starlight (December) and Sakura Bloom (spring) work the same way.
@@ -313,13 +324,19 @@ Three.js loads from jsDelivr, so the first load needs an internet connection.
   own auctions.
 - **Bag**: 48 slots, expandable to 160 with Bag Expansion Scrolls, gold or diamonds. The Bag is a compact window
   (`Bag 22 / 48`) with tabs (All, Gear, Consume, Quest, Valuable, Others, Mats), six slots a row, a strip for the selected
-  item (Equip or Use, Sell, Lock; for gear also its Battle Rating, whether it beats what you wear, every stat that would
+  item (Equip or Use, Sell, Lock; for gear also its Combat Power, whether it beats what you wear, every stat that would
   change and its full stat list, so phones see everything a tooltip shows), a green arrow on gear better than what you
   wear (grey while you cannot wear it yet), **Sort** (gear first by rarity, then consumables, quest items and valuables) and
   **Sell All**, which sells everything up to a chosen rarity in one go (locked gear is always kept). Your Diamonds and
   Gold sit at the bottom beside a **Mall** button. Equipped gear is in the Character window (C).
-- **MMO systems**: Battle Rating, bag, auto-hit, auto potions, titles, daily sign-in, online gifts, a gold/diamond mall
+- **MMO systems**: Combat Power, bag, auto-hit, auto potions, titles, daily sign-in, online gifts, a gold/diamond mall
   (no XP or progress for sale), world and guild chat, minimap and world map.
+- **Daily sign-in streak**: the seven-day rewards follow your streak of days in a row; missing a day starts it over at
+  Day 1, and every 10th day in a row adds 150 Diamonds, 2 Lucky Tickets and 3 Star Essence.
+- **Star Wish**: a daily lottery wheel in the activities (top right). Two free wishes every day, then 30 Diamonds a
+  wish or 270 for ten. Twelve prizes sit around the board (Gold, Lucky Points and Tickets, Enhancement Stones, Star
+  Essence, a Lucky Charm, a Pet Egg, Diamonds) and the grand prize is the **Starlight Unicorn**, about 1 in 300; the
+  100th wish without it always brings it, and a second one becomes 300 Diamonds.
 - **Action bar and menu**: on computers a slim gold-framed tray runs along the bottom with the skill row (keys 1-7 and
   the Q/E potions with their counts) and the EXP strip; two small pills sit above it, Mount, Auto, Roll and Block on the
   left and the tool belt on the right. The menu is a compact grid of round icons with their hotkeys right under the
@@ -381,7 +398,7 @@ market buyers and auction bids are simulated, so those systems also work solo.
 | `js/data.js` | Monsters, pets, mounts, quests and other tables |
 | `js/data-classes.js`, `js/combat.js`, `js/combat-world.js` | Races, the eight classes and their skills; the skill book, loadout, rolls, blocks, parries and every skill's effect |
 | `js/models-hero.js`, `js/customizer.js` | Toy-style heroes and the character customizer (sliders, presets, share codes) |
-| `js/progress.js` | XP curve, masteries, trial walls, diminishing returns, discovery XP, soul markers, rested XP, explored-map grid, Battle Rating |
+| `js/progress.js` | XP curve, masteries, trial walls, diminishing returns, discovery XP, soul markers, rested XP, explored-map grid, Combat Power |
 | `js/data-trials.js`, `js/trials.js`, `js/ui-trials.js` | Breakthrough trials, sigils, cooking, auras and the Hall of Firsts |
 | `js/data-nav.js`, `js/nav-world.js` | Landmarks, waystones, spoken directions and journal, hidden ruins, lore books, survey maps, fair-play check |
 | `js/gear.js` | Mastery lock, durability and repairs, binding, gear glow, Ancient items, six-piece set powers and drops |
@@ -397,6 +414,8 @@ market buyers and auction bids are simulated, so those systems also work solo.
 | `js/gm.js`, `js/gm-config.js` | The Game Master hero: passcode, separate save, the GM editor and its powers |
 | `js/gmnet.js` | The Game Master's monsters on every player's screen: shared health, threat, kills and removal |
 | `js/drops.js` | Items dropped from the bag onto the ground for anyone to pick up |
+| `js/stars.js` | Attribute Stars: opening, awakening, tiers, re-rolls and their window |
+| `js/wish.js` | The Star Wish lottery: prizes, free and paid wishes, the sure Unicorn and the wheel |
 | `js/build.js`, `js/update.js` | The published version and the Update bar |
 | `js/mp.js`, `js/mp-config.js` | Real-time multiplayer over Supabase Realtime: other players, chat, Online panel |
 | `js/party.js` | Parties: invitations, party frame and chat, shared EXP, shared monsters (HP, fights, kills, respawns) |

@@ -1,5 +1,5 @@
 // Breakthrough trials: a solo instance at every 20-level wall (and the Final Ascension at 200) that tests one mechanic
-// with normalized stats, so gear and Battle Rating do not matter. A Trial Sigil, crafted at the Trial Warden from that
+// with normalized stats, so gear and Combat Power do not matter. A Trial Sigil, crafted at the Trial Warden from that
 // bracket's materials, opens one attempt; failing keeps your XP and mastery but uses the sigil. A clear grants a title,
 // an aura other players see, 3 skill points, and lets the waiting level-up through.
 // Also here: cooking at campfires (the only healing in the Hunger trial) and the server's first-clear board.

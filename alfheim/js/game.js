@@ -1,7 +1,7 @@
 // Core game: entities, input, camera, combat, AI, quests, inventory, loot, dungeons, pets, mounts and saving.
 import * as THREE from 'three';
 import {
-  CLASSES, MONSTERS, SPAWNS, ZONES, PETS, SPRITES, CLASS_SPRITE, MOUNTS, ITEMS, NPCS, TELEPORTS, QUESTS, BOUNTY_TARGETS, SIGNIN, ONLINE_GIFTS, MALL, DUNGEONS,
+  CLASSES, MONSTERS, SPAWNS, ZONES, PETS, SPRITES, CLASS_SPRITE, MOUNTS, ITEMS, NPCS, TELEPORTS, QUESTS, BOUNTY_TARGETS, SIGNIN, SIGNIN_BONUS, ONLINE_GIFTS, MALL, DUNGEONS,
   TITLES,
 } from './data.js';
 import { ARENA, TELEPORT_CIRCLE } from './world.js';
@@ -22,6 +22,8 @@ import { installAggro } from './aggro.js';
 import { installGm, GM_SAVE_KEY } from './gm.js';
 import { installGmNet } from './gmnet.js';
 import { installDrops } from './drops.js';
+import { installStars } from './stars.js';
+import { installWish } from './wish.js';
 import { installTrade } from './trade.js';
 import { installSocial, cleanFriends } from './social.js';
 import { installGuide, initGuideSave } from './guide.js';
@@ -48,7 +50,7 @@ import { STARTER_TOOLS } from './data-crafting.js';
 import { activeEvent } from './systems-data.js';
 import { Dungeon } from './dungeon.js';
 import {
-  RARITY, EFFECTS, rollRarity, genEquip, genNamed, genSet, namedBySource, normalizeItem, aggregateEquip, sellPrice, tierFor,
+  RARITY, rollRarity, genEquip, genNamed, genSet, namedBySource, normalizeItem, aggregateEquip, sellPrice, tierFor,
 } from './loot.js';
 import { ico, iconCanvas } from './icons.js';
 import { shadowTexture, textTexture, targetRingTexture, beamTexture, ringTexture, glowTexture } from './toon.js';
@@ -113,6 +115,9 @@ export function migrateSave(S) {
   initSystemsSave(S); initLifeSave(S); initEconomySave(S);
   S.friends = cleanFriends(S.friends);
   initGuideSave(S);
+  if (S.signin && S.signin.streak == null) S.signin.streak = (S.signin.count || 0) % 7; // the day shown before streaks
+  S.lucky = S.lucky || 0;
+  if (!S.wish || typeof S.wish !== 'object') S.wish = { day: '', free: 0, n: 0, pity: 0 };
   if (!S.quest || (!S.quest.id && S.quest.status === 'done' && !S.storyDone)) S.quest = { id: 'q11', status: 'available', prog: 0 }; // Chapter I used to end here
   S.v = 3;
   return S;
@@ -149,7 +154,7 @@ export class Game {
     this.initProgress();
     this.createPlayer();
     this.dzInit();
-    this.gmNetInit(); this.dropsInit();
+    this.gmNetInit(); this.dropsInit(); this.starsInit();
     let p = S.pos || { x: 0, z: 9 };
     if (Math.abs(p.x) > 380 || Math.abs(p.z) > 380) p = { x: 0, z: 9 };
     this.player.pos.set(p.x, this.world.heightAt(p.x, p.z), p.z);
@@ -371,6 +376,7 @@ export class Game {
     // passive class skills and race bonuses
     if (this.syncSkills().length && this.ui?.refreshSkills) this.ui.refreshSkills();
     const PA2 = this.pAgg = this.passiveAgg(), ps = PA2.stat;
+    this.addStarStats(ps); // Attribute Stars
     hp *= 1 + (ps.hpPct || 0) / 100; mp *= 1 + (ps.mpPct || 0) / 100; atk *= 1 + (ps.atkPct || 0) / 100; def *= 1 + (ps.defPct || 0) / 100;
     // gear percentages (set bonuses and Special passives)
     hp *= 1 + ((gs.hpPct || 0) + (gs.allPct || 0)) / 100; atk *= 1 + ((gs.atkPct || 0) + (gs.allPct || 0)) / 100; def *= 1 + ((gs.defPct || 0) + (gs.allPct || 0)) / 100; heal *= 1 + (gs.healPct || 0) / 100;
@@ -388,11 +394,9 @@ export class Game {
     p.maxHp = Math.round(hp); p.maxMp = Math.round(mp); p.atk = atk; p.def = def; p.crit = crit; p.critDmg = critDmg; p.baseSpeed = speed; p.level = L;
     p.hp = fill ? p.maxHp : Math.max(1, Math.round(p.maxHp * ratio)); p.mp = fill ? p.maxMp : Math.round(p.maxMp * mratio);
     this.healMod = heal; this.cdr = cdr;
-    const extras = (gs.critDmg || 0) * 4 + (gs.speed || 0) * 10 + (gs.lifesteal || 0) * 25 + (gs.cdr || 0) * 20 + (gs.expGain || 0) * 3 + (gs.goldFind || 0) * 2
-      + (gs.thorns || 0) * 6 + (gs.regen || 0) * 8 + (gs.manaCost || 0) * 6 + [...fxs].reduce((a, id) => a + (EFFECTS[id]?.tier === 'legendary' ? 900 : EFFECTS[id]?.tier === 'set' ? 700 : EFFECTS[id]?.tier === 'ancient' ? 1100 : 350), 0);
-    // Battle Rating (a guide only): level x 100 + item stats x tier multiplier + average mastery x 50
-    this.br = this.calcBR ? this.calcBR() : Math.round(p.maxHp * 0.55 + atk * 9 + def * 7);
-    void petBR; void spBR; void mountBR; void extras;
+    // Combat Power (a guide only): level x 100 + item stats x tier multiplier + average mastery x 50 + pet, sprite,
+    // mounts, guild and codex, and Attribute Stars
+    this.br = this.calcBR({ pet: petBR, sprite: spBR, mount: mountBR, system: X.br, stars: this.starCP() });
     if (this.refreshGearGlow && this.player) this.refreshGearGlow();
     if (this.refreshWeaponFx && this.player) this.refreshWeaponFx();
     this.ui.refreshPlayer && this.ui.refreshPlayer();
@@ -978,7 +982,7 @@ export class Game {
     const S = this.S;
     if (S.level >= MAX_LEVEL) return;
     S.exp += Math.max(0, n);
-    let leveled = false, block = null;
+    let leveled = false, block = null; const from = S.level;
     while (S.level < MAX_LEVEL && S.exp >= needExp(S.level)) {
       block = this.levelBlock(S.level);
       if (block) { S.exp = needExp(S.level); break; }
@@ -996,7 +1000,7 @@ export class Game {
       if (S.level === 100 && S.awaken == null) { this.ui.banner('AWAKENING', 'Choose your path in the Skills window (K)', 'level'); this.ui.markMenu('skills'); }
       if (this.skillPtsLeft() > 0) this.ui.markMenu('skills');
       if (S.level >= 10 && S.title < 3) { S.title = 3; this.refreshPlayerPlate(); }
-      this.questLevelUp();
+      this.questLevelUp(); this.starsLevelUp(from);
       if (S.level >= MAX_LEVEL) { this.unlockTitle('Legend of Hiraya'); this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached the maximum level ${MAX_LEVEL}!`); }
       else if (S.level % 25 === 0) this.ui.chat('announce', `<b>[Announcement]</b> ${esc(S.name)} reached Level ${S.level}!`);
       this.ui.refreshSkills();
@@ -1505,20 +1509,32 @@ export class Game {
   }
 
   // ============================================================== activities
+  // days signed in a row that still count today (a missed day starts the streak over at Day 1)
+  signinStreak() {
+    const s = this.S.signin, y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    return s.last === today() || s.last === y ? s.streak || 0 : 0;
+  }
   claimSignin() {
     const S = this.S;
     if (S.signin.last === today()) { this.ui.toast('Already claimed today — come back tomorrow!', 'warn'); return; }
-    const r = SIGNIN[S.signin.count % 7];
-    S.signin.count++; S.signin.last = today();
+    const broke = (S.signin.streak || 0) > 0 && !this.signinStreak(), streak = this.signinStreak();
+    const r = SIGNIN[streak % 7];
+    S.signin.count++; S.signin.streak = streak + 1; S.signin.last = today();
     this.grant(r);
-    this.ui.toast(`Day ${r.day} reward: ${r.label}`, 'good'); this.sfx.play('quest');
+    this.ui.toast(`${broke ? 'A day was missed, so the streak started over. ' : ''}Day ${r.day} reward: ${r.label}`, broke ? 'warn' : 'good'); this.sfx.play('quest');
+    if (S.signin.streak % SIGNIN_BONUS.every === 0) {
+      this.grant(SIGNIN_BONUS);
+      this.ui.banner(`${S.signin.streak}-DAY STREAK!`, SIGNIN_BONUS.label, 'loot5'); this.sfx.play('legend');
+    }
     this.ui.refreshPanel(); this.ui.refreshActs(); this.save();
   }
   grant(r) {
     const S = this.S;
     if (r.gold) S.gold += r.gold;
     if (r.diamonds) S.diamonds += r.diamonds;
+    if (r.lucky) S.lucky = (S.lucky || 0) + r.lucky;
     if (r.items) for (const [id, q] of r.items) this.addItem(id, q);
+    if (r.mats) for (const [id, q] of r.mats) this.addMat(id, q, true);
     if (r.pet) { if (S.pets[r.pet]) { S.gold += 1000; this.ui.toast('Duplicate pet converted to 1,000 Gold', 'good'); } else this.gainPet(r.pet); }
     if (r.mount) { if (S.mounts.includes(r.mount)) S.gold += 2000; else this.gainMount(r.mount); }
     this.ui.refreshWallet();
@@ -2401,6 +2417,8 @@ installAggro(Game);
 installGm(Game);
 installGmNet(Game);
 installDrops(Game);
+installStars(Game);
+installWish(Game);
 installTrade(Game);
 installSocial(Game);
 installGuide(Game);
