@@ -345,6 +345,15 @@ button { font-family: inherit; }
 .slot .lk { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; font-family: var(--f-num); font-weight: 400; background: rgba(0, 0, 0, .5); z-index: 3; }
 .slot.nomp { box-shadow: inset 0 0 0 40px rgba(20, 40, 160, .45); }
 .slot.potion { width: 44px; height: 44px; font-size: 22px; }
+/* the second skill page (⇅): swaps the six skills on the bar */
+.slot.pageb { width: 30px; align-content: center; gap: 1px; color: var(--gold); font-size: 13px; }
+.slot.pageb svg { width: 18px; height: 18px; }
+.slot.pageb b { font-family: var(--f-num); font-weight: 400; line-height: 1; color: #fff; }
+.sk-page { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.sk-page > span { width: 58px; color: var(--muted); font-size: 12px; font-weight: 800; line-height: 1.1; }
+.sk-page > span small { display: block; color: var(--gold); font-size: 10px; }
+.sk-page.on > span { color: var(--ink); }
+.sk-page > .btn { margin-left: auto; }
 .side-btns { display: flex; gap: 8px; align-items: flex-end; }
 #hud-bar .side-btns { position: absolute; right: 0; bottom: calc(100% + 8px); }
 .toolbelt { display: flex; gap: 4px; padding: 4px 6px; border-radius: 10px; background: linear-gradient(180deg, rgba(40, 30, 20, .9), rgba(20, 14, 8, .9)); border: 2px solid var(--gold-d); box-shadow: 0 4px 12px rgba(0, 0, 0, .45); }
@@ -1571,6 +1580,9 @@ html.uiz #hud, html.uiz #panels, html.uiz #dialog, html.uiz #modal, html.uiz #to
   #hud #hud-stick { overflow: visible; }
   #hud #hud-stick::before { content: ''; position: absolute; inset: -22px; border-radius: 50%; }
   #hud #hud-bar #btn-attack:active { transform: scale(.94); }
+  #hud #hud-bar #skill-page { position: absolute; right: 160px; bottom: 222px; width: 38px; height: 38px; border-radius: 50%; border-width: 2px; gap: 0; box-shadow: 0 3px 8px rgba(0, 0, 0, .5); }
+  #hud #hud-bar #skill-page svg { width: 16px; height: 16px; }
+  #hud #hud-bar #skill-page b { font-size: 11px; }
   #hud #hud-bar .side-btns { position: absolute; left: 16px; right: auto; bottom: 162px; display: flex; flex-direction: row; gap: 8px; padding: 0; background: none; border: 0; box-shadow: none; }
   #hud #hud-bar .big-rbtn { width: 40px; height: 40px; border-width: 2px; font-size: 16px; }
   #hud #hud-bar .big-rbtn small { display: none; }
@@ -1647,6 +1659,7 @@ html.uiz #hud, html.uiz #panels, html.uiz #dialog, html.uiz #modal, html.uiz #to
   #hud #skillbar .slot:nth-child(7) { right: 37px; bottom: 207px; }
   #hud #skillbar .slot:nth-child(8) { right: 41px; bottom: 271px; }
   #hud #skillbar .slot:nth-child(9) { right: 124px; bottom: 251px; }
+  #hud #hud-bar #skill-page { right: 175px; bottom: 242px; width: 40px; height: 40px; }
   #hud #hud-bar .side-btns { bottom: 182px; }
   #hud #hud-bar .toolbelt { bottom: 230px; }
   #hud #chat-toggle { bottom: 278px; }
@@ -1778,6 +1791,7 @@ html.uiz #hud, html.uiz #panels, html.uiz #dialog, html.uiz #modal, html.uiz #to
     <div id="hud-bar">
       <div id="ctl-guard"></div>
       <div class="toolbelt" id="toolbelt"></div>
+      <button class="slot pageb" id="skill-page" title="Switch skill page ([ or ])" aria-label="Switch skill page"></button>
       <div class="skillbar" id="skillbar"></div>
       <div class="side-btns">
         <button class="big-rbtn" id="btn-mount" title="Mount (R)"><small>Mount</small></button>
